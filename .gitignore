@@ -8,6 +8,7 @@ coverage/
 .vscode/
 .idea/
 *.tsbuildinfo
+*.bat
 
 # Claude Code internal files (conversation history, memory, etc.)
 .claude/

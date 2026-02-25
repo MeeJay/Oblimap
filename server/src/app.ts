@@ -5,6 +5,16 @@ import cookieParser from 'cookie-parser';
 import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
 import path from 'path';
+import { readFileSync } from 'fs';
+import { join } from 'path';
+
+// Read server version from package.json at startup.
+// process.cwd() is the server directory in both dev (npx tsx) and Docker (WORKDIR /app/server).
+let serverVersion = 'dev';
+try {
+  const pkg = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8')) as { version: string };
+  serverVersion = pkg.version;
+} catch { /* ignore */ }
 import { config } from './config';
 import { errorHandler } from './middleware/errorHandler';
 import { apiLimiter } from './middleware/rateLimiter';
@@ -52,9 +62,9 @@ export function createApp() {
   // API routes
   app.use('/api', routes);
 
-  // Health check
+  // Health check (public — also used by login page to display server version)
   app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+    res.json({ status: 'ok', version: serverVersion, timestamp: new Date().toISOString() });
   });
 
   // Serve static client build in production

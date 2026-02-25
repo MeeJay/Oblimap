@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import { MONITOR_TYPES } from '@obliview/shared';
 
+const MIN_CHECK_INTERVAL = Math.max(1, parseInt(process.env.MIN_CHECK_INTERVAL ?? '10', 10));
+const MIN_RETRY_INTERVAL = Math.max(1, parseInt(process.env.MIN_RETRY_INTERVAL ?? '5', 10));
+
 export const createMonitorSchema = z.object({
   name: z.string().min(1).max(255),
   description: z.string().max(2000).nullable().optional(),
@@ -9,8 +12,8 @@ export const createMonitorSchema = z.object({
   isActive: z.boolean().optional(),
 
   // Common config
-  intervalSeconds: z.number().int().min(10).max(86400).nullable().optional(),
-  retryIntervalSeconds: z.number().int().min(5).max(3600).nullable().optional(),
+  intervalSeconds: z.number().int().min(MIN_CHECK_INTERVAL).max(86400).nullable().optional(),
+  retryIntervalSeconds: z.number().int().min(MIN_RETRY_INTERVAL).max(3600).nullable().optional(),
   maxRetries: z.number().int().min(0).max(20).nullable().optional(),
   timeoutMs: z.number().int().min(1000).max(60000).nullable().optional(),
   upsideDown: z.boolean().optional(),

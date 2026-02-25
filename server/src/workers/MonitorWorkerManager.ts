@@ -142,11 +142,21 @@ export class MonitorWorkerManager {
       name: monitor.name,
       type: monitor.type,
       groupId: monitor.groupId,
-      // Use monitor-specific values if set, otherwise use resolved inherited settings
-      intervalSeconds: monitor.intervalSeconds ?? resolved[SETTINGS_KEYS.CHECK_INTERVAL].value,
-      retryIntervalSeconds: monitor.retryIntervalSeconds ?? resolved[SETTINGS_KEYS.RETRY_INTERVAL].value,
-      maxRetries: monitor.maxRetries ?? resolved[SETTINGS_KEYS.MAX_RETRIES].value,
-      timeoutMs: monitor.timeoutMs ?? resolved[SETTINGS_KEYS.TIMEOUT].value,
+      // Priority: settings-table (monitor/group/global) > monitor direct field > hardcoded default
+      // If a group/global has set a value in the settings table, it wins over monitor.intervalSeconds.
+      // The monitor's direct field only applies when no settings override exists at any level ('default').
+      intervalSeconds: resolved[SETTINGS_KEYS.CHECK_INTERVAL].source !== 'default'
+        ? resolved[SETTINGS_KEYS.CHECK_INTERVAL].value
+        : (monitor.intervalSeconds ?? resolved[SETTINGS_KEYS.CHECK_INTERVAL].value),
+      retryIntervalSeconds: resolved[SETTINGS_KEYS.RETRY_INTERVAL].source !== 'default'
+        ? resolved[SETTINGS_KEYS.RETRY_INTERVAL].value
+        : (monitor.retryIntervalSeconds ?? resolved[SETTINGS_KEYS.RETRY_INTERVAL].value),
+      maxRetries: resolved[SETTINGS_KEYS.MAX_RETRIES].source !== 'default'
+        ? resolved[SETTINGS_KEYS.MAX_RETRIES].value
+        : (monitor.maxRetries ?? resolved[SETTINGS_KEYS.MAX_RETRIES].value),
+      timeoutMs: resolved[SETTINGS_KEYS.TIMEOUT].source !== 'default'
+        ? resolved[SETTINGS_KEYS.TIMEOUT].value
+        : (monitor.timeoutMs ?? resolved[SETTINGS_KEYS.TIMEOUT].value),
       upsideDown: monitor.upsideDown,
       // Pass all monitor properties for type-specific workers
       url: monitor.url,

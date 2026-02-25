@@ -27,10 +27,10 @@ export function MonitorEditPage() {
     type: 'http' as MonitorType,
     url: '',
     method: 'GET',
-    intervalSeconds: 60,
-    timeoutMs: 5000,
-    maxRetries: 3,
-    retryIntervalSeconds: 20,
+    intervalSeconds: null,   // null = inherit from group/global settings
+    timeoutMs: null,
+    maxRetries: null,
+    retryIntervalSeconds: null,
     expectedStatusCodes: [200, 201, 204],
   };
 
@@ -600,30 +600,36 @@ export function MonitorEditPage() {
             <Input
               label="Check Interval (seconds)"
               type="number"
-              value={form.intervalSeconds ?? 60}
+              min={1}
+              max={86400}
+              value={form.intervalSeconds ?? ''}
               onChange={(e) => updateField('intervalSeconds', parseInt(e.target.value, 10) || null)}
-              placeholder="60"
+              placeholder="inherited (60)"
             />
             <Input
               label="Timeout (ms)"
               type="number"
-              value={form.timeoutMs ?? 5000}
+              min={1000}
+              max={60000}
+              value={form.timeoutMs ?? ''}
               onChange={(e) => updateField('timeoutMs', parseInt(e.target.value, 10) || null)}
-              placeholder="5000"
+              placeholder="inherited (5000)"
             />
             <Input
               label="Retry Interval (seconds)"
               type="number"
-              value={form.retryIntervalSeconds ?? 20}
+              min={1}
+              max={3600}
+              value={form.retryIntervalSeconds ?? ''}
               onChange={(e) => updateField('retryIntervalSeconds', parseInt(e.target.value, 10) || null)}
-              placeholder="20"
+              placeholder="inherited (20)"
             />
             <Input
               label="Max Retries"
               type="number"
-              value={form.maxRetries ?? 3}
+              value={form.maxRetries ?? ''}
               onChange={(e) => updateField('maxRetries', parseInt(e.target.value, 10) || null)}
-              placeholder="3"
+              placeholder="inherited (3)"
             />
           </div>
 

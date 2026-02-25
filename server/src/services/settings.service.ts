@@ -41,6 +41,16 @@ export const settingsService = {
       throw new Error(`Value for ${key} must be between ${def.min} and ${def.max}`);
     }
 
+    // Admin policy: enforce MIN_CHECK_INTERVAL / MIN_RETRY_INTERVAL env vars
+    const minCheckInterval = Math.max(1, parseInt(process.env.MIN_CHECK_INTERVAL ?? '10', 10));
+    if (key === SETTINGS_KEYS.CHECK_INTERVAL && value < minCheckInterval) {
+      throw new Error(`Check interval must be at least ${minCheckInterval}s (admin policy)`);
+    }
+    const minRetryInterval = Math.max(1, parseInt(process.env.MIN_RETRY_INTERVAL ?? '5', 10));
+    if (key === SETTINGS_KEYS.RETRY_INTERVAL && value < minRetryInterval) {
+      throw new Error(`Retry interval must be at least ${minRetryInterval}s (admin policy)`);
+    }
+
     await db('settings')
       .insert({
         scope,

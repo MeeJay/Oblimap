@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { Button } from '@/components/common/Button';
@@ -10,6 +10,14 @@ export function LoginPage() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [serverVersion, setServerVersion] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/health')
+      .then((r) => r.json())
+      .then((data: { version?: string }) => setServerVersion(data.version ?? null))
+      .catch(() => { /* ignore */ });
+  }, []);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -25,7 +33,7 @@ export function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-bg-primary p-4">
-      <div className="w-full max-w-sm space-y-8">
+      <div className="w-full max-w-sm space-y-8 relative">
         {/* Logo / Title */}
         <div className="text-center">
           <img src="/logo.webp" alt="Obliview" className="mx-auto h-16 w-16 mb-3" />
@@ -78,6 +86,12 @@ export function LoginPage() {
           </Button>
         </form>
       </div>
+
+      {/* Version footer */}
+      <p className="fixed bottom-3 left-0 right-0 text-center text-xs text-text-secondary/50 select-none">
+        client v{__APP_VERSION__}
+        {serverVersion && ` · server v${serverVersion}`}
+      </p>
     </div>
   );
 }

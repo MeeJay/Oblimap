@@ -28,7 +28,7 @@ export const SETTINGS_DEFINITIONS: SettingDefinition[] = [
     type: 'number',
     unit: 'seconds',
     default: 60,
-    min: 10,
+    min: 1,
     max: 86400,
   },
   {
@@ -38,7 +38,7 @@ export const SETTINGS_DEFINITIONS: SettingDefinition[] = [
     type: 'number',
     unit: 'seconds',
     default: 20,
-    min: 5,
+    min: 1,
     max: 3600,
   },
   {
