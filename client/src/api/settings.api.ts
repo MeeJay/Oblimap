@@ -27,6 +27,14 @@ export const settingsApi = {
     await apiClient.put(`/settings/${scope}/${scopeId}`, { key, value });
   },
 
+  async setBulk(
+    scope: SettingsScope,
+    scopeId: string,
+    overrides: Array<{ key: SettingsKey; value: number }>,
+  ): Promise<void> {
+    await apiClient.put(`/settings/${scope}/${scopeId}/bulk`, { overrides });
+  },
+
   async remove(scope: SettingsScope, scopeId: string, key: SettingsKey): Promise<void> {
     await apiClient.delete(`/settings/${scope}/${scopeId}/${key}`);
   },

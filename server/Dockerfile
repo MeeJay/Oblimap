@@ -36,6 +36,16 @@ RUN cd server && npm install --omit=dev
 
 COPY --from=builder /app/server/dist/ ./server/dist/
 
+# Agent files (served for download/installer endpoints)
+COPY agent/package.json ./agent/
+COPY agent/src/index.js ./agent/src/
+COPY agent/installer/ ./agent/installer/
+
+# Pre-built Windows MSI — build on Windows with: cd agent && build-msi.bat
+# Requires: dotnet tool install --global wix, then npm install -g pkg
+# Place agent/dist/obliview-agent.msi before running docker compose build.
+COPY agent/dist/ ./agent/dist/
+
 # Entrypoint: symlinks /root/.ssh → /custom/.ssh if it exists,
 # so SSH keys and known_hosts persist across container recreates.
 COPY server/docker-entrypoint.sh /entrypoint.sh

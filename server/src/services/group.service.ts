@@ -10,6 +10,7 @@ interface GroupRow {
   sort_order: number;
   is_general: boolean;
   group_notifications: boolean;
+  kind: string;
   created_at: Date;
   updated_at: Date;
 }
@@ -24,6 +25,7 @@ function rowToGroup(row: GroupRow): MonitorGroup {
     sortOrder: row.sort_order,
     isGeneral: row.is_general,
     groupNotifications: row.group_notifications,
+    kind: (row.kind as MonitorGroup['kind']) || 'monitor',
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };

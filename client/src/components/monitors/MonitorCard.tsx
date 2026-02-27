@@ -39,13 +39,16 @@ export function MonitorCard({
         'group flex items-center gap-3 rounded-lg border border-border p-3 transition-colors',
         'hover:bg-bg-hover hover:border-border-light',
         selected && 'border-accent bg-bg-tertiary',
+        selectionMode && 'cursor-pointer',
       )}
+      onClick={selectionMode ? () => onSelect?.(monitor.id) : undefined}
     >
       {selectionMode && (
         <input
           type="checkbox"
           checked={selected}
           onChange={() => onSelect?.(monitor.id)}
+          onClick={(e) => e.stopPropagation()}
           className="h-4 w-4 rounded border-border bg-bg-tertiary text-accent focus:ring-accent"
         />
       )}
@@ -53,6 +56,7 @@ export function MonitorCard({
       <Link
         to={`/monitor/${monitor.id}`}
         className="flex flex-1 items-center gap-3 min-w-0"
+        onClick={selectionMode ? (e) => e.preventDefault() : undefined}
       >
         <MonitorStatusBadge status={monitor.status} size="sm" />
 

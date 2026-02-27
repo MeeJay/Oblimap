@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Obliview Agent - Windows MSI Installer
+  Built with WiX v4 Toolset on Windows.
+
+  Prerequisites (one-time setup):
+    dotnet tool install -g wix
+
+  Build (from agent/ directory):
+    build-msi.bat
+
+  Install command:
+    msiexec /i obliview-agent.msi SERVERURL="https://..." APIKEY="your-key" /quiet
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="Obliview Agent"
+           Manufacturer="Obliview"
+           Version="1.0.0"
+           Language="1033"
+           UpgradeCode="3A7B2C1D-4E5F-6789-ABCD-EF0123456789">
+
+    <!-- Clean upgrade: uninstalls older version before installing newer one -->
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Obliview Agent is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Properties passed via: msiexec /i ... SERVERURL="..." APIKEY="..." -->
+    <Property Id="SERVERURL" Secure="yes" />
+    <Property Id="APIKEY" Secure="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="ObliviewAgent">
+
+        <!-- Agent exe + Windows service (ServiceInstall is native WiX v4 on Windows) -->
+        <Component Id="AgentExe" Guid="A1B2C3D4-E5F6-7890-ABCD-EF1234560001">
+          <File Source="dist\obliview-agent-win.exe" Name="obliview-agent.exe" />
+          <ServiceInstall Id="AgentSvc"
+                          Name="ObliviewAgent"
+                          DisplayName="Obliview Monitoring Agent"
+                          Description="Sends system metrics to the Obliview monitoring platform."
+                          Start="auto"
+                          Type="ownProcess"
+                          Account="LocalSystem"
+                          ErrorControl="normal" />
+          <!-- Start on install, stop+remove on uninstall -->
+          <ServiceControl Id="AgentSvcStart" Name="ObliviewAgent" Start="install" />
+          <ServiceControl Id="AgentSvcStop"  Name="ObliviewAgent" Stop="both" Remove="uninstall" />
+        </Component>
+
+        <!--
+          Registry config: [SERVERURL] and [APIKEY] are expanded by the MSI engine at
+          install time (standard MSI property substitution).
+          The agent reads these values on first run if config.json is absent.
+        -->
+        <Component Id="AgentConfig" Guid="B2C3D4E5-F6A7-8901-BCDE-EF1234560002">
+          <RegistryValue Root="HKLM" Key="SOFTWARE\ObliviewAgent"
+                         Name="ServerUrl" Type="string" Value="[SERVERURL]" KeyPath="yes" />
+          <RegistryValue Root="HKLM" Key="SOFTWARE\ObliviewAgent"
+                         Name="ApiKey"    Type="string" Value="[APIKEY]" />
+        </Component>
+
+      </Directory>
+    </StandardDirectory>
+
+    <Feature Id="Main">
+      <ComponentRef Id="AgentExe" />
+      <ComponentRef Id="AgentConfig" />
+    </Feature>
+
+  </Package>
+</Wix>

@@ -15,6 +15,7 @@ import { ScriptMonitorWorker } from './ScriptMonitorWorker';
 import { JsonApiMonitorWorker } from './JsonApiMonitorWorker';
 import { BrowserMonitorWorker } from './BrowserMonitorWorker';
 import { ValueWatcherMonitorWorker } from './ValueWatcherMonitorWorker';
+import { AgentMonitorWorker } from './AgentMonitorWorker';
 import { monitorService } from '../services/monitor.service';
 import { settingsService } from '../services/settings.service';
 import { groupNotificationService } from '../services/groupNotification.service';
@@ -36,6 +37,7 @@ const WORKER_REGISTRY: Record<string, WorkerConstructor> = {
   json_api: JsonApiMonitorWorker,
   browser: BrowserMonitorWorker,
   value_watcher: ValueWatcherMonitorWorker,
+  agent: AgentMonitorWorker,
 };
 
 export class MonitorWorkerManager {
@@ -200,6 +202,12 @@ export class MonitorWorkerManager {
       valueWatcherThresholdMax: monitor.valueWatcherThresholdMax,
       valueWatcherPreviousValue: monitor.valueWatcherPreviousValue,
       valueWatcherHeaders: monitor.valueWatcherHeaders,
+      // Agent Monitor
+      agentDeviceId: monitor.agentDeviceId,
+      agentMetric: monitor.agentMetric,
+      agentMount: monitor.agentMount,
+      agentThreshold: monitor.agentThreshold,
+      agentThresholdOp: monitor.agentThresholdOp,
     };
   }
 }

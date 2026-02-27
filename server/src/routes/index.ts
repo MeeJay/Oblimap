@@ -8,6 +8,7 @@ import heartbeatRoutes from './heartbeat.routes';
 import usersRoutes from './users.routes';
 import profileRoutes from './profile.routes';
 import teamsRoutes from './teams.routes';
+import agentRoutes from './agent.routes';
 
 const router = Router();
 
@@ -20,5 +21,6 @@ router.use('/heartbeat', heartbeatRoutes);
 router.use('/users', usersRoutes);
 router.use('/profile', profileRoutes);
 router.use('/teams', teamsRoutes);
+router.use('/agent', agentRoutes);
 
 export { router as routes };

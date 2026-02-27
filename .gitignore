@@ -1,5 +1,8 @@
 node_modules/
 dist/
+!agent/dist/
+agent/dist/*.exe
+agent/dist/*.msi
 .env
 *.log
 .DS_Store

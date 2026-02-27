@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useSocket } from '@/hooks/useSocket';
 import { monitorsApi } from '@/api/monitors.api';
 import { MonitorCard } from '@/components/monitors/MonitorCard';
+import { BulkEditModal } from '@/components/monitors/BulkEditModal';
 import { estimateMaxBars } from '@/components/monitors/HeartbeatBar';
 import { Button } from '@/components/common/Button';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
@@ -65,6 +66,7 @@ export function DashboardPage() {
   const { tree, fetchTree } = useGroupStore();
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const [overallUptime, setOverallUptime] = useState<number | null>(null);
   const [overallAvgRt, setOverallAvgRt] = useState<number | null>(null);
 
@@ -272,7 +274,7 @@ export function DashboardPage() {
           <span className="text-sm text-text-secondary">
             {selectedIds.size} monitor{selectedIds.size > 1 ? 's' : ''} selected
           </span>
-          <Button variant="secondary" size="sm">
+          <Button variant="secondary" size="sm" onClick={() => setBulkEditOpen(true)}>
             Edit Selected
           </Button>
           <Button variant="secondary" size="sm">
@@ -345,6 +347,14 @@ export function DashboardPage() {
         <div className="py-12 text-center">
           <p className="text-text-muted">No monitors found</p>
         </div>
+      )}
+
+      {/* Bulk edit modal */}
+      {bulkEditOpen && (
+        <BulkEditModal
+          monitorIds={Array.from(selectedIds)}
+          onClose={() => setBulkEditOpen(false)}
+        />
       )}
     </div>
   );

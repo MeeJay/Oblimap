@@ -12,6 +12,7 @@ export const MONITOR_TYPES = [
   'json_api',
   'browser',
   'value_watcher',
+  'agent',
 ] as const;
 
 export type MonitorType = (typeof MONITOR_TYPES)[number];
@@ -33,6 +34,7 @@ export const MONITOR_TYPE_LABELS: Record<MonitorType, string> = {
   json_api: 'JSON API',
   browser: 'Browser (Playwright)',
   value_watcher: 'Value Watcher',
+  agent: 'Agent Monitor',
 };
 
 export const USER_ROLES = ['admin', 'user'] as const;

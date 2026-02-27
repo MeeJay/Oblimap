@@ -100,6 +100,13 @@ export interface Monitor {
   valueWatcherPreviousValue: string | null;
   valueWatcherHeaders: Record<string, string> | null;
 
+  // Agent Monitor
+  agentDeviceId: number | null;
+  agentMetric: string | null;      // cpu_percent | memory_percent | disk_percent | network_in_bytes | network_out_bytes | load_avg
+  agentMount: string | null;       // disk mount point: "/" or "C:"
+  agentThreshold: number | null;
+  agentThresholdOp: string | null; // '>' | '<' | '>=' | '<='
+
   // Metadata
   createdBy: number | null;
   createdAt: string;
@@ -146,6 +153,7 @@ export interface MonitorGroup {
   sortOrder: number;
   isGeneral: boolean;
   groupNotifications: boolean;
+  kind: 'monitor' | 'agent';
   createdAt: string;
   updatedAt: string;
 }
@@ -362,4 +370,39 @@ export interface LoginRequest {
 
 export interface LoginResponse {
   user: User;
+}
+
+// ============================================
+// Agent types
+// ============================================
+export interface AgentApiKey {
+  id: number;
+  name: string;
+  key: string;
+  createdBy: number | null;
+  createdAt: string;
+  lastUsedAt: string | null;
+  deviceCount?: number;
+}
+
+export interface AgentDevice {
+  id: number;
+  uuid: string;
+  hostname: string;
+  ip: string | null;
+  osInfo: {
+    platform: string;
+    distro: string | null;
+    release: string | null;
+    arch: string;
+  } | null;
+  agentVersion: string | null;
+  apiKeyId: number | null;
+  status: 'pending' | 'approved' | 'refused';
+  checkIntervalSeconds: number;
+  approvedBy: number | null;
+  approvedAt: string | null;
+  groupId: number | null;
+  createdAt: string;
+  updatedAt: string;
 }
