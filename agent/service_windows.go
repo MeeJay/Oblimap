@@ -4,6 +4,8 @@ package main
 
 import (
 	"log"
+	"os"
+	"path/filepath"
 
 	"golang.org/x/sys/windows/svc"
 )
@@ -15,6 +17,13 @@ type agentSvc struct {
 
 // Execute implements svc.Handler — called by the Windows SCM when the service starts.
 func (s *agentSvc) Execute(_ []string, r <-chan svc.ChangeRequest, status chan<- svc.Status) (bool, uint32) {
+	// In service mode, stderr goes to NUL — redirect log to a file so it's readable.
+	// Log file: C:\ProgramData\ObliviewAgent\agent.log
+	logPath := filepath.Join(configDir, "agent.log")
+	if f, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644); err == nil {
+		log.SetOutput(f)
+	}
+
 	status <- svc.Status{State: svc.StartPending}
 
 	cfg := setupConfig(*s.urlFlag, *s.keyFlag)

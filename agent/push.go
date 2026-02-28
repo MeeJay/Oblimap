@@ -17,8 +17,9 @@ type pushBody struct {
 }
 
 type pushResponse struct {
-	Status string `json:"status"`
-	Config *struct {
+	Status        string `json:"status"`
+	LatestVersion string `json:"latestVersion,omitempty"` // piggybacked version info
+	Config        *struct {
 		CheckIntervalSeconds int `json:"checkIntervalSeconds"`
 	} `json:"config,omitempty"`
 }
@@ -71,12 +72,19 @@ func push(cfg *Config) {
 			log.Printf("Check interval updated to %ds", cfg.CheckIntervalSeconds)
 		}
 		log.Printf("Push OK")
+		// Version piggybacked on push response — update without an extra round-trip.
+		if result.LatestVersion != "" {
+			applyUpdateIfNewer(cfg, result.LatestVersion)
+		}
 
 	case 202:
 		log.Printf("Device pending approval...")
 		if result.Config != nil && result.Config.CheckIntervalSeconds > 0 {
 			cfg.CheckIntervalSeconds = result.Config.CheckIntervalSeconds
 			_ = saveConfig(cfg)
+		}
+		if result.LatestVersion != "" {
+			applyUpdateIfNewer(cfg, result.LatestVersion)
 		}
 
 	case 401:

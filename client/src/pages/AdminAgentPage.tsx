@@ -21,6 +21,7 @@ import {
 import type { AgentApiKey, AgentDevice, MonitorGroup } from '@obliview/shared';
 import { agentApi } from '@/api/agent.api';
 import { groupsApi } from '@/api/groups.api';
+import { getSocket } from '@/socket/socketClient';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import toast from 'react-hot-toast';
@@ -426,6 +427,22 @@ export function AdminAgentPage() {
     loadAll();
     loadGroups();
   }, [loadAll, loadGroups]);
+
+  // Keep agentVersion column in sync with live pushes (no REST round-trip needed)
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+    const handler = (data: { deviceId: number; agentVersion?: string }) => {
+      if (!data.agentVersion) return;
+      setDevices(prev => prev.map(d =>
+        d.id === data.deviceId && d.agentVersion !== data.agentVersion
+          ? { ...d, agentVersion: data.agentVersion! }
+          : d,
+      ));
+    };
+    socket.on('agentPush', handler);
+    return () => { socket.off('agentPush', handler); };
+  }, []);
 
   const filteredDevices = deviceFilter === 'all'
     ? devices

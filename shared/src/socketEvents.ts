@@ -26,6 +26,9 @@ export const SOCKET_EVENTS = {
   // Incident events
   INCIDENT_CREATED: 'incident:created',
   INCIDENT_RESOLVED: 'incident:resolved',
+
+  // Agent device events
+  AGENT_DEVICE_UPDATED: 'agent:deviceUpdated',
 } as const;
 
 // Client → Server events

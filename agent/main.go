@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -16,7 +17,10 @@ import (
 	"time"
 )
 
-const agentVersion = "1.1.0"
+// agentVersion is injected at build time via:
+//   go build -ldflags="-X main.agentVersion=x.y.z"
+// The agent/VERSION file is the single source of truth — no need to edit this file.
+var agentVersion = "dev"
 
 var (
 	configDir  string
@@ -174,25 +178,17 @@ func isStrictlyNewer(remote, current string) bool {
 	return rPatch > cPatch
 }
 
-// ── Auto-update (Linux / macOS only) ──────────────────────────────────────────
+// ── Auto-update ───────────────────────────────────────────────────────────────
 
-// checkForUpdate fetches the latest version from the server. If a newer
-// version is available it downloads the appropriate binary, replaces the
-// running executable and exits so that the service manager (systemd/launchd)
-// restarts it automatically.
-// On Windows the MSI installer is the authoritative update mechanism, so this
-// function is a no-op on that platform.
+// checkForUpdate calls GET /api/agent/version once (at startup) and delegates
+// to applyUpdateIfNewer. During normal operation the version is piggybacked
+// on every push response, so this startup check just handles the initial boot.
 func checkForUpdate(cfg *Config) {
-	if runtime.GOOS == "windows" {
-		return
-	}
-
 	type versionResponse struct {
 		Version string `json:"version"`
 	}
 
 	client := &http.Client{Timeout: 15 * time.Second}
-
 	resp, err := client.Get(cfg.ServerURL + "/api/agent/version")
 	if err != nil {
 		log.Printf("Auto-update: version check failed: %v", err)
@@ -205,20 +201,39 @@ func checkForUpdate(cfg *Config) {
 		return
 	}
 
-	if !isStrictlyNewer(info.Version, agentVersion) {
-		log.Printf("Auto-update: already up to date (v%s, server reports v%s)", agentVersion, info.Version)
+	applyUpdateIfNewer(cfg, info.Version)
+}
+
+// applyUpdateIfNewer downloads and applies an update when remoteVersion is
+// strictly newer than the running agentVersion. Safe to call from push()
+// (periodic) and checkForUpdate (startup) — exits/restarts if an update is
+// applied, returns immediately if already up to date or on any error.
+func applyUpdateIfNewer(cfg *Config, remoteVersion string) {
+	if !isStrictlyNewer(remoteVersion, agentVersion) {
 		return
 	}
 
-	log.Printf("Auto-update: new version available %s → %s, downloading...", agentVersion, info.Version)
+	log.Printf("Auto-update: new version available %s → %s, downloading...", agentVersion, remoteVersion)
 
-	filename := fmt.Sprintf("obliview-agent-%s-%s", runtime.GOOS, runtime.GOARCH)
+	// Windows binary has no platform suffix (obliview-agent.exe vs obliview-agent-os-arch).
+	var filename string
+	if runtime.GOOS == "windows" {
+		filename = "obliview-agent.exe"
+	} else {
+		filename = fmt.Sprintf("obliview-agent-%s-%s", runtime.GOOS, runtime.GOARCH)
+	}
+
+	client := &http.Client{Timeout: 60 * time.Second} // larger timeout for binary download
 	dlResp, err := client.Get(cfg.ServerURL + "/api/agent/download/" + filename)
-	if err != nil || dlResp.StatusCode != 200 {
-		log.Printf("Auto-update: download failed (status %d): %v", dlResp.StatusCode, err)
+	if err != nil {
+		log.Printf("Auto-update: download request failed: %v", err)
 		return
 	}
 	defer dlResp.Body.Close()
+	if dlResp.StatusCode != 200 {
+		log.Printf("Auto-update: download failed (HTTP %d)", dlResp.StatusCode)
+		return
+	}
 
 	exePath, err := os.Executable()
 	if err != nil {
@@ -241,14 +256,49 @@ func checkForUpdate(cfg *Config) {
 	}
 	f.Close()
 
-	if err := os.Rename(tmpPath, exePath); err != nil {
-		os.Remove(tmpPath)
-		log.Printf("Auto-update: rename failed: %v", err)
-		return
+	if runtime.GOOS == "windows" {
+		// On Windows we cannot overwrite a running exe directly.
+		// Write a batch script that waits for the service to stop,
+		// moves the new binary in place, then restarts the service.
+		if err := applyWindowsUpdate(exePath, tmpPath); err != nil {
+			os.Remove(tmpPath)
+			log.Printf("Auto-update: Windows update failed: %v", err)
+			return
+		}
+	} else {
+		// Unix: atomic rename replaces the running binary in place.
+		if err := os.Rename(tmpPath, exePath); err != nil {
+			os.Remove(tmpPath)
+			log.Printf("Auto-update: rename failed: %v", err)
+			return
+		}
 	}
 
-	log.Printf("Auto-update: updated to v%s, restarting...", info.Version)
-	os.Exit(0) // systemd / launchd will restart the service automatically
+	log.Printf("Auto-update: updated to v%s, restarting...", remoteVersion)
+	restartWithNewBinary(exePath)
+}
+
+// applyWindowsUpdate schedules a Windows service update via a detached batch
+// script. Since the running exe cannot be overwritten while in use, the script:
+//  1. Waits a few seconds for the service process to fully exit
+//  2. Moves the downloaded binary over the old exe
+//  3. Restarts the ObliviewAgent service via sc.exe
+func applyWindowsUpdate(exePath, newBinary string) error {
+	scriptPath := filepath.Join(os.TempDir(), "obliview-update.bat")
+	script := fmt.Sprintf(
+		"@echo off\r\n"+
+			"timeout /t 4 /nobreak >nul\r\n"+
+			"sc stop ObliviewAgent >nul 2>&1\r\n"+
+			"timeout /t 2 /nobreak >nul\r\n"+
+			"move /y \"%s\" \"%s\" >nul\r\n"+
+			"sc start ObliviewAgent\r\n"+
+			"del /q \"%s\"\r\n",
+		newBinary, exePath, scriptPath)
+	if err := os.WriteFile(scriptPath, []byte(script), 0755); err != nil {
+		return fmt.Errorf("write update script: %w", err)
+	}
+	// Launch the script detached — it outlives the current process.
+	return exec.Command("cmd", "/c", scriptPath).Start()
 }
 
 // ── Main loop ─────────────────────────────────────────────────────────────────
@@ -262,8 +312,9 @@ func mainLoop(cfg *Config) {
 	log.Printf("Device UUID: %s", cfg.DeviceUUID)
 
 	// Check for a newer version before entering the main loop.
-	// On Linux/macOS: downloads + replaces binary + exits (service restarts).
-	// On Windows: no-op (use MSI reinstall to update).
+	// On Linux/macOS: atomic rename + exit (service manager restarts with new binary).
+	// On Windows: writes %TEMP%\obliview-update.bat, exits; batch stops service,
+	//             moves new exe in place, restarts service.
 	checkForUpdate(cfg)
 
 	for {

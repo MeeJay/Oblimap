@@ -965,6 +965,16 @@ export function AgentDetailPage() {
     finally { setLoading(false); }
   }, [id]);
 
+  // Clear stale data immediately when navigating to a different agent —
+  // ensures the previous agent's metrics never bleed through during the fetch.
+  useEffect(() => {
+    setDevice(null);
+    setSnapshot(null);
+    setHistory([]);
+    setLastPush(null);
+    setLoading(true);
+  }, [id]);
+
   useEffect(() => { loadData(); }, [loadData]);
 
   // Socket.io real-time updates + history accumulation
@@ -972,8 +982,8 @@ export function AgentDetailPage() {
     const socket = getSocket();
     if (!socket) return;
     const handler = (data: {
-      deviceId: number; monitorId: number; metrics: AgentMetrics;
-      violations: string[]; overallStatus: 'up' | 'alert'; receivedAt: string;
+      deviceId: number; monitorId: number; agentVersion?: string;
+      metrics: AgentMetrics; violations: string[]; overallStatus: 'up' | 'alert'; receivedAt: string;
     }) => {
       if (data.deviceId !== id) return;
       const snap: AgentPushSnapshot = {
@@ -983,6 +993,12 @@ export function AgentDetailPage() {
       setSnapshot(snap);
       setLastPush(data.receivedAt);
       setHistory(prev => [...prev, snap].slice(-MAX_HISTORY));
+      // Keep displayed agent version in sync without a REST round-trip
+      if (data.agentVersion) {
+        setDevice(prev => prev && prev.agentVersion !== data.agentVersion
+          ? { ...prev, agentVersion: data.agentVersion! }
+          : prev);
+      }
     };
     socket.on('agentPush', handler);
     return () => { socket.off('agentPush', handler); };

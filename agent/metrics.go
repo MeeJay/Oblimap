@@ -352,18 +352,21 @@ func parseRocmSMI(raw string) []GPUMetrics {
 }
 
 // collectWindowsGPUs uses PowerShell to query WMI (name) + PDH counters
-// (utilization, VRAM) — works for AMD, Intel, and any WDDM 2.x GPU on Windows 10+.
+// (utilization, VRAM, temperature) — works for AMD, Intel, and any WDDM 2.x GPU on Windows 10+.
 func collectWindowsGPUs() []GPUMetrics {
 	// PDH counter '\GPU Engine(*engtype_3D*)\Utilization Percentage' sums 3D load.
 	// PDH counter '\GPU Local Adapter Memory(*)\Local Usage/Budget' gives VRAM.
+	// PDH counter '\GPU Thermal Zone(*)\Temperature' gives temperature (WDDM 2.7+, Windows 10 2004+).
+	//   Works for all vendors (NVIDIA, AMD, Intel) without any external software.
 	// WMI Win32_VideoController gives name; AdapterRAM is capped at 4GB by WMI
 	// so we prefer the PDH Local Budget value for total VRAM.
 	const script = `$ErrorActionPreference='SilentlyContinue'
 $util=try{[math]::Round(((Get-Counter '\GPU Engine(*engtype_3D*)\Utilization Percentage').CounterSamples|Measure-Object CookedValue -Sum).Sum,1)}catch{0}
 $vramUsedMB=try{[math]::Round(((Get-Counter '\GPU Local Adapter Memory(*)\Local Usage').CounterSamples|Measure-Object CookedValue -Sum).Sum/1MB,0)}catch{0}
 $vramTotalMB=try{[math]::Round(((Get-Counter '\GPU Local Adapter Memory(*)\Local Budget').CounterSamples|Measure-Object CookedValue -Sum).Sum/1MB,0)}catch{0}
+$tempRaw=try{((Get-Counter '\GPU Thermal Zone(*)\Temperature').CounterSamples|Where-Object{$_.CookedValue -gt 0}|Measure-Object CookedValue -Maximum).Maximum}catch{0}
 $gpus=Get-WmiObject Win32_VideoController|Where-Object{$_.PNPDeviceID -match '^PCI'}
-foreach($g in $gpus){$vt=if($vramTotalMB -gt 0){$vramTotalMB}else{[math]::Round($g.AdapterRAM/1MB,0)};Write-Output "$($g.Caption)|$util|$vramUsedMB|$vt"}`
+foreach($g in $gpus){$vt=if($vramTotalMB -gt 0){$vramTotalMB}else{[math]::Round($g.AdapterRAM/1MB,0)};Write-Output "$($g.Caption)|$util|$vramUsedMB|$vt|$tempRaw"}`
 
 	out, err := exec.Command("powershell.exe",
 		"-NoProfile", "-NonInteractive", "-Command", script,
@@ -388,14 +391,77 @@ foreach($g in $gpus){$vt=if($vramTotalMB -gt 0){$vramTotalMB}else{[math]::Round(
 		util, _ := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64)
 		vramUsed, _ := strconv.ParseUint(strings.TrimSpace(parts[2]), 10, 64)
 		vramTotal, _ := strconv.ParseUint(strings.TrimSpace(parts[3]), 10, 64)
-		gpus = append(gpus, GPUMetrics{
+		gpu := GPUMetrics{
 			Model:          name,
 			UtilizationPct: math.Round(util*10) / 10,
 			VRAMUsedMB:     vramUsed,
 			VRAMTotalMB:    vramTotal,
-		})
+		}
+		// GPU Thermal Zone temperature (Windows 10 2004+, WDDM 2.7+).
+		// The PDH cooked value scale varies by driver:
+		//   > 1000 → decikelvin (e.g. 3330 → ~60°C)
+		//   > 200  → Kelvin     (e.g. 333  → ~60°C)
+		//   else   → Celsius directly
+		if len(parts) >= 5 {
+			if raw, err := strconv.ParseFloat(strings.TrimSpace(parts[4]), 64); err == nil && raw > 0 {
+				celsius := raw
+				switch {
+				case raw > 1000:
+					celsius = raw/10 - 273.15
+				case raw > 200:
+					celsius = raw - 273.15
+				}
+				if celsius > 0 && celsius < 150 {
+					gpu.TempCelsius = math.Round(celsius*10) / 10
+				}
+			}
+		}
+		gpus = append(gpus, gpu)
 	}
 	return gpus
+}
+
+// getCPUPercentDarwin returns overall CPU usage % on macOS by parsing `top -l 2 -n 0`.
+// Used as a fallback when gopsutil cpu.Percent fails (requires CGO on darwin/arm64,
+// but the agent is cross-compiled with CGO_ENABLED=0).
+func getCPUPercentDarwin() (float64, bool) {
+	out, err := exec.Command("top", "-l", "2", "-n", "0").Output()
+	if err != nil {
+		return 0, false
+	}
+	// top -l 2 outputs two report blocks separated by a blank line.
+	// The SECOND "CPU usage:" line reflects delta since the first sample
+	// (i.e. recent CPU activity), which is what we want.
+	// Format: "CPU usage: 4.74% user, 6.87% sys, 88.39% idle"
+	count := 0
+	for _, line := range strings.Split(string(out), "\n") {
+		if !strings.HasPrefix(line, "CPU usage:") {
+			continue
+		}
+		count++
+		if count < 2 {
+			continue
+		}
+		idleIdx := strings.Index(line, "% idle")
+		if idleIdx < 0 {
+			return 0, false
+		}
+		numStr := ""
+		for i := idleIdx - 1; i >= 0; i-- {
+			c := line[i]
+			if (c >= '0' && c <= '9') || c == '.' {
+				numStr = string(c) + numStr
+			} else {
+				break
+			}
+		}
+		idle, err := strconv.ParseFloat(numStr, 64)
+		if err != nil {
+			return 0, false
+		}
+		return math.Round((100-idle)*10) / 10, true
+	}
+	return 0, false
 }
 
 // ── Collect ────────────────────────────────────────────────────────────────────
@@ -421,6 +487,18 @@ func collectMetrics() Metrics {
 			Cores:   rounded,
 			Model:   cpuModel,
 			FreqMHz: cpuFreqMHz,
+		}
+	} else if runtime.GOOS == "darwin" {
+		// Fallback for darwin/arm64 cross-compiled with CGO_ENABLED=0:
+		// gopsutil needs CGO to call host_processor_info (Mach) — use `top` instead.
+		// Per-core data is not available without CGO; Cores is left nil so the UI
+		// shows only the overall gauge rather than fake identical bars.
+		if pct, ok := getCPUPercentDarwin(); ok {
+			m.CPU = &CPUMetrics{
+				Percent: pct,
+				Model:   cpuModel,
+				FreqMHz: cpuFreqMHz,
+			}
 		}
 	}
 
@@ -591,9 +669,11 @@ func collectMetrics() Metrics {
 	}
 
 	// ── Temperature sensors ────────────────────────────────────────────────────
+	seen := make(map[string]bool)
+
+	// 1. gopsutil: lm-sensors on Linux, ACPI thermal zones on Windows/macOS
 	sensorTemps, err := host.SensorsTemperatures()
 	if err == nil {
-		seen := make(map[string]bool)
 		for _, t := range sensorTemps {
 			if t.Temperature <= 0 || seen[t.SensorKey] {
 				continue
@@ -604,6 +684,16 @@ func collectMetrics() Metrics {
 				Celsius: math.Round(t.Temperature*10) / 10,
 			})
 		}
+	}
+
+	// 2. Platform-specific extras: NVMe temps + ASUS ATK (Windows),
+	//    no-op on Linux/macOS where gopsutil already covers hardware sensors.
+	for _, t := range collectPlatformTemps() {
+		if seen[t.Label] {
+			continue
+		}
+		seen[t.Label] = true
+		m.Temps = append(m.Temps, t)
 	}
 
 	// ── GPU ────────────────────────────────────────────────────────────────────

@@ -24,25 +24,19 @@ RUN go mod download 2>/dev/null || true
 COPY agent/ ./
 RUN go mod tidy
 
-# Windows x64
-RUN CGO_ENABLED=0 GOOS=windows GOARCH=amd64 \
-    go build -ldflags="-s -w" -o dist/obliview-agent.exe .
-
-# Linux x64
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -ldflags="-s -w" -o dist/obliview-agent-linux-amd64 .
-
-# Linux arm64 (Raspberry Pi, ARM servers)
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
-    go build -ldflags="-s -w" -o dist/obliview-agent-linux-arm64 .
-
-# macOS Intel
-RUN CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 \
-    go build -ldflags="-s -w" -o dist/obliview-agent-darwin-amd64 .
-
-# macOS Apple Silicon (M1/M2/M3/M4)
-RUN CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 \
-    go build -ldflags="-s -w" -o dist/obliview-agent-darwin-arm64 .
+# All platforms — version injected from VERSION file (single source of truth).
+# agent/main.go uses `var agentVersion = "dev"` overridden here via -X ldflags.
+RUN VERSION=$(cat VERSION) && \
+    CGO_ENABLED=0 GOOS=windows GOARCH=amd64 \
+        go build -ldflags="-s -w -X main.agentVersion=${VERSION}" -o dist/obliview-agent.exe . && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+        go build -ldflags="-s -w -X main.agentVersion=${VERSION}" -o dist/obliview-agent-linux-amd64 . && \
+    CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
+        go build -ldflags="-s -w -X main.agentVersion=${VERSION}" -o dist/obliview-agent-linux-arm64 . && \
+    CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 \
+        go build -ldflags="-s -w -X main.agentVersion=${VERSION}" -o dist/obliview-agent-darwin-amd64 . && \
+    CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 \
+        go build -ldflags="-s -w -X main.agentVersion=${VERSION}" -o dist/obliview-agent-darwin-arm64 .
 
 # ---- Production stage ----
 FROM node:24-alpine AS production
@@ -59,8 +53,9 @@ RUN cd server && npm install --omit=dev
 
 COPY --from=builder /app/server/dist/ ./server/dist/
 
-# Agent installer scripts
+# Agent installer scripts + VERSION file (used by GET /api/agent/version)
 COPY agent/installer/ ./agent/installer/
+COPY agent/VERSION ./agent/
 
 # Agent binaries from Go cross-compilation
 RUN mkdir -p ./agent/dist

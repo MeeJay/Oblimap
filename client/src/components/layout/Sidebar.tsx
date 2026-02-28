@@ -28,7 +28,9 @@ import { useMonitorStore } from '@/store/monitorStore';
 import { useGroupStore } from '@/store/groupStore';
 import { GroupTree } from '@/components/groups/GroupTree';
 import { agentApi } from '@/api/agent.api';
+import { getSocket } from '@/socket/socketClient';
 import type { AgentDevice, MonitorStatus } from '@obliview/shared';
+import { SOCKET_EVENTS } from '@obliview/shared';
 import toast from 'react-hot-toast';
 
 // ── localStorage helpers ─────────────────────────────────────────────────────
@@ -213,6 +215,43 @@ export function Sidebar() {
     const id = setInterval(loadDevices, 30000);
     return () => clearInterval(id);
   }, [loadDevices]);
+
+  // Real-time sidebar updates: name/status/group changes without polling delay
+  useEffect(() => {
+    if (!admin) return;
+    const socket = getSocket();
+    if (!socket) return;
+
+    const onDeviceUpdated = (data: {
+      deviceId: number;
+      name: string | null;
+      hostname: string;
+      status: AgentDevice['status'];
+      groupId: number | null;
+    }) => {
+      setApprovedDevices(prev => {
+        const isTracked = prev.some(d => d.id === data.deviceId);
+        if (!isTracked) {
+          // Newly approved device — trigger a full refresh to get all fields
+          loadDevices();
+          return prev;
+        }
+        // Filter out devices that are no longer approved/suspended
+        if (data.status !== 'approved' && data.status !== 'suspended') {
+          return prev.filter(d => d.id !== data.deviceId);
+        }
+        // Update in-place: name, hostname, status, group
+        return prev.map(d =>
+          d.id === data.deviceId
+            ? { ...d, name: data.name, hostname: data.hostname, status: data.status, groupId: data.groupId }
+            : d,
+        );
+      });
+    };
+
+    socket.on(SOCKET_EVENTS.AGENT_DEVICE_UPDATED, onDeviceUpdated);
+    return () => { socket.off(SOCKET_EVENTS.AGENT_DEVICE_UPDATED, onDeviceUpdated); };
+  }, [admin, loadDevices]);
 
   /** Get the monitor status for an agent device */
   const getMonitorStatus = useCallback(

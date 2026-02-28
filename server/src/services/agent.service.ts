@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { db } from '../db';
 import type { AgentApiKey, AgentDevice, AgentThresholds } from '@obliview/shared';
-import { DEFAULT_AGENT_THRESHOLDS } from '@obliview/shared';
+import { DEFAULT_AGENT_THRESHOLDS, SOCKET_EVENTS } from '@obliview/shared';
 import { heartbeatService } from './heartbeat.service';
 import { logger } from '../utils/logger';
 
@@ -140,6 +140,8 @@ export interface AgentPushPayload {
 export interface AgentPushResponse {
   status: 'ok' | 'pending' | 'unauthorized';
   config?: { checkIntervalSeconds: number };
+  /** Piggybacked on every ok/pending response so agents update without an extra round-trip. */
+  latestVersion?: string;
 }
 
 // ── In-memory snapshot: indexed by deviceId ─────────────────
@@ -226,7 +228,20 @@ export const agentService = {
       .update(update)
       .returning('*') as AgentDeviceRow[];
     if (!row) return null;
-    return rowToDevice(row);
+    const device = rowToDevice(row);
+
+    // Broadcast so the sidebar can update name/status/group without polling
+    if (_io) {
+      _io.to('role:admin').emit(SOCKET_EVENTS.AGENT_DEVICE_UPDATED, {
+        deviceId: device.id,
+        name: device.name,
+        hostname: device.hostname,
+        status: device.status,
+        groupId: device.groupId,
+      });
+    }
+
+    return device;
   },
 
   async deleteDevice(id: number): Promise<boolean> {
@@ -433,6 +448,7 @@ export const agentService = {
       return {
         status: 'pending',
         config: { checkIntervalSeconds: device.checkIntervalSeconds },
+        latestVersion: this.getAgentVersion().version,
       };
     }
 
@@ -443,6 +459,7 @@ export const agentService = {
       return {
         status: 'ok',
         config: { checkIntervalSeconds: device.checkIntervalSeconds },
+        latestVersion: this.getAgentVersion().version,
       };
     }
 
@@ -528,6 +545,7 @@ export const agentService = {
       _io.to('role:admin').emit('agentPush', {
         deviceId: device.id,
         monitorId: monitor.id,
+        agentVersion: payload.agentVersion,   // lets the UI refresh without a REST round-trip
         metrics: m,
         violations,
         overallStatus,
@@ -558,6 +576,14 @@ export const agentService = {
     await db('monitors')
       .where({ id: monitor.id })
       .update({ status: overallStatus, updated_at: new Date() });
+
+    // Notify the frontend monitor store so the sidebar badge updates in real-time
+    if (_io) {
+      _io.to('role:admin').emit(SOCKET_EVENTS.MONITOR_STATUS_CHANGE, {
+        monitorId: monitor.id,
+        newStatus: overallStatus,
+      });
+    }
   },
 
   /**
@@ -583,12 +609,13 @@ export const agentService = {
       if (v) return { version: v };
     } catch { /* not found, try next */ }
 
-    // 2. Dev fallback: parse const agentVersion from agent/main.go
+    // 2. Dev fallback: parse `var agentVersion = "x.y.z"` from agent/main.go
+    // (main.go now uses `var agentVersion = "dev"` as default — skip "dev")
     try {
       const mainGoPath = path.resolve(__dirname, '../../../../agent/main.go');
       const content = fs.readFileSync(mainGoPath, 'utf-8');
-      const match = content.match(/const agentVersion\s*=\s*"([^"]+)"/);
-      if (match?.[1]) return { version: match[1] };
+      const match = content.match(/(?:var|const)\s+agentVersion\s*=\s*"([^"]+)"/);
+      if (match?.[1] && match[1] !== 'dev') return { version: match[1] };
     } catch { /* not found */ }
 
     return { version: '0.0.0' };
