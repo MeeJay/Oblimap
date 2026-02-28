@@ -7,12 +7,14 @@ const isCompiled = __filename.endsWith('.js');
 const config: Knex.Config = {
   client: 'pg',
   connection: process.env.DATABASE_URL || 'postgres://obliview:changeme@localhost:5432/obliview',
+  searchPath: ['public'],
   migrations: {
     directory: isCompiled
       ? path.join(__dirname, 'src/db/migrations')
       : './src/db/migrations',
     extension: isCompiled ? 'js' : 'ts',
     loadExtensions: isCompiled ? ['.js'] : ['.ts'],
+    schemaName: 'public',
   },
   seeds: {
     directory: isCompiled
