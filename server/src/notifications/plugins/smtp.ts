@@ -1,5 +1,6 @@
 import type { NotificationPlugin, NotificationPayload } from '../types';
 import nodemailer from 'nodemailer';
+import { statusIcon } from '../statusIcons';
 
 export const smtpPlugin: NotificationPlugin = {
   type: 'smtp',
@@ -16,7 +17,7 @@ export const smtpPlugin: NotificationPlugin = {
   ],
 
   async send(config, payload) {
-    const icon = payload.newStatus === 'up' ? '✅' : payload.newStatus === 'value_changed' ? '🔄' : '🔴';
+    const icon = statusIcon(payload.newStatus);
     const transport = nodemailer.createTransport({
       host: String(config.host),
       port: Number(config.port),

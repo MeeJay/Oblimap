@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Plus,
   Trash2,
@@ -13,6 +14,9 @@ import {
   ChevronDown,
   ChevronRight,
   RefreshCw,
+  ExternalLink,
+  Pencil,
+  PauseCircle,
 } from 'lucide-react';
 import type { AgentApiKey, AgentDevice, MonitorGroup } from '@obliview/shared';
 import { agentApi } from '@/api/agent.api';
@@ -22,7 +26,7 @@ import { Input } from '@/components/common/Input';
 import toast from 'react-hot-toast';
 
 type Tab = 'keys' | 'devices';
-type DeviceStatusFilter = 'pending' | 'approved' | 'refused' | 'all';
+type DeviceStatusFilter = 'pending' | 'approved' | 'refused' | 'suspended' | 'all';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -56,6 +60,11 @@ function statusBadge(status: AgentDevice['status']) {
       icon: <XCircle size={11} />,
       label: 'Refused',
       cls: 'bg-status-down/10 text-status-down',
+    },
+    suspended: {
+      icon: <PauseCircle size={11} />,
+      label: 'Suspended',
+      cls: 'bg-text-muted/15 text-text-muted',
     },
   };
   const s = styles[status];
@@ -133,10 +142,12 @@ function AddAgentModal({
             keys.map(apiKey => {
               const expanded = expandedKeys.has(apiKey.id);
               const linuxCmd = agentApi.getInstallerLinuxUrl(apiKey.key);
+              const macosCmd = agentApi.getInstallerMacosUrl(apiKey.key);
               const msiUrl = agentApi.getMsiUrl();
               const origin = window.location.origin;
               const linuxOneliner = `curl -fsSL "${linuxCmd}" | bash`;
-              const windowsCmd = `$m="$env:TEMP\\obliview-agent.msi"; irm "${msiUrl}" -OutFile $m; msiexec /i $m SERVERURL="${origin}" APIKEY="${apiKey.key}" /quiet; Remove-Item $m`;
+              const macosOneliner = `sudo bash -c "$(curl -fsSL '${macosCmd}')"`;
+              const windowsCmd = `$m="$env:TEMP\\obliview-agent.msi"; Invoke-WebRequest "${msiUrl}" -OutFile $m -UseBasicParsing; Start-Process msiexec -ArgumentList "/i \`"$m\`" SERVERURL=\`"${origin}\`" APIKEY=\`"${apiKey.key}\`" /quiet" -Wait -Verb RunAs; Remove-Item $m`;
 
               return (
                 <div key={apiKey.id} className="rounded-lg border border-border bg-bg-secondary">
@@ -159,7 +170,7 @@ function AddAgentModal({
                     <div className="px-4 pb-4 space-y-3 border-t border-border">
                       {/* Linux */}
                       <div>
-                        <p className="text-xs font-medium text-text-muted uppercase tracking-wide mb-1.5 mt-3">Linux / macOS</p>
+                        <p className="text-xs font-medium text-text-muted uppercase tracking-wide mb-1.5 mt-3">Linux</p>
                         <div className="flex items-start gap-2 rounded-md bg-bg-tertiary p-3">
                           <code className="flex-1 text-xs font-mono text-text-primary break-all leading-relaxed">
                             {linuxOneliner}
@@ -168,19 +179,26 @@ function AddAgentModal({
                         </div>
                       </div>
 
+                      {/* macOS */}
+                      <div>
+                        <p className="text-xs font-medium text-text-muted uppercase tracking-wide mb-1.5">macOS (Terminal, admin)</p>
+                        <div className="flex items-start gap-2 rounded-md bg-bg-tertiary p-3">
+                          <code className="flex-1 text-xs font-mono text-text-primary break-all leading-relaxed">
+                            {macosOneliner}
+                          </code>
+                          <CopyButton text={macosOneliner} />
+                        </div>
+                      </div>
+
                       {/* Windows */}
                       <div>
-                        <p className="text-xs font-medium text-text-muted uppercase tracking-wide mb-1.5">Windows (PowerShell)</p>
+                        <p className="text-xs font-medium text-text-muted uppercase tracking-wide mb-1.5">Windows (PowerShell, admin)</p>
                         <div className="flex items-start gap-2 rounded-md bg-bg-tertiary p-3">
                           <code className="flex-1 text-xs font-mono text-text-primary break-all leading-relaxed">
                             {windowsCmd}
                           </code>
                           <CopyButton text={windowsCmd} />
                         </div>
-                        <p className="text-xs text-text-muted mt-1.5 px-1">
-                          Télécharge et installe le MSI — UAC s'élève automatiquement.
-                          Pas d'antivirus déclenché (pas de script PowerShell exécuté).
-                        </p>
                       </div>
                     </div>
                   )}
@@ -213,26 +231,39 @@ function ApproveModal({
 }) {
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
 
+  // Only show agent-kind groups in the picker
+  const agentGroups = groups.filter(g => g.kind === 'agent');
+
+  // When a group is selected, show its thresholds (if any) as a preview note
+  const selectedGroup = agentGroups.find(g => g.id === selectedGroupId);
+  const hasGroupThresholds = selectedGroup?.agentThresholds != null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="w-full max-w-sm rounded-xl border border-border bg-bg-primary shadow-2xl p-6">
         <h2 className="text-base font-semibold text-text-primary mb-1">Approve Device</h2>
         <p className="text-sm text-text-muted mb-4">
-          Approve <span className="font-medium text-text-primary">{device.hostname}</span> and create its monitors?
+          Approve <span className="font-medium text-text-primary">{device.hostname}</span> and create its monitor?
         </p>
 
         <div className="space-y-1 mb-4">
-          <label className="block text-sm font-medium text-text-secondary">Assign to Group (optional)</label>
+          <label className="block text-sm font-medium text-text-secondary">Assign to Agent Group (optional)</label>
           <select
             value={selectedGroupId ?? ''}
             onChange={e => setSelectedGroupId(e.target.value ? Number(e.target.value) : null)}
             className="w-full rounded-md border border-border bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
           >
             <option value="">— No group —</option>
-            {groups.map(g => (
+            {agentGroups.map(g => (
               <option key={g.id} value={g.id}>{g.name}</option>
             ))}
           </select>
+          {agentGroups.length === 0 && (
+            <p className="text-xs text-text-muted mt-1">No agent groups found. Create one in Groups settings.</p>
+          )}
+          {hasGroupThresholds && (
+            <p className="text-xs text-status-up mt-1">✓ Group default thresholds will be applied</p>
+          )}
         </div>
 
         <div className="flex gap-2">
@@ -246,11 +277,104 @@ function ApproveModal({
   );
 }
 
+// ── EditAgentModal ────────────────────────────────────────────────────────────
+
+function EditAgentModal({
+  device,
+  onSave,
+  onCancel,
+}: {
+  device: AgentDevice;
+  onSave: (data: { name: string | null; heartbeatMonitoring: boolean; suspended: boolean }) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(device.name ?? '');
+  const [heartbeatMonitoring, setHeartbeatMonitoring] = useState(device.heartbeatMonitoring);
+  const [suspended, setSuspended] = useState(device.status === 'suspended');
+  const [saving, setSaving] = useState(false);
+
+  const handleSave = async () => {
+    setSaving(true);
+    onSave({
+      name: name.trim() || null,
+      heartbeatMonitoring,
+      suspended,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+      <div className="w-full max-w-sm rounded-xl border border-border bg-bg-primary shadow-2xl p-6">
+        <h2 className="text-base font-semibold text-text-primary mb-1">Edit Agent</h2>
+        <p className="text-xs text-text-muted mb-5">
+          Hostname: <span className="font-mono text-text-secondary">{device.hostname}</span>
+        </p>
+
+        <div className="space-y-4">
+          {/* Display name */}
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-1">Display name</label>
+            <Input
+              placeholder={device.hostname}
+              value={name}
+              onChange={e => setName(e.target.value)}
+              autoFocus
+            />
+            <p className="text-xs text-text-muted mt-1">Leave empty to use hostname</p>
+          </div>
+
+          {/* Heartbeat monitoring toggle */}
+          <label className="flex items-start gap-3 cursor-pointer group">
+            <input
+              type="checkbox"
+              checked={heartbeatMonitoring}
+              onChange={e => setHeartbeatMonitoring(e.target.checked)}
+              className="mt-0.5 accent-accent w-4 h-4"
+            />
+            <div>
+              <p className="text-sm font-medium text-text-primary group-hover:text-accent transition-colors">
+                Heartbeat monitoring
+              </p>
+              <p className="text-xs text-text-muted leading-relaxed">
+                When enabled: alert if agent goes offline (DOWN).{' '}
+                When disabled: no notification, shown as inactive/grey (e.g. workstation).
+              </p>
+            </div>
+          </label>
+
+          {/* Suspend toggle */}
+          <label className="flex items-start gap-3 cursor-pointer group">
+            <input
+              type="checkbox"
+              checked={suspended}
+              onChange={e => setSuspended(e.target.checked)}
+              className="mt-0.5 accent-accent w-4 h-4"
+            />
+            <div>
+              <p className="text-sm font-medium text-text-primary group-hover:text-accent transition-colors">
+                Suspended
+              </p>
+              <p className="text-xs text-text-muted leading-relaxed">
+                Block the agent without deleting it. The monitor is paused; the device cannot push data.
+              </p>
+            </div>
+          </label>
+        </div>
+
+        <div className="flex gap-2 mt-6">
+          <Button onClick={handleSave} loading={saving} className="flex-1">Save</Button>
+          <Button variant="secondary" onClick={onCancel} className="flex-1">Cancel</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export function AdminAgentPage() {
   const [tab, setTab] = useState<Tab>('devices');
-  const [deviceFilter, setDeviceFilter] = useState<DeviceStatusFilter>('pending');
+  const [deviceFilter, setDeviceFilter] = useState<DeviceStatusFilter>('all');
 
   const [keys, setKeys] = useState<AgentApiKey[]>([]);
   const [devices, setDevices] = useState<AgentDevice[]>([]);
@@ -263,6 +387,7 @@ export function AdminAgentPage() {
   const [saving, setSaving] = useState(false);
 
   const [approvingDevice, setApprovingDevice] = useState<AgentDevice | null>(null);
+  const [editingDevice, setEditingDevice] = useState<AgentDevice | null>(null);
 
   const loadAll = useCallback(async () => {
     try {
@@ -383,6 +508,25 @@ export function AdminAgentPage() {
     }
   };
 
+  const handleEditSave = async (data: { name: string | null; heartbeatMonitoring: boolean; suspended: boolean }) => {
+    if (!editingDevice) return;
+    try {
+      const newStatus = data.suspended ? 'suspended'
+        : editingDevice.status === 'suspended' ? 'approved'
+        : undefined;
+      await agentApi.updateDevice(editingDevice.id, {
+        name: data.name,
+        heartbeatMonitoring: data.heartbeatMonitoring,
+        ...(newStatus ? { status: newStatus } : {}),
+      });
+      toast.success('Agent updated');
+      setEditingDevice(null);
+      loadAll();
+    } catch {
+      toast.error('Failed to update agent');
+    }
+  };
+
   return (
     <div className="p-6 max-w-5xl mx-auto">
       {/* Header */}
@@ -442,7 +586,7 @@ export function AdminAgentPage() {
         <>
           {/* Status filter */}
           <div className="flex gap-1 mb-4">
-            {(['pending', 'approved', 'refused', 'all'] as DeviceStatusFilter[]).map(f => (
+            {(['all', 'approved', 'refused', 'suspended', 'pending'] as DeviceStatusFilter[]).map(f => (
               <button
                 key={f}
                 onClick={() => setDeviceFilter(f)}
@@ -493,7 +637,19 @@ export function AdminAgentPage() {
                   {filteredDevices.map(device => (
                     <tr key={device.id} className="hover:bg-bg-hover transition-colors">
                       <td className="px-4 py-3">
-                        <span className="font-medium text-text-primary">{device.hostname}</span>
+                        {device.status === 'approved' ? (
+                          <Link
+                            to={`/agents/${device.id}`}
+                            className="font-medium text-text-primary hover:text-accent transition-colors"
+                          >
+                            {device.name ?? device.hostname}
+                          </Link>
+                        ) : (
+                          <span className="font-medium text-text-primary">{device.name ?? device.hostname}</span>
+                        )}
+                        {device.name && (
+                          <div className="text-[10px] text-text-muted mt-0.5">{device.hostname}</div>
+                        )}
                         <div className="text-[10px] text-text-muted font-mono mt-0.5">{device.uuid.slice(0, 12)}…</div>
                       </td>
                       <td className="px-4 py-3 text-text-muted">{device.ip ?? '—'}</td>
@@ -517,10 +673,34 @@ export function AdminAgentPage() {
                               </Button>
                             </>
                           )}
+                          {device.status === 'approved' && (
+                            <Link
+                              to={`/agents/${device.id}`}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium text-text-muted hover:text-text-primary hover:bg-bg-hover transition-colors"
+                              title="View detail"
+                            >
+                              <ExternalLink size={12} />
+                              View
+                            </Link>
+                          )}
                           {device.status === 'refused' && (
                             <Button size="sm" variant="secondary" onClick={() => handleReinstate(device)}>
                               Reinstate
                             </Button>
+                          )}
+                          {device.status === 'suspended' && (
+                            <Button size="sm" variant="secondary" onClick={() => agentApi.updateDevice(device.id, { status: 'approved' }).then(loadAll)}>
+                              Reinstate
+                            </Button>
+                          )}
+                          {(device.status === 'approved' || device.status === 'suspended') && (
+                            <button
+                              onClick={() => setEditingDevice(device)}
+                              className="p-1.5 rounded text-text-muted hover:text-text-primary hover:bg-bg-hover transition-colors"
+                              title="Edit"
+                            >
+                              <Pencil size={13} />
+                            </button>
                           )}
                           <button
                             onClick={() => handleDeleteDevice(device)}
@@ -626,6 +806,14 @@ export function AdminAgentPage() {
           groups={groups}
           onApprove={handleApprove}
           onCancel={() => setApprovingDevice(null)}
+        />
+      )}
+
+      {editingDevice && (
+        <EditAgentModal
+          device={editingDevice}
+          onSave={handleEditSave}
+          onCancel={() => setEditingDevice(null)}
         />
       )}
     </div>

@@ -36,6 +36,8 @@ const statusColors: Record<MonitorStatus, string> = {
   paused: 'bg-status-paused',
   ssl_warning: 'bg-status-ssl-warning',
   ssl_expired: 'bg-status-ssl-expired',
+  alert: 'bg-orange-500',
+  inactive: 'bg-gray-400',
 };
 
 export function HeartbeatBar({ heartbeats, maxBars }: HeartbeatBarProps) {

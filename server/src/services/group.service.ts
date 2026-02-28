@@ -68,6 +68,7 @@ export const groupService = {
     sortOrder?: number;
     isGeneral?: boolean;
     groupNotifications?: boolean;
+    kind?: 'monitor' | 'agent';
   }): Promise<MonitorGroup> {
     const slug = await ensureUniqueSlug(slugify(data.name));
 
@@ -80,6 +81,7 @@ export const groupService = {
         sort_order: data.sortOrder ?? 0,
         is_general: data.isGeneral ?? false,
         group_notifications: data.groupNotifications ?? false,
+        kind: data.kind ?? 'monitor',
       })
       .returning('*');
 

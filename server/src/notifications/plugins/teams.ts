@@ -18,6 +18,10 @@ function getStatusInfo(status: string): StatusInfo {
       return { emoji: '⚠️', label: 'SSL Warning', containerStyle: 'warning' };
     case 'value_changed':
       return { emoji: '🔄', label: 'Value Changed', containerStyle: 'emphasis' };
+    case 'alert':
+      return { emoji: '🟠', label: 'Alert', containerStyle: 'warning' };
+    case 'inactive':
+      return { emoji: '⚫', label: 'Inactive', containerStyle: 'default' };
     default:
       return { emoji: '❓', label: status, containerStyle: 'default' };
   }

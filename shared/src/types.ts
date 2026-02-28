@@ -102,10 +102,7 @@ export interface Monitor {
 
   // Agent Monitor
   agentDeviceId: number | null;
-  agentMetric: string | null;      // cpu_percent | memory_percent | disk_percent | network_in_bytes | network_out_bytes | load_avg
-  agentMount: string | null;       // disk mount point: "/" or "C:"
-  agentThreshold: number | null;
-  agentThresholdOp: string | null; // '>' | '<' | '>=' | '<='
+  agentThresholds: AgentThresholds | null;
 
   // Metadata
   createdBy: number | null;
@@ -154,6 +151,7 @@ export interface MonitorGroup {
   isGeneral: boolean;
   groupNotifications: boolean;
   kind: 'monitor' | 'agent';
+  agentThresholds?: AgentThresholds | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -235,6 +233,7 @@ export interface CreateGroupRequest {
   sortOrder?: number;
   isGeneral?: boolean;
   groupNotifications?: boolean;
+  kind?: 'monitor' | 'agent';
 }
 
 export interface UpdateGroupRequest {
@@ -373,6 +372,31 @@ export interface LoginResponse {
 }
 
 // ============================================
+// Agent threshold types
+// ============================================
+export interface AgentMetricThreshold {
+  enabled: boolean;
+  threshold: number;
+  op: '>' | '<' | '>=' | '<=';
+}
+
+export interface AgentThresholds {
+  cpu: AgentMetricThreshold;
+  memory: AgentMetricThreshold;
+  disk: AgentMetricThreshold;
+  netIn: AgentMetricThreshold;
+  netOut: AgentMetricThreshold;
+}
+
+export const DEFAULT_AGENT_THRESHOLDS: AgentThresholds = {
+  cpu:    { enabled: true,  threshold: 90,        op: '>' },
+  memory: { enabled: true,  threshold: 90,        op: '>' },
+  disk:   { enabled: true,  threshold: 90,        op: '>' },
+  netIn:  { enabled: false, threshold: 104857600, op: '>' },
+  netOut: { enabled: false, threshold: 104857600, op: '>' },
+};
+
+// ============================================
 // Agent types
 // ============================================
 export interface AgentApiKey {
@@ -389,6 +413,8 @@ export interface AgentDevice {
   id: number;
   uuid: string;
   hostname: string;
+  /** Custom display name — shown instead of hostname when set */
+  name: string | null;
   ip: string | null;
   osInfo: {
     platform: string;
@@ -398,7 +424,9 @@ export interface AgentDevice {
   } | null;
   agentVersion: string | null;
   apiKeyId: number | null;
-  status: 'pending' | 'approved' | 'refused';
+  status: 'pending' | 'approved' | 'refused' | 'suspended';
+  /** When false: agent going offline → 'inactive' (grey), no notification */
+  heartbeatMonitoring: boolean;
   checkIntervalSeconds: number;
   approvedBy: number | null;
   approvedAt: string | null;

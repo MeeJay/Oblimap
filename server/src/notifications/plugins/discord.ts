@@ -1,13 +1,5 @@
 import type { NotificationPlugin, NotificationPayload } from '../types';
-
-const STATUS_COLORS: Record<string, number> = {
-  up: 0x2ecc71,
-  down: 0xe74c3c,
-  pending: 0xf39c12,
-  maintenance: 0x3498db,
-  paused: 0x95a5a6,
-  value_changed: 0x3498db,
-};
+import { statusIcon, STATUS_COLORS_HEX } from '../statusIcons';
 
 export const discordPlugin: NotificationPlugin = {
   type: 'discord',
@@ -20,9 +12,9 @@ export const discordPlugin: NotificationPlugin = {
 
   async send(config, payload) {
     const embed = {
-      title: `${payload.newStatus === 'up' ? '✅' : payload.newStatus === 'value_changed' ? '🔄' : '🔴'} ${payload.monitorName}`,
+      title: `${statusIcon(payload.newStatus)} ${payload.monitorName}`,
       description: payload.message || `Status changed: **${payload.oldStatus}** → **${payload.newStatus}**`,
-      color: STATUS_COLORS[payload.newStatus] ?? 0x95a5a6,
+      color: STATUS_COLORS_HEX[payload.newStatus] ?? 0x95a5a6,
       fields: [
         { name: 'Status', value: payload.newStatus.toUpperCase(), inline: true },
         ...(payload.monitorUrl ? [{ name: 'URL', value: payload.monitorUrl, inline: true }] : []),

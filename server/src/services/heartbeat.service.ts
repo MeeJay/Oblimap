@@ -364,8 +364,9 @@ export const heartbeatService = {
       .where({ is_active: true })
       .select('id', 'name', 'status');
 
+    const PROBLEM_STATUSES = new Set(['down', 'ssl_expired', 'ssl_warning', 'alert']);
     const downMonitorNames = monitorRows
-      .filter((m: { status: string }) => m.status === 'down' || m.status === 'ssl_expired')
+      .filter((m: { status: string }) => PROBLEM_STATUSES.has(m.status))
       .map((m: { name: string }) => m.name);
 
     return {

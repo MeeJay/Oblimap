@@ -16,8 +16,9 @@ export function UptimePercentage({ heartbeats, label }: UptimePercentageProps) {
     );
   }
 
+  const NON_UP_STATUSES = new Set(['down', 'alert', 'ssl_expired']);
   const up = heartbeats.filter((h) => h.status === 'up').length;
-  const total = heartbeats.filter((h) => h.status === 'up' || h.status === 'down').length;
+  const total = heartbeats.filter((h) => h.status === 'up' || NON_UP_STATUSES.has(h.status)).length;
   const pct = total > 0 ? (up / total) * 100 : 0;
 
   return (

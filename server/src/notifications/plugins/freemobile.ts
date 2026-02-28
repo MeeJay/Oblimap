@@ -1,4 +1,5 @@
 import type { NotificationPlugin, NotificationPayload } from '../types';
+import { statusIcon } from '../statusIcons';
 
 export const freemobilePlugin: NotificationPlugin = {
   type: 'freemobile',
@@ -10,7 +11,7 @@ export const freemobilePlugin: NotificationPlugin = {
   ],
 
   async send(config, payload) {
-    const icon = payload.newStatus === 'up' ? '✅' : payload.newStatus === 'value_changed' ? '🔄' : '🔴';
+    const icon = statusIcon(payload.newStatus);
     const prefix = payload.appName || 'Obliview';
     const msg = `[${prefix}] ${icon} ${payload.monitorName}: ${payload.oldStatus} → ${payload.newStatus}${payload.message ? ` - ${payload.message}` : ''}`;
 

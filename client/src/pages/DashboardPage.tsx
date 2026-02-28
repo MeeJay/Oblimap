@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, CheckSquare, Activity, Clock, AlertTriangle, ShieldOff, Folder } from 'lucide-react';
+import { Plus, CheckSquare, Activity, Clock, AlertTriangle, ShieldOff, Folder, Bell } from 'lucide-react';
 import type { Monitor, GroupTreeNode } from '@obliview/shared';
 import { useMonitorStore } from '@/store/monitorStore';
 import { useGroupStore } from '@/store/groupStore';
@@ -93,14 +93,18 @@ export function DashboardPage() {
 
   const upCount = monitors.filter((m) => m.status === 'up').length;
   const downCount = monitors.filter((m) => m.status === 'down').length;
+  const alertCount = monitors.filter((m) => m.status === 'alert').length;
   const pendingCount = monitors.filter((m) => m.status === 'pending').length;
   const pausedCount = monitors.filter((m) => m.status === 'paused').length;
   const sslWarnCount = monitors.filter((m) => m.status === 'ssl_warning').length;
   const sslExpiredCount = monitors.filter((m) => m.status === 'ssl_expired').length;
 
-  // Offline monitors (shown in alert section AND in their normal groups)
+  // Problem monitors (shown in dedicated sections above the column layout)
   const downMonitors = monitors
     .filter((m) => m.status === 'down')
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const alertMonitors = monitors
+    .filter((m) => m.status === 'alert')
     .sort((a, b) => a.name.localeCompare(b.name));
   const sslExpiredMonitors = monitors
     .filter((m) => m.status === 'ssl_expired')
@@ -232,6 +236,12 @@ export function DashboardPage() {
           <div className="text-2xl font-bold text-status-down">{downCount}</div>
           <div className="text-sm text-text-secondary">Down</div>
         </div>
+        {alertCount > 0 && (
+          <div className="rounded-lg border border-border bg-bg-secondary p-4">
+            <div className="text-2xl font-bold text-orange-500">{alertCount}</div>
+            <div className="text-sm text-text-secondary">Alert</div>
+          </div>
+        )}
         <div className="rounded-lg border border-border bg-bg-secondary p-4">
           <div className="text-2xl font-bold text-status-pending">{pendingCount}</div>
           <div className="text-sm text-text-secondary">Pending</div>
@@ -296,6 +306,29 @@ export function DashboardPage() {
         >
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
             {downMonitors.map((m) => (
+              <MonitorCard
+                key={m.id}
+                monitor={m}
+                heartbeats={getRecentHeartbeats(m.id)}
+                selectionMode={selectionMode}
+                selected={selectedIds.has(m.id)}
+                onSelect={handleSelect}
+              />
+            ))}
+          </div>
+        </DashboardSection>
+      )}
+
+      {/* ── Alert monitors — agent threshold violations (full width, above columns) ── */}
+      {alertMonitors.length > 0 && (
+        <DashboardSection
+          icon={<Bell size={16} className="text-orange-500" />}
+          title="Alert"
+          badge={<span className="text-xs font-semibold text-orange-500">{alertMonitors.length}</span>}
+          borderColor="border-orange-500/30"
+        >
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+            {alertMonitors.map((m) => (
               <MonitorCard
                 key={m.id}
                 monitor={m}

@@ -60,8 +60,9 @@ export function GroupNode({ node, depth = 0, selectedGroupId, onSelectGroup, dnd
     if (hasAny) valueTotal = sum;
   }
 
+  const PROBLEM_STATUSES = new Set(['down', 'alert', 'ssl_expired', 'ssl_warning']);
   const upCount = monitors.filter((m) => m.status === 'up').length;
-  const downCount = monitors.filter((m) => m.status === 'down').length;
+  const downCount = monitors.filter((m) => PROBLEM_STATUSES.has(m.status)).length;
   const totalCount = monitors.length;
 
   // Make this group a drop target

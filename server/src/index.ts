@@ -8,6 +8,7 @@ import { logger } from './utils/logger';
 import { authService } from './services/auth.service';
 import { MonitorWorkerManager } from './workers/MonitorWorkerManager';
 import { heartbeatService } from './services/heartbeat.service';
+import { setAgentServiceIO } from './services/agent.service';
 
 async function main() {
   // 1. Run pending migrations
@@ -32,6 +33,9 @@ async function main() {
 
   // Store io instance for later use
   app.set('io', io);
+
+  // Provide io to agent service for real-time push events
+  setAgentServiceIO(io);
 
   // 6. Start monitor workers
   const workerManager = MonitorWorkerManager.getInstance(io);

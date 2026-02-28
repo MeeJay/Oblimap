@@ -1,4 +1,5 @@
 import type { NotificationPlugin, NotificationPayload } from '../types';
+import { statusIcon } from '../statusIcons';
 
 export const gotifyPlugin: NotificationPlugin = {
   type: 'gotify',
@@ -11,7 +12,7 @@ export const gotifyPlugin: NotificationPlugin = {
   ],
 
   async send(config, payload) {
-    const icon = payload.newStatus === 'up' ? '✅' : payload.newStatus === 'value_changed' ? '🔄' : '🔴';
+    const icon = statusIcon(payload.newStatus);
     const prefix = payload.appName || 'Obliview';
     const url = `${String(config.serverUrl).replace(/\/$/, '')}/message`;
 

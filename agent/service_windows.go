@@ -1,0 +1,59 @@
+//go:build windows
+
+package main
+
+import (
+	"log"
+
+	"golang.org/x/sys/windows/svc"
+)
+
+type agentSvc struct {
+	urlFlag *string
+	keyFlag *string
+}
+
+// Execute implements svc.Handler — called by the Windows SCM when the service starts.
+func (s *agentSvc) Execute(_ []string, r <-chan svc.ChangeRequest, status chan<- svc.Status) (bool, uint32) {
+	status <- svc.Status{State: svc.StartPending}
+
+	cfg := setupConfig(*s.urlFlag, *s.keyFlag)
+
+	// Signal SERVICE_RUNNING — the MSI (ServiceControl Wait="yes") unblocks here.
+	status <- svc.Status{
+		State:   svc.Running,
+		Accepts: svc.AcceptStop | svc.AcceptShutdown,
+	}
+
+	// Run main loop in background goroutine
+	go mainLoop(cfg)
+
+	// Wait for stop/shutdown command from SCM
+	for {
+		c := <-r
+		switch c.Cmd {
+		case svc.Stop, svc.Shutdown:
+			log.Printf("Obliview Agent stopping...")
+			status <- svc.Status{State: svc.StopPending}
+			return false, 0
+		case svc.Interrogate:
+			status <- c.CurrentStatus
+		}
+	}
+}
+
+// runAsService detects Windows service mode and runs the SCM handler.
+// Returns true if running as a service (caller should not continue).
+func runAsService(urlFlag, keyFlag *string) bool {
+	isService, err := svc.IsWindowsService()
+	if err != nil {
+		log.Fatalf("Failed to detect service mode: %v", err)
+	}
+	if !isService {
+		return false
+	}
+	if err := svc.Run("ObliviewAgent", &agentSvc{urlFlag, keyFlag}); err != nil {
+		log.Fatalf("Service run failed: %v", err)
+	}
+	return true
+}

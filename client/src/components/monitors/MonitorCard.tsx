@@ -24,7 +24,29 @@ export function MonitorCard({
   const lastHeartbeat = heartbeats[heartbeats.length - 1];
   const responseTime = lastHeartbeat?.responseTime;
   const isValueWatcher = monitor.type === 'value_watcher';
+  const isAgent = monitor.type === 'agent';
   const watchedValue = lastHeartbeat?.value;
+
+  // Agent monitor: parse the JSON value snapshot for metric summary
+  const agentMetricSummary = (() => {
+    if (!isAgent || !lastHeartbeat?.value) return null;
+    try {
+      const v = JSON.parse(lastHeartbeat.value) as {
+        cpu?: number; memory?: number;
+        disks?: Array<{ mount: string; percent: number }>;
+      };
+      const parts: string[] = [];
+      if (v.cpu !== undefined) parts.push(`CPU ${v.cpu.toFixed(0)}%`);
+      if (v.memory !== undefined) parts.push(`RAM ${v.memory.toFixed(0)}%`);
+      if (v.disks?.[0]) parts.push(`Disk ${v.disks[0].percent.toFixed(0)}%`);
+      return parts.join(' · ') || null;
+    } catch { return null; }
+  })();
+
+  // Link target: agent monitors go to /agents/:deviceId, others to /monitor/:id
+  const linkTo = isAgent && monitor.agentDeviceId
+    ? `/agents/${monitor.agentDeviceId}`
+    : `/monitor/${monitor.id}`;
 
   /** Format a numeric string with locale grouping (e.g. 1000000 → 1,000,000) */
   const formatValue = (val: string) => {
@@ -54,7 +76,7 @@ export function MonitorCard({
       )}
 
       <Link
-        to={`/monitor/${monitor.id}`}
+        to={linkTo}
         className="flex flex-1 items-center gap-3 min-w-0"
         onClick={selectionMode ? (e) => e.preventDefault() : undefined}
       >
@@ -68,33 +90,48 @@ export function MonitorCard({
             <span className="text-xs text-text-muted">
               {MONITOR_TYPE_LABELS[monitor.type]}
             </span>
+            {/* Agent metric summary inline */}
+            {isAgent && agentMetricSummary && monitor.status !== 'down' && monitor.status !== 'alert' && (
+              <span className="hidden sm:inline text-xs text-text-muted truncate">
+                {agentMetricSummary}
+              </span>
+            )}
           </div>
 
-          <div className="mt-1">
-            <HeartbeatBar heartbeats={heartbeats} />
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 shrink-0 sm:shrink sm:flex-1 sm:max-w-[280px]">
-          <MiniSparkline heartbeats={heartbeats} monitor={monitor} />
-          {isValueWatcher ? (
-            watchedValue != null && (
-              <div className="text-right">
-                <span className="text-sm font-mono font-semibold text-accent">
-                  {formatValue(watchedValue)}
-                </span>
-              </div>
-            )
+          {/* Agent ALERT/DOWN: show violation message in appropriate color */}
+          {isAgent && (monitor.status === 'alert' || monitor.status === 'down') && lastHeartbeat?.message && lastHeartbeat.message !== 'All metrics OK' ? (
+            <div className={`mt-0.5 text-xs truncate ${monitor.status === 'alert' ? 'text-orange-500 dark:text-orange-400' : 'text-red-600 dark:text-red-400'}`}>
+              {lastHeartbeat.message}
+            </div>
           ) : (
-            responseTime !== undefined && responseTime !== null && (
-              <div className="text-right">
-                <span className="text-sm font-mono text-text-secondary">
-                  {responseTime}ms
-                </span>
-              </div>
-            )
+            <div className="mt-1">
+              <HeartbeatBar heartbeats={heartbeats} />
+            </div>
           )}
         </div>
+
+        {!isAgent && (
+          <div className="flex items-center gap-3 shrink-0 sm:shrink sm:flex-1 sm:max-w-[280px]">
+            <MiniSparkline heartbeats={heartbeats} monitor={monitor} />
+            {isValueWatcher ? (
+              watchedValue != null && (
+                <div className="text-right">
+                  <span className="text-sm font-mono font-semibold text-accent">
+                    {formatValue(watchedValue)}
+                  </span>
+                </div>
+              )
+            ) : (
+              responseTime !== undefined && responseTime !== null && (
+                <div className="text-right">
+                  <span className="text-sm font-mono text-text-secondary">
+                    {responseTime}ms
+                  </span>
+                </div>
+              )
+            )}
+          </div>
+        )}
       </Link>
     </div>
   );

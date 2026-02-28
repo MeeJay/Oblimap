@@ -1,5 +1,6 @@
 import apiClient from './client';
-import type { AgentApiKey, AgentDevice, ApiResponse } from '@obliview/shared';
+import type { AgentApiKey, AgentDevice, AgentThresholds, ApiResponse } from '@obliview/shared';
+import type { AgentPushSnapshot } from '../types/agent';
 
 export const agentApi = {
   // ── API Keys ─────────────────────────────────────────────────────────────
@@ -20,6 +21,15 @@ export const agentApi = {
 
   // ── Devices ───────────────────────────────────────────────────────────────
 
+  async getDeviceById(id: number): Promise<AgentDevice | null> {
+    try {
+      const res = await apiClient.get<ApiResponse<AgentDevice>>(`/agent/devices/${id}`);
+      return res.data.data ?? null;
+    } catch {
+      return null;
+    }
+  },
+
   async listDevices(status?: AgentDevice['status']): Promise<AgentDevice[]> {
     const params = status ? { status } : {};
     const res = await apiClient.get<ApiResponse<AgentDevice[]>>('/agent/devices', { params });
@@ -32,9 +42,26 @@ export const agentApi = {
       status?: AgentDevice['status'];
       groupId?: number | null;
       checkIntervalSeconds?: number;
+      agentThresholds?: AgentThresholds;
+      name?: string | null;
+      heartbeatMonitoring?: boolean;
     },
   ): Promise<AgentDevice> {
     const res = await apiClient.patch<ApiResponse<AgentDevice>>(`/agent/devices/${id}`, data);
+    return res.data.data!;
+  },
+
+  async getDeviceMetrics(deviceId: number): Promise<AgentPushSnapshot | null> {
+    try {
+      const res = await apiClient.get<ApiResponse<AgentPushSnapshot>>(`/agent/devices/${deviceId}/metrics`);
+      return res.data.data ?? null;
+    } catch {
+      return null;
+    }
+  },
+
+  async updateDeviceThresholds(deviceId: number, thresholds: AgentThresholds): Promise<AgentDevice> {
+    const res = await apiClient.patch<ApiResponse<AgentDevice>>(`/agent/devices/${deviceId}`, { agentThresholds: thresholds });
     return res.data.data!;
   },
 
@@ -57,6 +84,10 @@ export const agentApi = {
 
   getInstallerWindowsUrl(apiKey: string): string {
     return `${window.location.origin}/api/agent/installer/windows?key=${encodeURIComponent(apiKey)}`;
+  },
+
+  getInstallerMacosUrl(apiKey: string): string {
+    return `${window.location.origin}/api/agent/installer/macos?key=${encodeURIComponent(apiKey)}`;
   },
 
   getMsiUrl(): string {

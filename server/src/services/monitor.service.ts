@@ -1,5 +1,5 @@
 import { db } from '../db';
-import type { Monitor } from '@obliview/shared';
+import type { Monitor, AgentThresholds } from '@obliview/shared';
 import { generateToken } from '../utils/crypto';
 
 // Database row → API model
@@ -57,10 +57,7 @@ interface MonitorRow {
   value_watcher_headers: Record<string, string> | null;
   // Agent Monitor
   agent_device_id: number | null;
-  agent_metric: string | null;
-  agent_mount: string | null;
-  agent_threshold: number | null;
-  agent_threshold_op: string | null;
+  agent_thresholds: AgentThresholds | null;
   created_by: number | null;
   created_at: Date;
   updated_at: Date;
@@ -121,10 +118,7 @@ function rowToMonitor(row: MonitorRow): Monitor {
     valueWatcherHeaders: typeof row.value_watcher_headers === 'string' ? JSON.parse(row.value_watcher_headers) : row.value_watcher_headers,
     // Agent Monitor
     agentDeviceId: row.agent_device_id,
-    agentMetric: row.agent_metric,
-    agentMount: row.agent_mount,
-    agentThreshold: row.agent_threshold,
-    agentThresholdOp: row.agent_threshold_op,
+    agentThresholds: row.agent_thresholds ?? null,
     createdBy: row.created_by,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
@@ -186,10 +180,7 @@ function monitorToRow(data: Partial<Monitor>): Record<string, unknown> {
   if (data.valueWatcherHeaders !== undefined) map.value_watcher_headers = data.valueWatcherHeaders ? JSON.stringify(data.valueWatcherHeaders) : null;
   // Agent Monitor
   if (data.agentDeviceId !== undefined) map.agent_device_id = data.agentDeviceId;
-  if (data.agentMetric !== undefined) map.agent_metric = data.agentMetric;
-  if (data.agentMount !== undefined) map.agent_mount = data.agentMount;
-  if (data.agentThreshold !== undefined) map.agent_threshold = data.agentThreshold;
-  if (data.agentThresholdOp !== undefined) map.agent_threshold_op = data.agentThresholdOp;
+  if (data.agentThresholds !== undefined) map.agent_thresholds = data.agentThresholds ? JSON.stringify(data.agentThresholds) : null;
 
   return map;
 }

@@ -42,7 +42,8 @@ services:
       dockerfile: client/Dockerfile
     restart: unless-stopped
     depends_on:
-      - server
+      server:
+        condition: service_healthy
     ports:
       - "${LISTEN_PORT:-3000}:80"
 

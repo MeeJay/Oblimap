@@ -14,6 +14,8 @@ const statusConfig: Record<MonitorStatus, { label: string; dotClass: string; bgC
   paused: { label: 'PAUSED', dotClass: 'bg-status-paused', bgClass: 'bg-status-paused-bg text-status-paused' },
   ssl_warning: { label: 'SSL WARN', dotClass: 'bg-status-ssl-warning', bgClass: 'bg-status-ssl-warning-bg text-status-ssl-warning' },
   ssl_expired: { label: 'SSL EXP', dotClass: 'bg-status-ssl-expired', bgClass: 'bg-status-ssl-expired-bg text-status-ssl-expired' },
+  alert:    { label: 'ALERT',    dotClass: 'bg-orange-500', bgClass: 'bg-orange-500/15 text-orange-500' },
+  inactive: { label: 'INACTIVE', dotClass: 'bg-gray-400',   bgClass: 'bg-gray-400/15 text-gray-400' },
 };
 
 const sizes = {

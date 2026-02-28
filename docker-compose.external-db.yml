@@ -26,6 +26,7 @@ services:
     image: meejay/obliview-client:${OBLIVIEW_VERSION:-latest}
     restart: unless-stopped
     depends_on:
-      - server
+      server:
+        condition: service_healthy
     ports:
       - "${LISTEN_PORT:-3000}:80"

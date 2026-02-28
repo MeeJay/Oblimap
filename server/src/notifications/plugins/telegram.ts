@@ -1,4 +1,5 @@
 import type { NotificationPlugin, NotificationPayload } from '../types';
+import { statusIcon } from '../statusIcons';
 
 export const telegramPlugin: NotificationPlugin = {
   type: 'telegram',
@@ -10,7 +11,7 @@ export const telegramPlugin: NotificationPlugin = {
   ],
 
   async send(config, payload) {
-    const icon = payload.newStatus === 'up' ? '✅' : payload.newStatus === 'value_changed' ? '🔄' : '🔴';
+    const icon = statusIcon(payload.newStatus);
     const text = [
       `${icon} <b>${payload.monitorName}</b>`,
       `Status: <b>${payload.oldStatus.toUpperCase()}</b> → <b>${payload.newStatus.toUpperCase()}</b>`,

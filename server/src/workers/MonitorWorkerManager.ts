@@ -204,10 +204,7 @@ export class MonitorWorkerManager {
       valueWatcherHeaders: monitor.valueWatcherHeaders,
       // Agent Monitor
       agentDeviceId: monitor.agentDeviceId,
-      agentMetric: monitor.agentMetric,
-      agentMount: monitor.agentMount,
-      agentThreshold: monitor.agentThreshold,
-      agentThresholdOp: monitor.agentThresholdOp,
+      agentThresholds: monitor.agentThresholds,
     };
   }
 }

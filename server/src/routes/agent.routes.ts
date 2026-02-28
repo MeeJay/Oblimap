@@ -9,12 +9,15 @@ import {
   agentInstallerLinux,
   agentInstallerWindows,
   agentInstallerWindowsMsi,
+  agentInstallerMacos,
   listKeys,
   createKey,
   deleteKey,
+  getDevice,
   listDevices,
   updateDevice,
   deleteDevice,
+  getDeviceMetrics,
 } from '../controllers/agent.controller';
 
 const router = Router();
@@ -31,6 +34,7 @@ router.get('/download/:filename', agentDownload);
 // Installer scripts (with API key injected)
 router.get('/installer/linux', agentInstallerLinux);
 router.get('/installer/windows', agentInstallerWindows);
+router.get('/installer/macos', agentInstallerMacos);
 
 // Pre-built Windows MSI (static, SERVERURL + APIKEY passed via msiexec properties)
 router.get('/installer/windows.msi', agentInstallerWindowsMsi);
@@ -42,6 +46,8 @@ router.post('/keys', requireAuth, requireRole('admin'), createKey);
 router.delete('/keys/:id', requireAuth, requireRole('admin'), deleteKey);
 
 router.get('/devices', requireAuth, requireRole('admin'), listDevices);
+router.get('/devices/:id', requireAuth, requireRole('admin'), getDevice);
+router.get('/devices/:id/metrics', requireAuth, requireRole('admin'), getDeviceMetrics);
 router.patch('/devices/:id', requireAuth, requireRole('admin'), updateDevice);
 router.delete('/devices/:id', requireAuth, requireRole('admin'), deleteDevice);
 

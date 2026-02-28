@@ -10,8 +10,10 @@ export const slackPlugin: NotificationPlugin = {
   ],
 
   async send(config, payload) {
-    const icon = payload.newStatus === 'up' ? ':white_check_mark:' : payload.newStatus === 'value_changed' ? ':arrows_counterclockwise:' : ':red_circle:';
-    const color = payload.newStatus === 'up' ? '#2ecc71' : payload.newStatus === 'value_changed' ? '#3498db' : '#e74c3c';
+    const slackIcons: Record<string,string> = { up: ':white_check_mark:', alert: ':large_orange_circle:', ssl_warning: ':warning:', inactive: ':black_circle:', value_changed: ':arrows_counterclockwise:' };
+    const icon = slackIcons[payload.newStatus] ?? ':red_circle:';
+    const colorMap: Record<string,string> = { up: '#2ecc71', alert: '#e67e22', ssl_warning: '#f39c12', ssl_expired: '#e74c3c', inactive: '#95a5a6', value_changed: '#3498db' };
+    const color = colorMap[payload.newStatus] ?? '#e74c3c';
 
     const body: Record<string, unknown> = {
       attachments: [{

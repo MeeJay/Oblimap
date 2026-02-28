@@ -7,6 +7,7 @@ export const createGroupSchema = z.object({
   sortOrder: z.number().int().min(0).optional(),
   isGeneral: z.boolean().optional(),
   groupNotifications: z.boolean().optional(),
+  kind: z.enum(['monitor', 'agent']).optional(),
 });
 
 export const updateGroupSchema = z.object({

@@ -50,11 +50,10 @@ export class SslMonitorWorker extends BaseMonitorWorker {
               message: `SSL certificate expired ${Math.abs(daysRemaining)} days ago`,
             });
           } else if (daysRemaining < warnDays) {
-            // Still "up" but with a warning message
             resolve({
-              status: 'up',
+              status: 'ssl_warning',
               responseTime,
-              message: `SSL certificate expires in ${daysRemaining} days (warning threshold: ${warnDays})`,
+              message: `SSL certificate expires in ${daysRemaining} days (warning threshold: ${warnDays} days)`,
             });
           } else {
             resolve({

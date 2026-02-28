@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, type FormEvent } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, ChevronUp, ChevronDown } from 'lucide-react';
+import { ArrowLeft, ChevronUp, ChevronDown, FolderTree, Server } from 'lucide-react';
 import type { MonitorGroup, GroupTreeNode } from '@obliview/shared';
 import { groupsApi } from '@/api/groups.api';
 import { useGroupStore } from '@/store/groupStore';
@@ -181,7 +181,20 @@ export function GroupEditPage() {
         Back to {group.name}
       </Link>
 
-      <h1 className="text-2xl font-semibold text-text-primary mb-6">Edit Group</h1>
+      <div className="flex items-center gap-3 mb-6">
+        <h1 className="text-2xl font-semibold text-text-primary">Edit Group</h1>
+        {group.kind === 'agent' ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-bg-tertiary border border-border px-2.5 py-0.5 text-xs font-medium text-text-muted">
+            <Server size={11} />
+            Agent Group
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded-full bg-bg-tertiary border border-border px-2.5 py-0.5 text-xs font-medium text-text-muted">
+            <FolderTree size={11} />
+            Monitor Group
+          </span>
+        )}
+      </div>
 
       {/* General */}
       <div className="rounded-lg border border-border bg-bg-secondary p-5 mb-6">

@@ -1,5 +1,5 @@
 import { useState, useEffect, type FormEvent } from 'react';
-import { Plus, Pencil, Trash2, FolderTree, GripVertical, RotateCcw, Bell } from 'lucide-react';
+import { Plus, Pencil, Trash2, FolderTree, GripVertical, RotateCcw, Bell, Server } from 'lucide-react';
 import {
   DndContext,
   DragOverlay,
@@ -28,6 +28,7 @@ interface GroupFormData {
   parentId: number | null;
   isGeneral: boolean;
   groupNotifications: boolean;
+  kind: 'monitor' | 'agent';
 }
 
 const emptyForm: GroupFormData = {
@@ -36,6 +37,7 @@ const emptyForm: GroupFormData = {
   parentId: null,
   isGeneral: false,
   groupNotifications: false,
+  kind: 'monitor',
 };
 
 /** Flatten the tree to an ordered list */
@@ -116,6 +118,7 @@ export function GroupManagePage() {
       parentId: group.parentId,
       isGeneral: group.isGeneral,
       groupNotifications: group.groupNotifications,
+      kind: group.kind,
     });
     setShowForm(true);
   };
@@ -139,6 +142,7 @@ export function GroupManagePage() {
           parentId: form.parentId,
           isGeneral: form.isGeneral,
           groupNotifications: form.groupNotifications,
+          kind: form.kind,
         });
         toast.success('Group created');
       }
@@ -267,7 +271,7 @@ export function GroupManagePage() {
   };
 
   return (
-    <div className="p-6 max-w-3xl">
+    <div className="p-6 max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold text-text-primary">Groups</h1>
         <Button size="sm" onClick={() => openCreate()}>
@@ -296,6 +300,43 @@ export function GroupManagePage() {
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               placeholder="Optional description"
             />
+            {/* Group type — only on create */}
+            {!editingId && (
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-text-secondary">Group Type</label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, kind: 'monitor' })}
+                    className={`flex-1 flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
+                      form.kind === 'monitor'
+                        ? 'border-accent bg-accent/10 text-accent font-medium'
+                        : 'border-border text-text-muted hover:text-text-primary hover:bg-bg-hover'
+                    }`}
+                  >
+                    <FolderTree size={14} />
+                    Monitor Group
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm({ ...form, kind: 'agent' })}
+                    className={`flex-1 flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
+                      form.kind === 'agent'
+                        ? 'border-accent bg-accent/10 text-accent font-medium'
+                        : 'border-border text-text-muted hover:text-text-primary hover:bg-bg-hover'
+                    }`}
+                  >
+                    <Server size={14} />
+                    Agent Group
+                  </button>
+                </div>
+                <p className="text-xs text-text-muted">
+                  {form.kind === 'agent'
+                    ? 'Agent groups organise servers/machines. Default thresholds apply on device approval.'
+                    : 'Monitor groups organise HTTP, ping, and other monitors.'}
+                </p>
+              </div>
+            )}
             {!editingId && (
               <div className="space-y-1">
                 <label className="block text-sm font-medium text-text-secondary">
@@ -310,35 +351,39 @@ export function GroupManagePage() {
                 />
               </div>
             )}
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="is-general"
-                checked={form.isGeneral}
-                onChange={(e) => setForm({ ...form, isGeneral: e.target.checked })}
-                className="h-4 w-4 rounded border-border bg-bg-tertiary text-accent focus:ring-accent"
-              />
-              <label htmlFor="is-general" className="text-sm text-text-secondary">
-                General group (visible to all users)
-              </label>
-            </div>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="group-notifications"
-                  checked={form.groupNotifications}
-                  onChange={(e) => setForm({ ...form, groupNotifications: e.target.checked })}
-                  className="h-4 w-4 rounded border-border bg-bg-tertiary text-accent focus:ring-accent"
-                />
-                <label htmlFor="group-notifications" className="text-sm text-text-secondary">
-                  Group notifications
-                </label>
-              </div>
-              <p className="text-xs text-text-muted ml-6">
-                Send a single notification when the first monitor goes down, and one recovery when all are back up.
-              </p>
-            </div>
+            {form.kind === 'monitor' && (
+              <>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="is-general"
+                    checked={form.isGeneral}
+                    onChange={(e) => setForm({ ...form, isGeneral: e.target.checked })}
+                    className="h-4 w-4 rounded border-border bg-bg-tertiary text-accent focus:ring-accent"
+                  />
+                  <label htmlFor="is-general" className="text-sm text-text-secondary">
+                    General group (visible to all users)
+                  </label>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="group-notifications"
+                      checked={form.groupNotifications}
+                      onChange={(e) => setForm({ ...form, groupNotifications: e.target.checked })}
+                      className="h-4 w-4 rounded border-border bg-bg-tertiary text-accent focus:ring-accent"
+                    />
+                    <label htmlFor="group-notifications" className="text-sm text-text-secondary">
+                      Group notifications
+                    </label>
+                  </div>
+                  <p className="text-xs text-text-muted ml-6">
+                    Send a single notification when the first monitor goes down, and one recovery when all are back up.
+                  </p>
+                </div>
+              </>
+            )}
             <div className="flex items-center gap-3">
               <Button type="submit" loading={saving}>
                 {editingId ? 'Save' : 'Create'}
@@ -544,8 +589,17 @@ function DraggableGroupRow({
       >
         <GripVertical size={14} />
       </div>
-      <FolderTree size={16} className="text-accent shrink-0" />
+      {node.kind === 'agent'
+        ? <Server size={16} className="text-text-muted shrink-0" />
+        : <FolderTree size={16} className="text-accent shrink-0" />
+      }
       <span className="flex-1 text-sm text-text-primary">{node.name}</span>
+      {node.kind === 'agent' && (
+        <span className="inline-flex items-center gap-0.5 rounded-full bg-bg-tertiary px-2 py-0.5 text-[10px] font-medium text-text-muted">
+          <Server size={9} />
+          Agents
+        </span>
+      )}
       {node.isGeneral && (
         <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
           General

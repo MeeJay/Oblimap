@@ -152,7 +152,7 @@ export abstract class BaseMonitorWorker {
         if (this.retryCount > this.config.maxRetries) {
           // Retries exhausted — confirmed DOWN
           if (this.confirmedStatus !== 'down') {
-            await this.handleStatusChange(result.status);
+            await this.handleStatusChange(result.status, result.message);
             this.confirmedStatus = 'down';
           }
         }
@@ -161,13 +161,13 @@ export abstract class BaseMonitorWorker {
         // SSL statuses fire immediately with no retries
         this.retryCount = 0;
         if (this.confirmedStatus !== result.status) {
-          await this.handleStatusChange(result.status);
+          await this.handleStatusChange(result.status, result.message);
           this.confirmedStatus = result.status;
         }
       } else {
-        // Status is UP or other non-down/non-ssl
+        // Status is UP or other non-down/non-ssl (includes 'alert', 'inactive')
         if (this.confirmedStatus !== result.status && this.confirmedStatus !== 'pending') {
-          await this.handleStatusChange(result.status);
+          await this.handleStatusChange(result.status, result.message);
         }
         this.confirmedStatus = result.status;
         this.retryCount = 0;
@@ -191,7 +191,7 @@ export abstract class BaseMonitorWorker {
     }
   }
 
-  private async handleStatusChange(newStatus: MonitorStatus): Promise<void> {
+  private async handleStatusChange(newStatus: MonitorStatus, message?: string): Promise<void> {
     const oldStatus = this.confirmedStatus;
     logger.info(
       `Monitor "${this.config.name}" (id: ${this.config.id}): ${oldStatus} → ${newStatus}`,
@@ -205,6 +205,11 @@ export abstract class BaseMonitorWorker {
       timestamp: new Date().toISOString(),
     });
 
+    // 'inactive' status = agent offline with heartbeat_monitoring disabled → no notification
+    if (newStatus === 'inactive') {
+      return;
+    }
+
     // Trigger notifications
     try {
       // Check if this monitor is covered by a group with groupNotifications
@@ -213,11 +218,15 @@ export abstract class BaseMonitorWorker {
         this.config.groupId,
       );
 
+      // Statuses that represent a problem (non-up, non-pending, non-paused, non-inactive)
+      const isProblemStatus = (s: string) =>
+        s === 'down' || s === 'ssl_expired' || s === 'ssl_warning' || s === 'alert';
+
       if (groupNotifGroupId !== null) {
         // ── Grouped notifications mode ──
         const group = await groupService.getById(groupNotifGroupId);
 
-        if (newStatus === 'down' || newStatus === 'ssl_expired' || newStatus === 'ssl_warning') {
+        if (isProblemStatus(newStatus)) {
           const result = groupNotificationService.handleMonitorDown(
             this.config.id,
             this.config.name,
@@ -235,12 +244,12 @@ export abstract class BaseMonitorWorker {
               groupId: groupNotifGroupId,
               downMonitors: [this.config.name],
               isGroupNotification: true,
-              message: `Monitor "${this.config.name}" in group "${group!.name}" is ${newStatus.toUpperCase()}`,
+              message: message ?? `Monitor "${this.config.name}" in group "${group!.name}" is ${newStatus.toUpperCase()}`,
               timestamp: new Date().toISOString(),
             });
           }
           // 'already_down' → suppress individual notification
-        } else if (oldStatus === 'down' || oldStatus === 'ssl_expired' || oldStatus === 'ssl_warning') {
+        } else if (isProblemStatus(oldStatus)) {
           const result = groupNotificationService.handleMonitorUp(
             this.config.id,
             groupNotifGroupId,
@@ -269,6 +278,7 @@ export abstract class BaseMonitorWorker {
           monitorUrl: this.config.url as string | undefined,
           oldStatus,
           newStatus,
+          message,  // e.g. "CPU: 92.1% > 90%; Disk /: 91.0% > 90%"
           timestamp: new Date().toISOString(),
         });
       }

@@ -101,10 +101,13 @@ export function GroupTree({ selectedGroupId, onSelectGroup }: GroupTreeProps) {
     }
   };
 
+  // Only show monitor-kind groups (not agent groups — those appear in the Agent Groups sidebar section)
+  const monitorTree = tree.filter(n => n.kind !== 'agent');
+
   const content = (
     <div className="space-y-0.5">
-      {/* Group tree */}
-      {tree.map((node) => (
+      {/* Group tree (monitor groups only) */}
+      {monitorTree.map((node) => (
         <GroupNode
           key={node.id}
           node={node}
@@ -122,12 +125,12 @@ export function GroupTree({ selectedGroupId, onSelectGroup }: GroupTreeProps) {
           navigate={navigate}
           location={location}
           getMonitorSummary={getMonitorSummary}
-          treeLength={tree.length}
+          treeLength={monitorTree.length}
         />
       )}
 
       {/* Empty state */}
-      {tree.length === 0 && ungroupedMonitors.length === 0 && (
+      {monitorTree.length === 0 && ungroupedMonitors.length === 0 && (
         <div className="py-4 text-center text-sm text-text-muted">
           No monitors yet
         </div>

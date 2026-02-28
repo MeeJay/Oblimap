@@ -1,4 +1,5 @@
 import type { NotificationPlugin, NotificationPayload } from '../types';
+import { statusIcon } from '../statusIcons';
 
 export const ntfyPlugin: NotificationPlugin = {
   type: 'ntfy',
@@ -12,7 +13,7 @@ export const ntfyPlugin: NotificationPlugin = {
   ],
 
   async send(config, payload) {
-    const icon = payload.newStatus === 'up' ? '✅' : payload.newStatus === 'value_changed' ? '🔄' : '🔴';
+    const icon = statusIcon(payload.newStatus);
     const prefix = payload.appName || 'Obliview';
     const url = `${String(config.serverUrl).replace(/\/$/, '')}/${config.topic}`;
     const headers: Record<string, string> = { 'Content-Type': 'text/plain' };
@@ -21,7 +22,7 @@ export const ntfyPlugin: NotificationPlugin = {
     const priority = String(config.priority || '3');
     headers['X-Priority'] = priority;
     headers['X-Title'] = `[${prefix}] ${icon} ${payload.monitorName}`;
-    if (config.tags) headers['X-Tags'] = String(payload.newStatus === 'up' ? 'white_check_mark' : payload.newStatus === 'value_changed' ? 'arrows_counterclockwise' : 'rotating_light');
+    if (config.tags) { const tagMap: Record<string,string> = { up: 'white_check_mark', alert: 'large_orange_circle', ssl_warning: 'warning', inactive: 'black_circle', value_changed: 'arrows_counterclockwise' }; headers['X-Tags'] = tagMap[payload.newStatus] ?? 'rotating_light'; }
 
     const body = `${payload.oldStatus} → ${payload.newStatus}${payload.message ? `\n${payload.message}` : ''}`;
 

@@ -17,7 +17,12 @@ export const MONITOR_TYPES = [
 
 export type MonitorType = (typeof MONITOR_TYPES)[number];
 
-export const MONITOR_STATUS = ['up', 'down', 'pending', 'maintenance', 'paused', 'ssl_warning', 'ssl_expired'] as const;
+export const MONITOR_STATUS = [
+  'up', 'down', 'pending', 'maintenance', 'paused',
+  'ssl_warning', 'ssl_expired',
+  'alert',    // threshold violation on an agent monitor (orange)
+  'inactive', // agent offline + heartbeat_monitoring=false (grey, no notification)
+] as const;
 export type MonitorStatus = (typeof MONITOR_STATUS)[number];
 
 export const MONITOR_TYPE_LABELS: Record<MonitorType, string> = {

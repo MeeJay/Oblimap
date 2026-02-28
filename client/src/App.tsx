@@ -13,6 +13,7 @@ import { SettingsPage } from '@/pages/SettingsPage';
 import { NotificationsPage } from '@/pages/NotificationsPage';
 import { AdminUsersPage } from '@/pages/AdminUsersPage';
 import { AdminAgentPage } from '@/pages/AdminAgentPage';
+import { AgentDetailPage } from '@/pages/AgentDetailPage';
 import { ProfilePage } from '@/pages/ProfilePage';
 import { GroupDetailPage } from '@/pages/GroupDetailPage';
 import { GroupEditPage } from '@/pages/GroupEditPage';
@@ -48,6 +49,7 @@ export default function App() {
               <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/admin/users" element={<AdminUsersPage />} />
               <Route path="/admin/agents" element={<AdminAgentPage />} />
+              <Route path="/agents/:deviceId" element={<AgentDetailPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
           </Route>
