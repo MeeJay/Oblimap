@@ -16,7 +16,7 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package Name="Obliview Agent"
            Manufacturer="Obliview"
-           Version="1.0.0"
+           Version="AGENT_VERSION_PLACEHOLDER"
            Language="1033"
            UpgradeCode="3A7B2C1D-4E5F-6789-ABCD-EF0123456789">
 

@@ -296,7 +296,7 @@ function CpuCard({ metrics, violating }: { metrics: AgentMetrics; violating: boo
              — each column = 1 thread (T01 left, T02 right), 1 core per row
              — max-h-[148px] ≈ 8 rows (16 threads) always visible
              — any extra threads are accessible via the scrollbar              */}
-        <div className="overflow-y-auto py-2 px-2 max-h-[148px]">
+        <div className="flex-1 min-w-0 overflow-y-auto py-2 px-2 max-h-[148px]">
           {cores.length > 0 ? (() => {
             const pairs: Array<{ num: number; t1: number; t2?: number }> = [];
             for (let i = 0; i < cores.length; i += 2) {
@@ -994,7 +994,7 @@ export function AgentDetailPage() {
   };
 
   const handleSaveInterval = async () => {
-    const v = Math.max(10, Math.min(86400, intervalValue));
+    const v = Math.max(1, Math.min(86400, intervalValue));
     setSavingInterval(true);
     try {
       const updated = await agentApi.updateDevice(id, { checkIntervalSeconds: v });
@@ -1037,7 +1037,7 @@ export function AgentDetailPage() {
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex min-h-full">
+    <div className="flex flex-1">
 
       {/* ── Main scrollable content ── */}
       <div className="flex-1 min-w-0 p-4 md:p-6 space-y-4">

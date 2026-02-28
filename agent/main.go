@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -134,6 +136,83 @@ func generateUUID() string {
 		b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
 
+// ── Auto-update (Linux / macOS only) ──────────────────────────────────────────
+
+// checkForUpdate fetches the latest version from the server. If a newer
+// version is available it downloads the appropriate binary, replaces the
+// running executable and exits so that the service manager (systemd/launchd)
+// restarts it automatically.
+// On Windows the MSI installer is the authoritative update mechanism, so this
+// function is a no-op on that platform.
+func checkForUpdate(cfg *Config) {
+	if runtime.GOOS == "windows" {
+		return
+	}
+
+	type versionResponse struct {
+		Version string `json:"version"`
+	}
+
+	client := &http.Client{Timeout: 15 * time.Second}
+
+	resp, err := client.Get(cfg.ServerURL + "/api/agent/version")
+	if err != nil {
+		log.Printf("Auto-update: version check failed: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	var info versionResponse
+	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil || info.Version == "" {
+		return
+	}
+
+	if info.Version == agentVersion {
+		log.Printf("Auto-update: already up to date (v%s)", agentVersion)
+		return
+	}
+
+	log.Printf("Auto-update: new version available %s → %s, downloading...", agentVersion, info.Version)
+
+	filename := fmt.Sprintf("obliview-agent-%s-%s", runtime.GOOS, runtime.GOARCH)
+	dlResp, err := client.Get(cfg.ServerURL + "/api/agent/download/" + filename)
+	if err != nil || dlResp.StatusCode != 200 {
+		log.Printf("Auto-update: download failed (status %d): %v", dlResp.StatusCode, err)
+		return
+	}
+	defer dlResp.Body.Close()
+
+	exePath, err := os.Executable()
+	if err != nil {
+		log.Printf("Auto-update: cannot resolve executable path: %v", err)
+		return
+	}
+
+	tmpPath := exePath + ".new"
+	f, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
+	if err != nil {
+		log.Printf("Auto-update: cannot write temp file: %v", err)
+		return
+	}
+
+	if _, err := io.Copy(f, dlResp.Body); err != nil {
+		f.Close()
+		os.Remove(tmpPath)
+		log.Printf("Auto-update: download write error: %v", err)
+		return
+	}
+	f.Close()
+
+	if err := os.Rename(tmpPath, exePath); err != nil {
+		os.Remove(tmpPath)
+		log.Printf("Auto-update: rename failed: %v", err)
+		return
+	}
+
+	log.Printf("Auto-update: updated to v%s, restarting...", info.Version)
+	os.Exit(0) // systemd / launchd will restart the service automatically
+}
+
 // ── Main loop ─────────────────────────────────────────────────────────────────
 
 var backoffSteps = []int{5 * 60, 10 * 60, 30 * 60, 60 * 60}
@@ -143,6 +222,11 @@ func mainLoop(cfg *Config) {
 	log.Printf("Obliview Agent v%s starting", cfg.AgentVersion)
 	log.Printf("Server: %s", cfg.ServerURL)
 	log.Printf("Device UUID: %s", cfg.DeviceUUID)
+
+	// Check for a newer version before entering the main loop.
+	// On Linux/macOS: downloads + replaces binary + exits (service restarts).
+	// On Windows: no-op (use MSI reinstall to update).
+	checkForUpdate(cfg)
 
 	for {
 		now := time.Now().UnixMilli()

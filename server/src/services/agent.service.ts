@@ -1,4 +1,6 @@
 import type { Server as SocketIOServer } from 'socket.io';
+import * as fs from 'fs';
+import * as path from 'path';
 import { db } from '../db';
 import type { AgentApiKey, AgentDevice, AgentThresholds } from '@obliview/shared';
 import { DEFAULT_AGENT_THRESHOLDS } from '@obliview/shared';
@@ -572,12 +574,18 @@ export const agentService = {
 
   // ── Version / download endpoints ─────────────────────────
 
-  getAgentVersion(): { version: string; downloadUrl: string } {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const pkg = require('../../../../agent/package.json') as { version: string };
-    return {
-      version: pkg.version,
-      downloadUrl: '/api/agent/download/agent.js',
-    };
+  getAgentVersion(): { version: string } {
+    // Read version from agent/main.go: const agentVersion = "X.X.X"
+    try {
+      const mainGoPath = path.resolve(__dirname, '../../../../agent/main.go');
+      const content = fs.readFileSync(mainGoPath, 'utf-8');
+      const match = content.match(/const agentVersion\s*=\s*"([^"]+)"/);
+      if (match?.[1]) {
+        return { version: match[1] };
+      }
+    } catch {
+      // fallback below
+    }
+    return { version: '0.0.0' };
   },
 };
