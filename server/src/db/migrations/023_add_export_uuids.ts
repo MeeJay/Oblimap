@@ -17,10 +17,20 @@ export async function up(knex: Knex): Promise<void> {
   await knex.raw(`ALTER TABLE user_teams            ADD COLUMN IF NOT EXISTS uuid UUID NOT NULL DEFAULT gen_random_uuid()`);
 
   // Unique constraints — used by ON CONFLICT (uuid) DO UPDATE in import logic
-  await knex.raw(`ALTER TABLE monitors              ADD CONSTRAINT IF NOT EXISTS monitors_uuid_key              UNIQUE (uuid)`);
-  await knex.raw(`ALTER TABLE monitor_groups        ADD CONSTRAINT IF NOT EXISTS monitor_groups_uuid_key        UNIQUE (uuid)`);
-  await knex.raw(`ALTER TABLE notification_channels ADD CONSTRAINT IF NOT EXISTS notification_channels_uuid_key UNIQUE (uuid)`);
-  await knex.raw(`ALTER TABLE user_teams            ADD CONSTRAINT IF NOT EXISTS user_teams_uuid_key            UNIQUE (uuid)`);
+  // PostgreSQL has no ADD CONSTRAINT IF NOT EXISTS, so we use a DO block instead.
+  for (const [table, constraint] of [
+    ['monitors',              'monitors_uuid_key'],
+    ['monitor_groups',        'monitor_groups_uuid_key'],
+    ['notification_channels', 'notification_channels_uuid_key'],
+    ['user_teams',            'user_teams_uuid_key'],
+  ] as [string, string][]) {
+    await knex.raw(`
+      DO $$ BEGIN
+        ALTER TABLE ${table} ADD CONSTRAINT ${constraint} UNIQUE (uuid);
+      EXCEPTION WHEN duplicate_object THEN NULL;
+      END $$
+    `);
+  }
 }
 
 export async function down(knex: Knex): Promise<void> {

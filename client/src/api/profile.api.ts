@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { User } from '@obliview/shared';
+import type { User, UserPreferences } from '@obliview/shared';
 
 export const profileApi = {
   async get(): Promise<User> {
@@ -7,7 +7,7 @@ export const profileApi = {
     return res.data.data;
   },
 
-  async update(data: { displayName?: string | null }): Promise<User> {
+  async update(data: { displayName?: string | null; preferences?: UserPreferences | null }): Promise<User> {
     const res = await apiClient.put('/profile', data);
     return res.data.data;
   },

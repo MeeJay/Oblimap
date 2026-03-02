@@ -5,7 +5,7 @@ import {
   Network, Activity, Server, AlertTriangle, Wind, Thermometer,
   MonitorDot, ArrowDownToLine, ArrowUpFromLine,
   Pencil, Check, X, LayoutDashboard,
-  MemoryStick, Wifi,
+  MemoryStick, Wifi, RotateCcw,
 } from 'lucide-react';
 import type { AgentDevice, AgentThresholds, AgentMetricThreshold, AgentTempThreshold } from '@obliview/shared';
 import { DEFAULT_AGENT_THRESHOLDS } from '@obliview/shared';
@@ -14,6 +14,7 @@ import { monitorsApi } from '../api/monitors.api';
 import type { AgentMetrics, AgentPushSnapshot } from '../types/agent';
 import { getSocket } from '../socket/socketClient';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
+import { NotificationBindingsPanel } from '../components/notifications/NotificationBindingsPanel';
 import { cn } from '../utils/cn';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1386,11 +1387,11 @@ function TempsView({
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ── Toggle switch helper ──────────────────────────────────────────────────────
-function Switch({ on, onChange, disabled = false }: { on: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+function Switch({ on, onChange, disabled = false }: { on: boolean; onChange?: (v: boolean) => void; disabled?: boolean }) {
   return (
     <button
       type="button"
-      onClick={() => !disabled && onChange(!on)}
+      onClick={() => !disabled && onChange?.(!on)}
       disabled={disabled}
       className={cn(
         'relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors',
@@ -1405,56 +1406,131 @@ function Switch({ on, onChange, disabled = false }: { on: boolean; onChange: (v:
 }
 
 function ThresholdEditor({
-  thresholds, onSave, onClose, knownSensors = [],
+  thresholds, inheritedThresholds, onSave, onClose, knownSensors = [],
 }: {
   thresholds: AgentThresholds;
+  inheritedThresholds: AgentThresholds;
   onSave: (t: AgentThresholds) => Promise<void>;
   onClose: () => void;
   knownSensors?: Array<{ key: string; label: string }>;
 }) {
-  const [values, setValues] = useState<AgentThresholds>({ ...thresholds });
-  const [tempValues, setTempValues] = useState<AgentTempThreshold>(() => ({
-    globalEnabled: false, op: '>', threshold: 85, overrides: {},
-    ...(thresholds.temp ?? {}),
-  }));
   const [saving, setSaving] = useState(false);
 
-  const upd = (key: keyof Omit<AgentThresholds, 'temp'>, field: keyof AgentMetricThreshold, value: unknown) =>
-    setValues(prev => ({ ...prev, [key]: { ...prev[key], [field]: value } }));
+  type MetricKey = 'cpu' | 'memory' | 'disk' | 'netIn' | 'netOut';
 
-  const updTemp = (field: keyof AgentTempThreshold, value: unknown) =>
-    setTempValues(prev => ({ ...prev, [field]: value }));
+  function metricEqual(a: AgentMetricThreshold, b: AgentMetricThreshold) {
+    return a.enabled === b.enabled && a.op === b.op && a.threshold === b.threshold;
+  }
 
-  const updTempOverride = (sensorKey: string, field: 'enabled' | 'op' | 'threshold', value: unknown) =>
-    setTempValues(prev => {
-      const existing = prev.overrides[sensorKey] ?? { enabled: false, op: '>' as const, threshold: 85 };
-      return {
+  const inh = inheritedThresholds;
+  const inhTemp: AgentTempThreshold = inh.temp ?? { globalEnabled: false, op: '>', threshold: 85, overrides: {} };
+  const agentTemp: AgentTempThreshold = thresholds.temp ?? { globalEnabled: false, op: '>', threshold: 85, overrides: {} };
+
+  // Standard metric editable values
+  const [values, setValues] = useState<AgentThresholds>({ ...thresholds });
+
+  // Which standard metrics are overriding inherited values
+  const [overridingMetrics, setOverridingMetrics] = useState<Record<MetricKey, boolean>>({
+    cpu:    !metricEqual(thresholds.cpu,    inh.cpu),
+    memory: !metricEqual(thresholds.memory, inh.memory),
+    disk:   !metricEqual(thresholds.disk,   inh.disk),
+    netIn:  !metricEqual(thresholds.netIn,  inh.netIn),
+    netOut: !metricEqual(thresholds.netOut, inh.netOut),
+  });
+
+  // Temperature state
+  const [tempValues, setTempValues] = useState<AgentTempThreshold>(agentTemp);
+  const [tempGlobalOverriding, setTempGlobalOverriding] = useState<boolean>(
+    agentTemp.globalEnabled !== inhTemp.globalEnabled ||
+    agentTemp.op !== inhTemp.op ||
+    agentTemp.threshold !== inhTemp.threshold,
+  );
+
+  const upd = (key: MetricKey, field: keyof AgentMetricThreshold, val: unknown) =>
+    setValues(prev => ({ ...prev, [key]: { ...prev[key], [field]: val } }));
+
+  const handleOverrideMetric = (key: MetricKey, overriding: boolean) => {
+    if (!overriding) {
+      // Reset → copy inherited value back
+      setValues(prev => ({ ...prev, [key]: { ...inh[key] } }));
+    }
+    setOverridingMetrics(prev => ({ ...prev, [key]: overriding }));
+  };
+
+  const handleOverrideTempGlobal = (overriding: boolean) => {
+    if (!overriding) {
+      setTempValues(prev => ({
+        ...prev,
+        globalEnabled: inhTemp.globalEnabled,
+        op: inhTemp.op,
+        threshold: inhTemp.threshold,
+      }));
+    }
+    setTempGlobalOverriding(overriding);
+  };
+
+  const handleOverrideSensor = (sensorKey: string, overriding: boolean) => {
+    if (overriding) {
+      setTempValues(prev => ({
         ...prev,
         overrides: {
           ...prev.overrides,
-          [sensorKey]: { ...existing, [field]: value },
+          [sensorKey]: { enabled: true, op: prev.op, threshold: prev.threshold },
         },
-      };
-    });
+      }));
+    } else {
+      setTempValues(prev => {
+        const next = { ...prev.overrides };
+        delete next[sensorKey];
+        return { ...prev, overrides: next };
+      });
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      await onSave({ ...values, temp: tempValues });
+      const result: AgentThresholds = {
+        cpu:    overridingMetrics.cpu    ? values.cpu    : inh.cpu,
+        memory: overridingMetrics.memory ? values.memory : inh.memory,
+        disk:   overridingMetrics.disk   ? values.disk   : inh.disk,
+        netIn:  overridingMetrics.netIn  ? values.netIn  : inh.netIn,
+        netOut: overridingMetrics.netOut ? values.netOut : inh.netOut,
+        temp: {
+          globalEnabled: tempGlobalOverriding ? tempValues.globalEnabled : inhTemp.globalEnabled,
+          op:            tempGlobalOverriding ? tempValues.op            : inhTemp.op,
+          threshold:     tempGlobalOverriding ? tempValues.threshold     : inhTemp.threshold,
+          overrides: tempValues.overrides,
+        },
+      };
+      await onSave(result);
       onClose();
     } finally { setSaving(false); }
   };
 
   const BYTES_PER_MBIT = 125_000;
-  const rows: Array<{ key: keyof Omit<AgentThresholds, 'temp'>; label: string; unit: string; scale?: number }> = [
+  const rows: Array<{ key: MetricKey; label: string; unit: string; scale?: number }> = [
     { key: 'cpu',    label: 'CPU',        unit: '%' },
     { key: 'memory', label: 'Memory',     unit: '%' },
     { key: 'disk',   label: 'Disk (any)', unit: '%' },
     { key: 'netIn',  label: 'Net In',     unit: 'Mbps', scale: BYTES_PER_MBIT },
     { key: 'netOut', label: 'Net Out',    unit: 'Mbps', scale: BYTES_PER_MBIT },
   ];
-
   const OPS = ['>', '>=', '<', '<='] as const;
+
+  const OverrideBtn = ({ overriding, onToggle }: { overriding: boolean; onToggle: (v: boolean) => void }) => (
+    <button
+      onClick={() => onToggle(!overriding)}
+      className={cn(
+        'text-xs px-2 py-1 rounded border transition-colors whitespace-nowrap',
+        overriding
+          ? 'border-amber-500/40 text-amber-400 hover:bg-amber-500/10'
+          : 'border-border text-text-muted hover:bg-bg-hover hover:text-text-secondary',
+      )}
+    >
+      {overriding ? 'Reset' : 'Override'}
+    </button>
+  );
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -1475,36 +1551,56 @@ function ThresholdEditor({
                 <th className="text-center pb-2 font-medium w-12">On</th>
                 <th className="text-center pb-2 font-medium w-16">Op</th>
                 <th className="text-left pb-2 font-medium">Value</th>
+                <th className="pb-2 w-20" />
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {rows.map(({ key, label, unit, scale }) => (
-                <tr key={key} className={values[key].enabled ? '' : 'opacity-50'}>
-                  <td className="py-2.5 font-medium text-text-secondary">{label}</td>
-                  <td className="py-2.5 text-center">
-                    <Switch on={values[key].enabled} onChange={v => upd(key, 'enabled', v)} />
-                  </td>
-                  <td className="py-2.5 text-center">
-                    <select value={values[key].op} onChange={e => upd(key, 'op', e.target.value)}
-                      disabled={!values[key].enabled}
-                      className="text-xs border border-border rounded bg-bg-tertiary text-text-primary px-1.5 py-1 disabled:opacity-40">
-                      {OPS.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                  </td>
-                  <td className="py-2.5">
-                    <div className="flex items-center gap-1.5">
-                      <input type="number"
-                        value={scale ? Math.round(values[key].threshold / scale) : values[key].threshold}
-                        onChange={e => upd(key, 'threshold', scale
-                          ? Math.round(Number(e.target.value) * scale)
-                          : Number(e.target.value))}
-                        disabled={!values[key].enabled} min={0}
-                        className="w-24 text-xs border border-border rounded bg-bg-tertiary text-text-primary px-2 py-1 disabled:opacity-40" />
-                      <span className="text-xs text-text-muted">{unit}</span>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {rows.map(({ key, label, unit, scale }) => {
+                const overriding = overridingMetrics[key];
+                // Show inherited values when not overriding, editable values when overriding
+                const src = overriding ? values[key] : inh[key];
+                const displayValue = scale ? Math.round(src.threshold / scale) : src.threshold;
+                return (
+                  <tr key={key} className={cn(!overriding && 'opacity-50')}>
+                    <td className={cn('py-2.5 font-medium', src.enabled ? 'text-text-secondary' : 'text-text-muted')}>
+                      {label}
+                    </td>
+                    <td className="py-2.5 text-center">
+                      <Switch on={src.enabled} disabled={!overriding}
+                        onChange={v => overriding && upd(key, 'enabled', v)} />
+                    </td>
+                    <td className="py-2.5 text-center">
+                      {overriding && src.enabled ? (
+                        <select value={src.op} onChange={e => upd(key, 'op', e.target.value)}
+                          className="text-xs border border-border rounded bg-bg-tertiary text-text-primary px-1.5 py-1">
+                          {OPS.map(o => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      ) : (
+                        <span className="text-xs text-text-muted">{src.op}</span>
+                      )}
+                    </td>
+                    <td className="py-2.5">
+                      {overriding && src.enabled ? (
+                        <div className="flex items-center gap-1.5">
+                          <input type="number" value={displayValue} min={0}
+                            onChange={e => upd(key, 'threshold', scale
+                              ? Math.round(Number(e.target.value) * scale)
+                              : Number(e.target.value))}
+                            className="w-24 text-xs border border-border rounded bg-bg-tertiary text-text-primary px-2 py-1" />
+                          <span className="text-xs text-text-muted">{unit}</span>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-text-muted">
+                          {src.enabled ? `${displayValue} ${unit}` : 'disabled'}
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2.5 text-right">
+                      <OverrideBtn overriding={overriding} onToggle={v => handleOverrideMetric(key, v)} />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
 
@@ -1513,85 +1609,117 @@ function ThresholdEditor({
             <div className="text-xs font-medium text-text-muted uppercase tracking-wide mb-2 flex items-center gap-1.5">
               <Thermometer size={11} /> Temperatures
             </div>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-xs uppercase text-text-muted border-b border-border">
-                  <th className="text-left pb-2 font-medium">Sensor</th>
-                  <th className="text-center pb-2 font-medium w-12">On</th>
-                  <th className="text-center pb-2 font-medium w-16">Op</th>
-                  <th className="text-left pb-2 font-medium">Value</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {/* Global row */}
-                <tr className={tempValues.globalEnabled ? '' : 'opacity-50'}>
-                  <td className="py-2.5 font-medium text-text-secondary">All sensors (global)</td>
-                  <td className="py-2.5 text-center">
-                    <Switch on={tempValues.globalEnabled} onChange={v => updTemp('globalEnabled', v)} />
-                  </td>
-                  <td className="py-2.5 text-center">
-                    <select value={tempValues.op}
-                      onChange={e => updTemp('op', e.target.value)}
-                      disabled={!tempValues.globalEnabled}
-                      className="text-xs border border-border rounded bg-bg-tertiary text-text-primary px-1.5 py-1 disabled:opacity-40">
-                      {OPS.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                  </td>
-                  <td className="py-2.5">
-                    <div className="flex items-center gap-1.5">
-                      <input type="number" value={tempValues.threshold}
-                        onChange={e => updTemp('threshold', Number(e.target.value))}
-                        disabled={!tempValues.globalEnabled} min={0} max={200}
-                        className="w-24 text-xs border border-border rounded bg-bg-tertiary text-text-primary px-2 py-1 disabled:opacity-40" />
-                      <span className="text-xs text-text-muted">°C</span>
-                    </div>
-                  </td>
-                </tr>
 
-                {/* Per-sensor override rows */}
-                {knownSensors.map(sensor => {
-                  const ov = tempValues.overrides[sensor.key];
-                  const isOverriding = ov?.enabled ?? false;
-                  // Row disabled if global is OFF, or if global is ON but override switch is OFF
-                  const rowDisabled = !tempValues.globalEnabled;
-                  const fieldDisabled = !tempValues.globalEnabled || !isOverriding;
-                  return (
-                    <tr key={sensor.key} className={rowDisabled ? 'opacity-35' : isOverriding ? '' : 'opacity-60'}>
-                      <td className="py-2 pl-4 text-xs text-text-muted">
-                        <span className="text-text-muted">↳</span> {sensor.label}
-                      </td>
-                      <td className="py-2 text-center">
-                        {/* Override switch: greyed if global OFF */}
-                        <Switch
-                          on={isOverriding}
-                          onChange={v => updTempOverride(sensor.key, 'enabled', v)}
-                          disabled={rowDisabled}
-                        />
-                      </td>
-                      <td className="py-2 text-center">
-                        <select
-                          value={ov?.op ?? tempValues.op}
-                          onChange={e => updTempOverride(sensor.key, 'op', e.target.value)}
-                          disabled={fieldDisabled}
-                          className="text-xs border border-border rounded bg-bg-tertiary text-text-primary px-1.5 py-1 disabled:opacity-40">
+            {/* Global Sensor card */}
+            <div className={cn(
+              'rounded-lg border border-border bg-bg-secondary px-4 py-3 mb-3 transition-opacity',
+              !tempGlobalOverriding && 'opacity-50',
+            )}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Switch
+                    on={tempGlobalOverriding ? tempValues.globalEnabled : inhTemp.globalEnabled}
+                    disabled={!tempGlobalOverriding}
+                    onChange={v => tempGlobalOverriding && setTempValues(prev => ({ ...prev, globalEnabled: v }))}
+                  />
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-text-primary">Global Sensor</div>
+                    <div className="text-xs text-text-muted mt-0.5">
+                      {tempGlobalOverriding ? 'Custom threshold for this agent' : 'Using group default'}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {/* Show op + value when globalEnabled is true (from either source) */}
+                  {(tempGlobalOverriding ? tempValues.globalEnabled : inhTemp.globalEnabled) && (
+                    tempGlobalOverriding ? (
+                      <>
+                        <select value={tempValues.op}
+                          onChange={e => setTempValues(prev => ({ ...prev, op: e.target.value as typeof tempValues.op }))}
+                          className="text-xs border border-border rounded bg-bg-tertiary text-text-primary px-1.5 py-1">
                           {OPS.map(o => <option key={o} value={o}>{o}</option>)}
                         </select>
-                      </td>
-                      <td className="py-2">
-                        <div className="flex items-center gap-1.5">
-                          <input type="number"
-                            value={isOverriding ? (ov?.threshold ?? tempValues.threshold) : tempValues.threshold}
-                            onChange={e => updTempOverride(sensor.key, 'threshold', Number(e.target.value))}
-                            disabled={fieldDisabled} min={0} max={200}
-                            className="w-24 text-xs border border-border rounded bg-bg-tertiary text-text-primary px-2 py-1 disabled:opacity-40" />
-                          <span className="text-xs text-text-muted">°C</span>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        <input type="number" value={tempValues.threshold} min={0} max={200}
+                          onChange={e => setTempValues(prev => ({ ...prev, threshold: Number(e.target.value) }))}
+                          className="w-20 text-xs border border-border rounded bg-bg-tertiary text-text-primary px-2 py-1" />
+                        <span className="text-xs text-text-muted">°C</span>
+                      </>
+                    ) : (
+                      <span className="text-xs text-text-muted">{inhTemp.op} {inhTemp.threshold}°C</span>
+                    )
+                  )}
+                  <OverrideBtn overriding={tempGlobalOverriding} onToggle={handleOverrideTempGlobal} />
+                </div>
+              </div>
+            </div>
+
+            {/* Per-sensor rows */}
+            {knownSensors.length > 0 && (
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-xs uppercase text-text-muted border-b border-border">
+                    <th className="text-left pb-2 font-medium">Sensor</th>
+                    <th className="text-center pb-2 font-medium w-12">On</th>
+                    <th className="text-left pb-2 font-medium">Threshold</th>
+                    <th className="pb-2 w-20" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {knownSensors.map(sensor => {
+                    const ov = tempValues.overrides[sensor.key];
+                    const sensorOverriding = ov !== undefined;
+                    // Effective global: agent override (if set) or inherited
+                    const effGlobal = tempGlobalOverriding ? tempValues : inhTemp;
+                    return (
+                      <tr key={sensor.key} className={cn(!sensorOverriding && 'opacity-50')}>
+                        <td className="py-2.5 text-xs text-text-secondary">{sensor.label}</td>
+                        <td className="py-2.5 text-center">
+                          {sensorOverriding ? (
+                            <Switch on={ov.enabled ?? true}
+                              onChange={v => setTempValues(prev => ({
+                                ...prev,
+                                overrides: { ...prev.overrides, [sensor.key]: { ...ov, enabled: v } },
+                              }))} />
+                          ) : (
+                            <Switch on={effGlobal.globalEnabled} disabled />
+                          )}
+                        </td>
+                        <td className="py-2.5">
+                          {sensorOverriding ? (
+                            <div className="flex items-center gap-1.5">
+                              <select
+                                value={ov.op}
+                                onChange={e => setTempValues(prev => ({
+                                  ...prev,
+                                  overrides: { ...prev.overrides, [sensor.key]: { ...ov, op: e.target.value as typeof ov.op } },
+                                }))}
+                                className="text-xs border border-border rounded bg-bg-tertiary text-text-primary px-1.5 py-1">
+                                {OPS.map(o => <option key={o} value={o}>{o}</option>)}
+                              </select>
+                              <input type="number" value={ov.threshold} min={0} max={200}
+                                onChange={e => setTempValues(prev => ({
+                                  ...prev,
+                                  overrides: { ...prev.overrides, [sensor.key]: { ...ov, threshold: Number(e.target.value) } },
+                                }))}
+                                className="w-20 text-xs border border-border rounded bg-bg-tertiary text-text-primary px-2 py-1" />
+                              <span className="text-xs text-text-muted">°C</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-text-muted">
+                              {effGlobal.op} {effGlobal.threshold}°C (global)
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-2.5 text-right">
+                          <OverrideBtn overriding={sensorOverriding}
+                            onToggle={v => handleOverrideSensor(sensor.key, v)} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
 
@@ -1624,38 +1752,48 @@ function AgentSettingsSection({
   onDeviceUpdate: (d: AgentDevice) => void;
   onThresholdsUpdate: (t: AgentThresholds) => void;
 }) {
-  const [override, setOverride] = useState(device.overrideGroupSettings ?? false);
-  // Effective (resolved) values shown in the form — may come from group when override=OFF
-  const resolvedInterval  = device.resolvedSettings?.checkIntervalSeconds  ?? device.checkIntervalSeconds  ?? 60;
-  const resolvedHeartbeat = device.resolvedSettings?.heartbeatMonitoring   ?? device.heartbeatMonitoring   ?? true;
-  const [interval, setIntervalVal] = useState(resolvedInterval);
-  const [heartbeat, setHeartbeat]  = useState(resolvedHeartbeat);
-  const [saving, setSaving]        = useState(false);
+  const resolved = device.resolvedSettings;
+
+  // Track per-field override state
+  const [fields, setFields] = useState({
+    checkInterval: {
+      overriding: device.overrideGroupSettings && device.checkIntervalSeconds != null,
+      value: device.checkIntervalSeconds ?? resolved?.checkIntervalSeconds ?? 60,
+    },
+    heartbeat: {
+      overriding: device.overrideGroupSettings && device.heartbeatMonitoring !== (resolved?.heartbeatMonitoring),
+      value: device.heartbeatMonitoring ?? resolved?.heartbeatMonitoring ?? true,
+    },
+  });
+  const [saving, setSaving] = useState(false);
   const [showThresholdModal, setShowThresholdModal] = useState(false);
-  const inGroup = !!device.groupId;
 
-  // Sync when device changes from outside
-  useEffect(() => { setOverride(device.overrideGroupSettings ?? false); }, [device.overrideGroupSettings]);
-  useEffect(() => { setIntervalVal(device.resolvedSettings?.checkIntervalSeconds  ?? device.checkIntervalSeconds  ?? 60); },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [device.resolvedSettings?.checkIntervalSeconds, device.checkIntervalSeconds]);
-  useEffect(() => { setHeartbeat(device.resolvedSettings?.heartbeatMonitoring ?? device.heartbeatMonitoring ?? true); },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [device.resolvedSettings?.heartbeatMonitoring, device.heartbeatMonitoring]);
+  const inheritedInterval = resolved?.checkIntervalSeconds ?? 60;
+  const inheritedHeartbeat = resolved?.heartbeatMonitoring ?? true;
 
-  const handleSave = async () => {
+  const save = async (newFields: typeof fields) => {
     setSaving(true);
+    const anyOverride = newFields.checkInterval.overriding || newFields.heartbeat.overriding;
     try {
       const updated = await agentApi.updateDevice(device.id, {
-        overrideGroupSettings: override,
-        ...(override ? {
-          checkIntervalSeconds: Math.max(1, Math.min(86400, interval)),
-          heartbeatMonitoring: heartbeat,
-        } : {}),
+        overrideGroupSettings: anyOverride,
+        checkIntervalSeconds: newFields.checkInterval.overriding ? newFields.checkInterval.value : (resolved?.checkIntervalSeconds ?? 60),
+        heartbeatMonitoring: newFields.heartbeat.overriding ? newFields.heartbeat.value : (resolved?.heartbeatMonitoring ?? true),
       });
       onDeviceUpdate(updated);
-    } catch { /* ignore */ }
-    finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleField = (field: 'checkInterval' | 'heartbeat', override: boolean) => {
+    const newFields = { ...fields, [field]: { ...fields[field], overriding: override } };
+    setFields(newFields);
+    save(newFields);
+  };
+
+  const updateValue = (field: 'checkInterval', value: number) => {
+    setFields(f => ({ ...f, [field]: { ...f[field], value } }));
   };
 
   const handleSaveThresholds = async (t: AgentThresholds) => {
@@ -1663,86 +1801,107 @@ function AgentSettingsSection({
     onThresholdsUpdate(t);
   };
 
-  const origOverride  = device.overrideGroupSettings ?? false;
-  const origInterval  = device.resolvedSettings?.checkIntervalSeconds  ?? device.checkIntervalSeconds  ?? 60;
-  const origHeartbeat = device.resolvedSettings?.heartbeatMonitoring   ?? device.heartbeatMonitoring   ?? true;
-  const dirty = override !== origOverride
-    || (override && (interval !== origInterval || heartbeat !== origHeartbeat));
+  const inGroup = !!device.groupId;
 
   return (
     <div className="rounded-xl border border-border bg-bg-secondary p-5">
-      {/* Header with override toggle */}
+      {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wide flex items-center gap-1.5">
           <Settings2 size={12} /> Agent Settings
         </h3>
-        {inGroup && (
-          <button
-            type="button"
-            onClick={() => setOverride(v => !v)}
-            className={cn(
-              'flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors',
-              override
-                ? 'bg-accent/10 border-accent/40 text-accent hover:bg-accent/20'
-                : 'bg-bg-tertiary border-border text-text-muted hover:text-text-primary hover:bg-bg-hover',
-            )}
-            title={override ? 'Click to inherit group settings' : 'Click to override group settings'}>
-            {override ? 'Overriding' : 'Inherited from group'}
-          </button>
-        )}
       </div>
 
-      <div className={cn('space-y-4', !override && inGroup && 'opacity-60')}>
-        {/* Push Interval */}
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <div className="text-sm font-medium text-text-primary">Push Interval</div>
-            <div className="text-xs text-text-muted">How often the agent sends data</div>
-          </div>
-          <div className="flex items-center gap-2">
-            <input type="number" value={interval} min={1} max={86400}
-              disabled={!override && inGroup}
-              onChange={e => setIntervalVal(Number(e.target.value))}
-              className="w-24 rounded-lg border border-border bg-bg-tertiary px-2 py-1.5 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent text-right disabled:cursor-not-allowed" />
-            <span className="text-xs text-text-muted">s</span>
-          </div>
+      <div className="space-y-1">
+        {/* Check Interval field */}
+        <div className="flex items-center gap-3 py-3 border-b border-border">
+          <span className="text-sm font-medium text-text-primary w-40">Check Interval</span>
+          {fields.checkInterval.overriding ? (
+            <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 font-medium">Override</span>
+          ) : (
+            <span className="text-xs px-1.5 py-0.5 rounded bg-bg-tertiary text-text-muted">Inherited</span>
+          )}
+          <input
+            type="number"
+            min={5}
+            value={fields.checkInterval.overriding ? fields.checkInterval.value : inheritedInterval}
+            disabled={!fields.checkInterval.overriding}
+            onChange={e => updateValue('checkInterval', Number(e.target.value))}
+            onBlur={() => { if (fields.checkInterval.overriding) save(fields); }}
+            className="w-24 rounded border border-border bg-bg-secondary px-2 py-1 text-sm disabled:opacity-50"
+          />
+          <span className="text-xs text-text-muted">seconds</span>
+          {inGroup && (
+            <button
+              onClick={() => toggleField('checkInterval', !fields.checkInterval.overriding)}
+              disabled={saving}
+              className={cn(
+                'ml-auto shrink-0 rounded-md px-2 py-1 text-xs font-medium transition-colors',
+                fields.checkInterval.overriding
+                  ? 'text-amber-500 hover:bg-amber-500/10'
+                  : 'text-text-muted hover:bg-bg-hover hover:text-text-primary',
+              )}
+              title={fields.checkInterval.overriding ? 'Reset to inherited' : 'Override locally'}
+            >
+              {fields.checkInterval.overriding ? (
+                <span className="flex items-center gap-1"><RotateCcw size={12} />Reset</span>
+              ) : 'Override'}
+            </button>
+          )}
         </div>
 
-        {/* Heartbeat Monitoring */}
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm font-medium text-text-primary">Heartbeat Monitoring</div>
-            <div className="text-xs text-text-muted">Alert when agent goes offline</div>
-          </div>
-          <Switch on={heartbeat} onChange={setHeartbeat} disabled={!override && inGroup} />
+        {/* Heartbeat Monitoring field */}
+        <div className="flex items-center gap-3 py-3 border-b border-border">
+          <span className="text-sm font-medium text-text-primary w-40">Heartbeat Monitoring</span>
+          {fields.heartbeat.overriding ? (
+            <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 font-medium">Override</span>
+          ) : (
+            <span className="text-xs px-1.5 py-0.5 rounded bg-bg-tertiary text-text-muted">Inherited</span>
+          )}
+          <Switch
+            on={fields.heartbeat.overriding ? fields.heartbeat.value : inheritedHeartbeat}
+            onChange={v => {
+              if (!fields.heartbeat.overriding) return;
+              const newFields = { ...fields, heartbeat: { ...fields.heartbeat, value: v } };
+              setFields(newFields);
+              save(newFields);
+            }}
+            disabled={!fields.heartbeat.overriding}
+          />
+          {inGroup && (
+            <button
+              onClick={() => toggleField('heartbeat', !fields.heartbeat.overriding)}
+              disabled={saving}
+              className={cn(
+                'ml-auto shrink-0 rounded-md px-2 py-1 text-xs font-medium transition-colors',
+                fields.heartbeat.overriding
+                  ? 'text-amber-500 hover:bg-amber-500/10'
+                  : 'text-text-muted hover:bg-bg-hover hover:text-text-primary',
+              )}
+              title={fields.heartbeat.overriding ? 'Reset to inherited' : 'Override locally'}
+            >
+              {fields.heartbeat.overriding ? (
+                <span className="flex items-center gap-1"><RotateCcw size={12} />Reset</span>
+              ) : 'Override'}
+            </button>
+          )}
         </div>
 
         {/* Alert Thresholds */}
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm font-medium text-text-primary">Alert Thresholds</div>
-            <div className="text-xs text-text-muted">CPU, RAM, disk, network, temperature limits</div>
-          </div>
+        <div className="flex items-center gap-3 py-3">
+          <span className="text-sm font-medium text-text-primary w-40">Alert Thresholds</span>
+          <span className="text-xs text-text-muted">CPU, RAM, disk, network, temperature limits</span>
           <button onClick={() => setShowThresholdModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors">
+            className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-text-secondary hover:bg-bg-hover hover:text-text-primary transition-colors">
             <Settings2 size={12} /> Configure
           </button>
         </div>
-
-        {/* Save button */}
-        {dirty && (
-          <div className="flex justify-end pt-1">
-            <button onClick={handleSave} disabled={saving}
-              className="px-4 py-2 text-sm rounded-lg bg-accent text-white hover:bg-accent/90 disabled:opacity-60 transition-colors">
-              {saving ? 'Saving…' : 'Save Settings'}
-            </button>
-          </div>
-        )}
       </div>
 
       {showThresholdModal && (
         <ThresholdEditor
           thresholds={thresholds}
+          inheritedThresholds={device.groupThresholds ?? DEFAULT_AGENT_THRESHOLDS}
           onSave={handleSaveThresholds}
           onClose={() => setShowThresholdModal(false)}
           knownSensors={knownSensors}
@@ -1927,13 +2086,17 @@ export function AgentDetailPage() {
   const displayData: AgentPushSnapshot[] = period === 'realtime' ? history : (historicalData ?? history);
 
   // Known temperature sensors (for ThresholdEditor sensor overrides)
+  // Labels use sensorDisplayNames when available, falling back to raw label
   const knownSensors: Array<{ key: string; label: string }> = [
-    ...(m?.temps ?? []).map(s => ({ key: `temp:${s.label}`, label: s.label })),
-    ...(m?.gpus ?? []).flatMap((gpu, i) =>
-      gpu.tempCelsius !== undefined
-        ? [{ key: `gpu:${i}:${gpu.model}`, label: `GPU ${i} – ${gpu.model}` }]
-        : [],
-    ),
+    ...(m?.temps ?? []).map(s => {
+      const key = `temp:${s.label}`;
+      return { key, label: device.sensorDisplayNames?.[key] ?? s.label };
+    }),
+    ...(m?.gpus ?? []).flatMap((gpu, i) => {
+      if (gpu.tempCelsius === undefined) return [];
+      const key = `gpu:${i}:${gpu.model}`;
+      return [{ key, label: device.sensorDisplayNames?.[key] ?? `GPU ${i} – ${gpu.model}` }];
+    }),
   ];
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -2054,6 +2217,12 @@ export function AgentDetailPage() {
           knownSensors={knownSensors}
           onDeviceUpdate={setDevice}
           onThresholdsUpdate={setThresholds}
+        />
+
+        {/* ── Agent Notification Channels ── */}
+        <NotificationBindingsPanel
+          scope="agent"
+          scopeId={device.id}
         />
 
       </div>

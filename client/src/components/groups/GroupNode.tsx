@@ -22,17 +22,38 @@ interface GroupNodeProps {
   selectedGroupId?: number | null;
   onSelectGroup?: (groupId: number | null) => void;
   dndEnabled?: boolean;
+  searchQuery?: string;
 }
 
-export function GroupNode({ node, depth = 0, selectedGroupId, onSelectGroup, dndEnabled = false }: GroupNodeProps) {
+export function GroupNode({ node, depth = 0, selectedGroupId, onSelectGroup, dndEnabled = false, searchQuery = '' }: GroupNodeProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { getMonitorsByGroup, getMonitorSummary, getRecentHeartbeats } = useMonitorStore();
   const { getGroupStats, isGroupExpanded, toggleGroupExpanded } = useGroupStore();
   const expanded = isGroupExpanded(node.id);
 
-  const monitors = getMonitorsByGroup(node.id);
-  const hasContent = node.children.length > 0 || monitors.length > 0;
+  const allMonitors = getMonitorsByGroup(node.id);
+
+  // When a search is active, filter monitors and child groups to matching ones only
+  const isSearching = searchQuery.length > 0;
+
+  const hasMatchingInSubtree = (n: GroupTreeNode): boolean => {
+    if (getMonitorsByGroup(n.id).some(m => m.name.toLowerCase().includes(searchQuery.toLowerCase()))) return true;
+    return n.children.some(hasMatchingInSubtree);
+  };
+
+  const monitors = isSearching
+    ? allMonitors.filter(m => m.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    : allMonitors;
+
+  const visibleChildren = isSearching
+    ? node.children.filter(hasMatchingInSubtree)
+    : node.children;
+
+  // Force-expand when searching so matched monitors are visible
+  const effectiveExpanded = isSearching ? true : expanded;
+
+  const hasContent = node.children.length > 0 || allMonitors.length > 0;
   const isSelected = selectedGroupId === node.id;
   const stats = getGroupStats(node.id);
 
@@ -107,13 +128,13 @@ export function GroupNode({ node, depth = 0, selectedGroupId, onSelectGroup, dnd
               {hasContent ? (
                 <ChevronRight
                   size={14}
-                  className={cn('shrink-0 transition-transform', expanded && 'rotate-90')}
+                  className={cn('shrink-0 transition-transform', effectiveExpanded && 'rotate-90')}
                 />
               ) : (
                 <span className="w-3.5 shrink-0" />
               )}
 
-              {expanded && hasContent ? (
+              {effectiveExpanded && hasContent ? (
                 <FolderOpen size={14} className="shrink-0 text-accent" />
               ) : (
                 <Folder size={14} className="shrink-0 text-accent" />
@@ -168,10 +189,10 @@ export function GroupNode({ node, depth = 0, selectedGroupId, onSelectGroup, dnd
       })()}
 
       {/* Children and monitors */}
-      {expanded && (
+      {effectiveExpanded && (
         <div>
           {/* Child groups */}
-          {node.children.map((child) => (
+          {visibleChildren.map((child) => (
             <GroupNode
               key={child.id}
               node={child}
@@ -179,6 +200,7 @@ export function GroupNode({ node, depth = 0, selectedGroupId, onSelectGroup, dnd
               selectedGroupId={selectedGroupId}
               onSelectGroup={onSelectGroup}
               dndEnabled={dndEnabled}
+              searchQuery={searchQuery}
             />
           ))}
 

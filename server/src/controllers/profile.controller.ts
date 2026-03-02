@@ -8,7 +8,7 @@ export const profileController = {
   async get(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const row = await db('users')
-        .select('id', 'username', 'display_name', 'role', 'is_active', 'created_at', 'updated_at')
+        .select('id', 'username', 'display_name', 'role', 'is_active', 'created_at', 'updated_at', 'preferences')
         .where({ id: req.session.userId })
         .first();
 
@@ -24,6 +24,7 @@ export const profileController = {
           isActive: row.is_active,
           createdAt: row.created_at,
           updatedAt: row.updated_at,
+          preferences: row.preferences ?? null,
         },
       });
     } catch (err) {
@@ -35,13 +36,22 @@ export const profileController = {
     try {
       const data = req.body as UpdateProfileInput;
 
+      const updatePayload: Record<string, unknown> = {
+        updated_at: new Date(),
+      };
+
+      if ('displayName' in data) {
+        updatePayload.display_name = data.displayName;
+      }
+
+      if ('preferences' in data) {
+        updatePayload.preferences = data.preferences !== undefined ? JSON.stringify(data.preferences) : null;
+      }
+
       const [row] = await db('users')
         .where({ id: req.session.userId })
-        .update({
-          display_name: data.displayName,
-          updated_at: new Date(),
-        })
-        .returning(['id', 'username', 'display_name', 'role', 'is_active', 'created_at', 'updated_at']);
+        .update(updatePayload)
+        .returning(['id', 'username', 'display_name', 'role', 'is_active', 'created_at', 'updated_at', 'preferences']);
 
       if (!row) throw new AppError(404, 'User not found');
 
@@ -55,6 +65,7 @@ export const profileController = {
           isActive: row.is_active,
           createdAt: row.created_at,
           updatedAt: row.updated_at,
+          preferences: row.preferences ?? null,
         },
       });
     } catch (err) {

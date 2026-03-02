@@ -14,7 +14,7 @@
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package
       Name="Obliview"
-      Manufacturer="BinaryHearts"
+      Manufacturer="Obliview"
       Version="DESKTOP_VERSION_PLACEHOLDER"
       UpgradeCode="F8A2C3D4-E5B6-4789-9ABC-DEF012345678"
       Compressed="yes">
@@ -57,7 +57,7 @@
             Icon="AppIcon" />
         <RegistryValue
             Root="HKCU"
-            Key="Software\BinaryHearts\Obliview"
+            Key="Software\Obliview\Obliview"
             Name="DesktopShortcut"
             Value="1"
             Type="integer"

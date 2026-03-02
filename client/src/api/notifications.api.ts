@@ -70,13 +70,13 @@ export const notificationsApi = {
   },
 
   async getResolvedBindings(
-    scope: 'group' | 'monitor',
+    scope: 'group' | 'monitor' | 'agent',
     scopeId: number,
   ): Promise<{
     channelId: number;
     channelName: string;
     channelType: string;
-    source: 'global' | 'group' | 'monitor';
+    source: 'global' | 'group' | 'monitor' | 'agent';
     sourceId: number | null;
     sourceName: string;
     isDirect: boolean;

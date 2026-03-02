@@ -2,6 +2,7 @@ import { db } from '../db';
 import type { NotificationChannel, NotificationBinding, OverrideMode } from '@obliview/shared';
 import type { NotificationPayload } from '../notifications/types';
 import { getPlugin } from '../notifications/registry';
+import { smtpServerService } from './smtpServer.service';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 
@@ -105,6 +106,28 @@ export const notificationService = {
     return count > 0;
   },
 
+  /**
+   * Resolve the effective config for a channel.
+   * For smtp channels using smtpServerId, fetches the SMTP server and injects its credentials.
+   * For all other channels, returns config as-is (backward-compat).
+   */
+  async resolveChannelConfig(channel: NotificationChannel): Promise<Record<string, unknown>> {
+    if (channel.type === 'smtp' && channel.config.smtpServerId) {
+      const server = await smtpServerService.getTransportConfig(Number(channel.config.smtpServerId));
+      if (!server) throw new Error(`SMTP server #${channel.config.smtpServerId} not found`);
+      return {
+        host: server.host,
+        port: server.port,
+        secure: server.secure,
+        username: server.username,
+        password: server.password,
+        from: channel.config.fromOverride || server.fromAddress,
+        to: channel.config.to,
+      };
+    }
+    return channel.config;
+  },
+
   async testChannel(id: number): Promise<void> {
     const channel = await this.getChannelById(id);
     if (!channel) throw new Error('Channel not found');
@@ -112,7 +135,8 @@ export const notificationService = {
     const plugin = getPlugin(channel.type);
     if (!plugin) throw new Error(`No plugin for type: ${channel.type}`);
 
-    await plugin.sendTest(channel.config);
+    const resolvedConfig = await this.resolveChannelConfig(channel);
+    await plugin.sendTest(resolvedConfig);
   },
 
   // ── Bindings ──
@@ -384,7 +408,8 @@ export const notificationService = {
       }
 
       try {
-        await plugin.send(channel.config, enrichedPayload);
+        const resolvedConfig = await this.resolveChannelConfig(channel);
+        await plugin.send(resolvedConfig, enrichedPayload);
         await this.logNotification(channel.id, monitorId, 'status_change', true);
         logger.info(`Notification sent: ${channel.name} (${channel.type}) for monitor ${payload.monitorName}`);
       } catch (error) {
@@ -422,6 +447,210 @@ export const notificationService = {
   },
 
   /**
+   * Resolve which channels should fire for a given agent device.
+   * Chain: Global → Agent Group ancestors (root→leaf) → Agent-level bindings.
+   */
+  async resolveChannelsForAgent(deviceId: number): Promise<number[]> {
+    let channelIds: Set<number> = new Set();
+
+    // 1. Global bindings
+    const globalBindings = await this.getBindings('global', null);
+    channelIds = this._applyBindings(channelIds, globalBindings);
+
+    // 2. Agent group hierarchy (root → leaf)
+    const device = await db('agent_devices').where({ id: deviceId }).select('group_id').first() as { group_id: number | null } | undefined;
+    if (device?.group_id) {
+      const ancestorRows = await db('group_closure')
+        .where('descendant_id', device.group_id)
+        .orderBy('depth', 'desc')
+        .select('ancestor_id');
+
+      for (const row of ancestorRows) {
+        const groupBindings = await this.getBindings('group', row.ancestor_id);
+        channelIds = this._applyBindings(channelIds, groupBindings);
+      }
+    }
+
+    // 3. Agent-level bindings
+    const agentBindings = await this.getBindings('agent', deviceId);
+    channelIds = this._applyBindings(channelIds, agentBindings);
+
+    return Array.from(channelIds);
+  },
+
+  /**
+   * Resolve bindings for an agent device WITH source info (for the UI).
+   * Chain: Global → Agent Group ancestors (root→leaf) → Agent-level bindings.
+   */
+  async resolveBindingsWithSourcesForAgent(
+    deviceId: number,
+  ): Promise<{
+    channelId: number;
+    channelName: string;
+    channelType: string;
+    source: 'global' | 'group' | 'agent';
+    sourceId: number | null;
+    sourceName: string;
+    isDirect: boolean;
+    isExcluded: boolean;
+  }[]> {
+    interface SourceInfo {
+      channelId: number;
+      source: 'global' | 'group' | 'agent';
+      sourceId: number | null;
+      sourceName: string;
+      isDirect: boolean;
+      isExcluded: boolean;
+    }
+
+    const result: Map<number, SourceInfo> = new Map();
+    const excludedSet: Set<number> = new Set();
+
+    const applyBindingsWithSources = (
+      bindings: NotificationBinding[],
+      source: SourceInfo['source'],
+      sourceId: number | null,
+      sourceName: string,
+      isDirect: boolean,
+    ) => {
+      if (bindings.length === 0) return;
+
+      const hasReplace = bindings.some((b) => b.overrideMode === 'replace');
+      if (hasReplace) {
+        result.clear();
+        excludedSet.clear();
+      }
+
+      for (const b of bindings) {
+        if (b.overrideMode !== 'exclude') {
+          result.set(b.channelId, {
+            channelId: b.channelId,
+            source,
+            sourceId,
+            sourceName,
+            isDirect,
+            isExcluded: false,
+          });
+          excludedSet.delete(b.channelId);
+        }
+      }
+
+      for (const b of bindings) {
+        if (b.overrideMode === 'exclude') {
+          const existing = result.get(b.channelId);
+          if (existing) {
+            existing.isExcluded = true;
+          }
+          excludedSet.add(b.channelId);
+        }
+      }
+    };
+
+    // 1. Global bindings
+    const globalBindings = await this.getBindings('global', null);
+    applyBindingsWithSources(globalBindings, 'global', null, 'Global', false);
+
+    // 2. Agent group hierarchy (root → leaf)
+    const device = await db('agent_devices').where({ id: deviceId }).select('group_id').first() as { group_id: number | null } | undefined;
+    if (device?.group_id) {
+      const ancestorRows = await db('group_closure')
+        .where('descendant_id', device.group_id)
+        .orderBy('depth', 'desc')
+        .select('ancestor_id');
+
+      for (const row of ancestorRows) {
+        const groupBindings = await this.getBindings('group', row.ancestor_id);
+        const groupRow = await db('monitor_groups').where({ id: row.ancestor_id }).first('name') as { name: string } | undefined;
+        applyBindingsWithSources(
+          groupBindings,
+          'group',
+          row.ancestor_id,
+          groupRow?.name || `Group #${row.ancestor_id}`,
+          false,
+        );
+      }
+    }
+
+    // 3. Agent-level bindings
+    const agentBindings = await this.getBindings('agent', deviceId);
+    applyBindingsWithSources(agentBindings, 'agent', deviceId, 'Direct', true);
+
+    // Enrich with channel name/type
+    const channelIds = Array.from(result.keys());
+    if (channelIds.length === 0) return [];
+
+    const channels = await db<ChannelRow>('notification_channels').whereIn('id', channelIds);
+    const channelMap = new Map(channels.map((c) => [c.id, c]));
+
+    return Array.from(result.values()).map((r) => {
+      const ch = channelMap.get(r.channelId);
+      return {
+        ...r,
+        channelName: ch?.name || `Channel #${r.channelId}`,
+        channelType: ch?.type || 'unknown',
+      };
+    });
+  },
+
+  /**
+   * Send notifications for an agent device threshold alert.
+   * Resolves channels using the global → agent chain.
+   */
+  async sendForAgent(
+    deviceId: number,
+    deviceName: string,
+    newStatus: string,
+    previousStatus: string,
+    violations?: string[],
+  ): Promise<void> {
+    // Only notify on status transitions (up → alert or alert → up)
+    if (newStatus === previousStatus) return;
+
+    const channelIds = await this.resolveChannelsForAgent(deviceId);
+    if (channelIds.length === 0) {
+      logger.warn(`No notification channels resolved for agent device ${deviceId} (event: ${newStatus}) — check global/agent bindings`);
+      return;
+    }
+
+    const payload: NotificationPayload = {
+      monitorName: deviceName,
+      oldStatus: previousStatus,
+      newStatus,
+      message: newStatus === 'alert'
+        ? (violations && violations.length > 0
+            ? violations.join('; ')
+            : `Agent device "${deviceName}" has threshold violations`)
+        : `Agent device "${deviceName}" metrics are back to normal`,
+      timestamp: new Date().toISOString(),
+      appName: config.appName,
+    };
+
+    const channels = await db<ChannelRow>('notification_channels')
+      .whereIn('id', channelIds)
+      .where({ is_enabled: true });
+
+    for (const row of channels) {
+      const channel = rowToChannel(row);
+      const plugin = getPlugin(channel.type);
+      if (!plugin) {
+        logger.warn(`No plugin for notification type "${channel.type}"`);
+        continue;
+      }
+
+      try {
+        const resolvedConfig = await this.resolveChannelConfig(channel);
+        await plugin.send(resolvedConfig, payload);
+        await this.logNotification(channel.id, null, 'agent_status_change', true);
+        logger.info(`Agent notification sent: ${channel.name} (${channel.type}) for device "${deviceName}"`);
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : 'Unknown error';
+        await this.logNotification(channel.id, null, 'agent_status_change', false, errMsg);
+        logger.error(`Agent notification failed: ${channel.name} (${channel.type}): ${errMsg}`);
+      }
+    }
+  },
+
+  /**
    * Send a group-level notification (for grouped notifications feature).
    * Resolves channels at the group level (no monitor bindings) and dispatches.
    */
@@ -448,7 +677,8 @@ export const notificationService = {
       }
 
       try {
-        await plugin.send(channel.config, enrichedPayload);
+        const resolvedConfig = await this.resolveChannelConfig(channel);
+        await plugin.send(resolvedConfig, enrichedPayload);
         await this.logNotification(channel.id, null, 'group_status_change', true);
         logger.info(`Group notification sent: ${channel.name} (${channel.type}) for group "${groupName}"`);
       } catch (error) {

@@ -22,4 +22,7 @@ export const config = {
   // Default admin
   defaultAdminUsername: process.env.DEFAULT_ADMIN_USERNAME || 'admin',
   defaultAdminPassword: process.env.DEFAULT_ADMIN_PASSWORD || 'admin123',
+
+  // 2FA bypass — set DISABLE_2FA_FORCE=true to skip forced 2FA requirement
+  disable2faForce: process.env.DISABLE_2FA_FORCE === 'true',
 };

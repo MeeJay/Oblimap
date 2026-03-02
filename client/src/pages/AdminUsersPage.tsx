@@ -362,7 +362,7 @@ export function AdminUsersPage() {
   const getMonitorPerm = (monitorId: number) => teamPermissions.find((p) => p.scope === 'monitor' && p.scopeId === monitorId);
 
   return (
-    <div className="flex gap-6 p-6 h-full justify-center">
+    <div className="flex gap-6 p-6 h-full justify-center max-w-5xl min-w-0 mx-auto w-full">
       {/* Left panel */}
       <div className="flex-1 min-w-0 max-w-xl">
         {/* Tab switcher */}

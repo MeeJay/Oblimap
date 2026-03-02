@@ -34,31 +34,31 @@ export function DesktopUpdateBanner() {
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
-  // Detect the current app version injected by Go overlay.
-  // Old desktop apps won't have this property → returns undefined → no banner.
   const ow = typeof window !== 'undefined' ? (window as ObliviewWindow) : null;
   const isNative = !!ow?.__obliview_is_native_app;
-  const currentVersion = ow?.__obliview_app_version ?? null; // null on old/non-native
+  // Old builds (before version injection was added) won't have this property.
+  // Treat them as "0.0.0" so any server version triggers the banner.
+  const currentVersion = ow?.__obliview_app_version ?? null;
+  const effectiveVersion = currentVersion ?? (isNative ? '0.0.0' : null);
 
   useEffect(() => {
-    // Only bother fetching if we know we're inside the native app AND the
-    // overlay has already injected the version string (new desktop app only).
-    if (!isNative || !currentVersion) return;
+    // Fetch the latest version whenever we're inside the native app,
+    // whether or not the current build reports its version.
+    if (!isNative) return;
 
     apiClient
       .get<{ version: string }>('/agent/desktop-version')
       .then(res => setLatestVersion(res.data.version))
       .catch(() => { /* silently ignore — no banner on error */ });
-  }, [isNative, currentVersion]);
+  }, [isNative]);
 
   // Nothing to show if:
   // • not running inside the native app
-  // • old app that never injected __obliview_app_version
-  // • version fetch failed
+  // • version fetch failed or server returned nothing
   // • already up to date
   // • user dismissed this session OR skipped this specific version
-  if (!isNative || !currentVersion || !latestVersion) return null;
-  if (!isOutdated(currentVersion, latestVersion)) return null;
+  if (!isNative || !effectiveVersion || !latestVersion) return null;
+  if (!isOutdated(effectiveVersion, latestVersion)) return null;
   if (dismissed) return null;
 
   const skippedVersion = localStorage.getItem(SKIP_KEY);
@@ -76,7 +76,10 @@ export function DesktopUpdateBanner() {
         Desktop app{' '}
         <span className="font-semibold text-accent">v{latestVersion}</span>
         {' '}is available
-        {currentVersion ? <> (you have <span className="font-mono">{currentVersion}</span>)</> : null}.
+        {currentVersion
+          ? <> (you have <span className="font-mono">{currentVersion}</span>)</>
+          : <> — please update to get the latest features</>
+        }.
       </span>
       <Link
         to="/download"

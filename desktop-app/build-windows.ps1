@@ -6,7 +6,12 @@
 #   • Go 1.21+ (with CGO_ENABLED=1 and MinGW/MSVC in PATH)
 #   • WiX Toolset v4: dotnet tool install --global wix
 #
+# To release a new version:
+#   1. Edit desktop-app/VERSION  (e.g. 1.2.0)
+#   2. Run this script — the version is injected everywhere automatically.
+#
 # Outputs:
+#   dist\Obliview.exe        — portable executable
 #   dist\ObliviewSetup.msi   — Windows installer with Start Menu + optional Desktop shortcut
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -16,6 +21,15 @@ $ExeName   = 'Obliview.exe'
 $MsiName   = 'ObliviewSetup.msi'
 $WxsFile   = 'installer.wxs'
 $DistDir   = 'dist'
+
+# ── Read version (single source of truth) ───────────────────────────────────
+# Edit the VERSION file to bump; this script injects it into the binary and MSI.
+if (-not (Test-Path 'VERSION')) { Write-Error "VERSION file not found in $(Get-Location)." }
+$Version = (Get-Content 'VERSION' -Raw).Trim()
+if (-not ($Version -match '^\d+\.\d+\.\d+$')) {
+    Write-Error "VERSION file must contain a plain 'X.Y.Z' version string, got: '$Version'"
+}
+Write-Host "  Version: $Version" -ForegroundColor White
 
 Write-Host "=== Step 1: Checking prerequisites ===" -ForegroundColor Cyan
 
@@ -45,9 +59,14 @@ Write-Host "  logo.ico: OK"
 Write-Host "`n=== Step 2: Building $ExeName ===" -ForegroundColor Cyan
 
 $env:CGO_ENABLED = '1'
-# -H windowsgui suppresses the console window that would otherwise flash on launch
-go build -ldflags "-H windowsgui" -o $ExeName .
+# -H windowsgui   suppresses the console window that would otherwise flash on launch.
+# -X main.appVersion injects the version string so React can detect outdated clients.
+go build -ldflags "-H windowsgui -X main.appVersion=$Version" -o $ExeName .
 if ($LASTEXITCODE -ne 0) { Write-Error "go build failed." }
+
+# Move to dist/
+if (-not (Test-Path $DistDir)) { New-Item -ItemType Directory -Path $DistDir | Out-Null }
+Copy-Item $ExeName (Join-Path $DistDir $ExeName) -Force
 
 $exeSize = (Get-Item $ExeName).Length / 1MB
 Write-Host ("  Built: {0} ({1:F1} MB)" -f $ExeName, $exeSize)
@@ -55,18 +74,27 @@ Write-Host ("  Built: {0} ({1:F1} MB)" -f $ExeName, $exeSize)
 # ── Step 3: Build the MSI with WiX ──────────────────────────────────────────
 Write-Host "`n=== Step 3: Building $MsiName ===" -ForegroundColor Cyan
 
-if (-not (Test-Path $DistDir)) { New-Item -ItemType Directory -Path $DistDir | Out-Null }
+# WiX reads the version from installer.wxs — replace the placeholder at build time.
+$wxsContent = Get-Content $WxsFile -Raw
+$wxsPatched = $wxsContent -replace 'DESKTOP_VERSION_PLACEHOLDER', $Version
+
+$wxsTemp = "$WxsFile.patched.wxs"
+Set-Content $wxsTemp $wxsPatched -Encoding UTF8
 
 $msiPath = Join-Path $DistDir $MsiName
-wix build $WxsFile -o $msiPath
-if ($LASTEXITCODE -ne 0) { Write-Error "WiX build failed." }
+wix build $wxsTemp -o $msiPath
+if ($LASTEXITCODE -ne 0) {
+    Remove-Item $wxsTemp -ErrorAction SilentlyContinue
+    Write-Error "WiX build failed."
+}
+Remove-Item $wxsTemp
 
 $msiSize = (Get-Item $msiPath).Length / 1MB
 Write-Host ("  Built: {0} ({1:F1} MB)" -f $msiPath, $msiSize)
 
 # ── Done ─────────────────────────────────────────────────────────────────────
-Write-Host "`n=== Done! ===" -ForegroundColor Green
-Write-Host "  Executable : $ExeName"
+Write-Host "`n=== Done! (v$Version) ===" -ForegroundColor Green
+Write-Host "  Executable : $(Join-Path $DistDir $ExeName)"
 Write-Host "  Installer  : $msiPath"
 Write-Host ""
 Write-Host "To install: double-click $msiPath  (or: msiexec /i $msiPath)"

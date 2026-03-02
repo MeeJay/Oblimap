@@ -143,14 +143,21 @@ export const notificationsController = {
     }
   },
 
-  // GET /api/notifications/bindings/resolved?scope=monitor|group&scopeId=N
+  // GET /api/notifications/bindings/resolved?scope=monitor|group|agent&scopeId=N
   async resolvedBindings(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const scope = req.query.scope as 'group' | 'monitor';
+      const scope = req.query.scope as 'group' | 'monitor' | 'agent';
       const scopeId = parseInt(req.query.scopeId as string, 10);
 
       if (!scope || isNaN(scopeId)) {
         throw new AppError(400, 'Missing scope or scopeId');
+      }
+
+      // Agent scope uses its own resolution method (global → agent group hierarchy → agent)
+      if (scope === 'agent') {
+        const resolved = await notificationService.resolveBindingsWithSourcesForAgent(scopeId);
+        res.json({ success: true, data: resolved });
+        return;
       }
 
       // For monitor scope, we need the monitor's groupId for resolution

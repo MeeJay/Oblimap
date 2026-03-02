@@ -23,11 +23,13 @@ import {
   ArrowLeftRight,
   PackageOpen,
   ShieldCheck,
+  ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useAuthStore } from '@/store/authStore';
 import { useMonitorStore } from '@/store/monitorStore';
 import { useGroupStore } from '@/store/groupStore';
+import { useUiStore } from '@/store/uiStore';
 import { GroupTree } from '@/components/groups/GroupTree';
 import { agentApi } from '@/api/agent.api';
 import { getSocket } from '@/socket/socketClient';
@@ -162,8 +164,11 @@ interface NavItem {
   adminOnly?: boolean;
 }
 
-const navItems: NavItem[] = [
-  { label: 'Dashboard',       path: '/',                     icon: <LayoutDashboard size={18} /> },
+const topNavItems: NavItem[] = [
+  { label: 'Dashboard', path: '/', icon: <LayoutDashboard size={18} /> },
+];
+
+const adminNavItems: NavItem[] = [
   { label: 'Groups',          path: '/groups',               icon: <FolderTree size={18} />,  adminOnly: true },
   { label: 'Notifications',   path: '/notifications',        icon: <Bell size={18} />,        adminOnly: true },
   { label: 'Users',           path: '/admin/users',          icon: <Users size={18} />,       adminOnly: true },
@@ -178,6 +183,7 @@ const navItems: NavItem[] = [
 export function Sidebar() {
   const location = useLocation();
   const { user, isAdmin, canCreate } = useAuthStore();
+  const { openAddAgentModal } = useUiStore();
   const { fetchMonitors, monitors } = useMonitorStore();
   const { tree } = useGroupStore();
 
@@ -187,12 +193,15 @@ export function Sidebar() {
   // to be populated in the store — not always reliable).
   const [deviceStatuses, setDeviceStatuses] = useState<Map<number, string>>(new Map());
 
+  const [search, setSearch] = useState('');
+
   // Layout preferences
   const [sidebarLayout, setSidebarLayout] = usePersisted<'stacked' | 'side-by-side'>('sidebar-layout', 'stacked');
   const [showMonitors, setShowMonitors] = usePersisted<boolean>('sidebar-show-monitors', true);
   const [showAgents, setShowAgents] = usePersisted<boolean>('sidebar-show-agents', true);
   // Split column width: percent of the split container assigned to the Monitors column (20–80)
   const [splitPercent, setSplitPercent] = usePersisted<number>('sidebar-split-percent', 50);
+  const [adminMenuOpen, setAdminMenuOpen] = usePersisted<boolean>('sidebar:admin-open', true);
   const splitContainerRef = useRef<HTMLDivElement>(null);
 
   // Agent groups (kind='agent')
@@ -403,16 +412,23 @@ export function Sidebar() {
         </Link>
       </div>
 
-      {/* Add Monitor button */}
+      {/* Add Monitor / Add Agent buttons */}
       {canCreate() && (
-        <div className="px-3 pt-3">
+        <div className="px-3 pt-3 flex gap-2">
           <Link
             to="/monitor/new"
-            className="flex w-full items-center justify-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent/90"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
           >
             <Plus size={14} />
-            Add Monitor
+            Monitor
           </Link>
+          <button
+            onClick={openAddAgentModal}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+          >
+            <Plus size={14} />
+            Agent
+          </button>
         </div>
       )}
 
@@ -421,6 +437,8 @@ export function Sidebar() {
         <input
           type="text"
           placeholder="Search monitors..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
           className="w-full rounded-md border border-border bg-bg-tertiary px-3 py-1.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-accent"
         />
       </div>
@@ -473,7 +491,7 @@ export function Sidebar() {
               <span className="text-[10px] font-bold uppercase tracking-widest text-text-muted">Monitors</span>
             </div>
             <div className="flex-1 overflow-y-auto px-2 min-h-0">
-              <GroupTree />
+              <GroupTree searchQuery={search} />
             </div>
           </div>
 
@@ -504,34 +522,71 @@ export function Sidebar() {
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto px-2">
-          {showMonitors && <GroupTree />}
+          {showMonitors && <GroupTree searchQuery={search} />}
           {showAgents && renderAgentContent(false)}
         </div>
       )}
 
       {/* Navigation */}
-      <nav className="border-t border-border p-2">
-        {navItems
-          .filter((item) => !item.adminOnly || isAdmin())
-          .map((item) => {
-            const isActive = location.pathname === item.path;
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={cn(
-                  'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
-                  isActive
-                    ? 'bg-bg-active text-text-primary'
-                    : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary',
-                )}
-              >
-                {item.icon}
-                {item.label}
-              </Link>
-            );
-          })}
+      <nav className="border-t border-border p-2 pb-0">
+        {topNavItems.map((item) => {
+          const isActive = location.pathname === item.path;
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={cn(
+                'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+                isActive
+                  ? 'bg-bg-active text-text-primary'
+                  : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary',
+              )}
+            >
+              {item.icon}
+              {item.label}
+            </Link>
+          );
+        })}
       </nav>
+
+      {/* Admin section collapsible divider */}
+      {admin && (
+        <>
+          <button
+            onClick={() => setAdminMenuOpen(v => !v)}
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-text-muted hover:text-text-secondary transition-colors"
+          >
+            <div className="flex-1 h-px bg-border" />
+            <ChevronDown size={12} className={cn('transition-transform duration-200', !adminMenuOpen && '-rotate-90')} />
+            <div className="flex-1 h-px bg-border" />
+          </button>
+
+          {adminMenuOpen && (
+            <nav className="p-2 pt-0">
+              {adminNavItems
+                .filter((item) => !item.adminOnly || isAdmin())
+                .map((item) => {
+                  const isActive = location.pathname === item.path;
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      className={cn(
+                        'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+                        isActive
+                          ? 'bg-bg-active text-text-primary'
+                          : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary',
+                      )}
+                    >
+                      {item.icon}
+                      {item.label}
+                    </Link>
+                  );
+                })}
+            </nav>
+          )}
+        </>
+      )}
 
       {/* User section */}
       <div className="border-t border-border p-2">

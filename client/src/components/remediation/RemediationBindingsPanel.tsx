@@ -13,6 +13,12 @@ import toast from 'react-hot-toast';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
+const SOURCE_BADGE: Record<'global' | 'group' | 'monitor', { label: string; className: string }> = {
+  global:  { label: 'Global',  className: 'bg-blue-500/10 text-blue-400' },
+  group:   { label: 'Group',   className: 'bg-purple-500/10 text-purple-400' },
+  monitor: { label: 'Monitor', className: 'bg-green-500/10 text-green-400' },
+};
+
 const TRIGGER_LABELS: Record<RemediationTrigger, string> = {
   down: 'On DOWN',
   up:   'On UP',
@@ -338,11 +344,17 @@ export function RemediationBindingsPanel({
                     <span className="text-[10px] bg-bg-tertiary text-text-muted px-1.5 py-0.5 rounded-full">
                       {ACTION_TYPE_SHORT[action.type] ?? action.type}
                     </span>
+                    {/* Source badge — show for all resolved entries */}
+                    {resolvedEntry && (() => {
+                      const badge = SOURCE_BADGE[resolvedEntry.source];
+                      return badge ? (
+                        <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full', badge.className)}>
+                          {badge.label}
+                        </span>
+                      ) : null;
+                    })()}
                     {isExcluded && (
                       <span className="text-[10px] bg-orange-500/10 text-orange-400 px-1.5 py-0.5 rounded-full">Excluded</span>
-                    )}
-                    {isInherited && resolvedEntry && (
-                      <span className="text-[10px] text-text-muted">via {resolvedEntry.source}</span>
                     )}
                   </div>
                   {/* Trigger + cooldown info */}

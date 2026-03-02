@@ -1,7 +1,13 @@
 import { z } from 'zod';
 
+const userPreferencesSchema = z.object({
+  toastEnabled: z.boolean(),
+  toastPosition: z.enum(['top-center', 'bottom-right']),
+}).nullable().optional();
+
 export const updateProfileSchema = z.object({
   displayName: z.string().max(100).nullable().optional(),
+  preferences: userPreferencesSchema,
 });
 
 export const changePasswordSchema = z.object({

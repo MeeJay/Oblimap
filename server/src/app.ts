@@ -90,11 +90,12 @@ export function createApp() {
   const DESKTOP_FILES: Record<string, string> = {
     'Obliview.exe':       'Obliview.exe',       // Windows binary (portable)
     'ObliviewSetup.msi':  'ObliviewSetup.msi',  // Windows installer (Start Menu shortcut)
-    'Obliview.zip':       'Obliview.zip',        // macOS .app bundle zipped with ditto
+    'Obliview.zip':       'Obliview.zip',        // macOS .app bundle zipped
     'Obliview.dmg':       'Obliview.dmg',        // macOS drag-to-Applications DMG
   };
-  // __dirname = server/dist/src  →  ../../../../desktop-app/dist = project-root/desktop-app/dist
-  const desktopDistDir = path.resolve(__dirname, '../../../../desktop-app/dist');
+  // process.cwd() = server/ directory (both in dev with npx tsx and in production).
+  // Go one level up to reach the project root, then into desktop-app/dist.
+  const desktopDistDir = path.resolve(process.cwd(), '..', 'desktop-app', 'dist');
 
   app.get('/downloads/:filename', (req, res) => {
     const mapped = DESKTOP_FILES[req.params.filename];

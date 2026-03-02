@@ -1,15 +1,25 @@
 import { create } from 'zustand';
 import type { User, UserPermissions, PermissionLevel } from '@obliview/shared';
-import { authApi } from '../api/auth.api';
+import { authApi, type LoginResult } from '../api/auth.api';
 import { connectSocket, disconnectSocket } from '../socket/socketClient';
+import { useLiveAlertsStore } from './liveAlertsStore';
+
+function syncPreferencesToStore(user: User) {
+  const prefs = user.preferences;
+  if (prefs) {
+    useLiveAlertsStore.getState().setEnabled(prefs.toastEnabled ?? true);
+    useLiveAlertsStore.getState().setPosition(prefs.toastPosition ?? 'bottom-right');
+  }
+}
 
 interface AuthState {
   user: User | null;
   permissions: UserPermissions | null;
+  requires2faSetup: boolean;
   isLoading: boolean;
   isInitialized: boolean;
 
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<LoginResult>;
   logout: () => Promise<void>;
   checkSession: () => Promise<void>;
   refreshPermissions: () => Promise<void>;
@@ -26,26 +36,35 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   permissions: null,
+  requires2faSetup: false,
   isLoading: false,
   isInitialized: false,
 
   login: async (username: string, password: string) => {
     set({ isLoading: true });
     try {
-      const user = await authApi.login({ username, password });
-      // Mark the user as logged in immediately after the login call succeeds.
-      // Do NOT block on me() — a transient DB issue after a successful login
-      // should not appear as "wrong password" to the user.
+      const result = await authApi.login({ username, password });
+
+      // 2FA required — don't set user yet, return the challenge to caller
+      if (result.requires2fa) {
+        set({ isLoading: false });
+        return result;
+      }
+
+      const user = result.user;
       set({ user, isLoading: false });
+      syncPreferencesToStore(user);
       connectSocket(user.id);
       // Fetch permissions in the background; failure is non-fatal here.
       authApi.me()
-        .then(({ permissions }) => set({ permissions }))
+        .then(({ permissions, user: fullUser, requires2faSetup }) => {
+          set({ permissions, requires2faSetup: requires2faSetup ?? false });
+          syncPreferencesToStore(fullUser);
+        })
         .catch(() => { /* non-critical — permissions will load on next checkSession */ });
+      return result;
     } catch (err) {
       set({ isLoading: false });
-      // Re-throw the real server error instead of always saying "wrong password".
-      // AxiosError exposes error.response.data.error (our API shape) and error.response.status.
       const axiosErr = err as { response?: { data?: { error?: string }; status?: number }; message?: string };
       const serverMessage = axiosErr?.response?.data?.error;
       const status = axiosErr?.response?.status;
@@ -54,7 +73,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       } else if (status === 401) {
         throw new Error(serverMessage ?? 'Invalid username or password');
       } else if (serverMessage) {
-        // 500 or other server error — show the real message, not "wrong password"
         throw new Error(serverMessage);
       } else {
         throw new Error(axiosErr?.message ?? 'Unable to connect to the server');
@@ -67,17 +85,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await authApi.logout();
     } finally {
       disconnectSocket();
-      set({ user: null, permissions: null });
+      set({ user: null, permissions: null, requires2faSetup: false });
     }
   },
 
   checkSession: async () => {
     try {
-      const { user, permissions } = await authApi.me();
-      set({ user, permissions, isInitialized: true });
+      const { user, permissions, requires2faSetup } = await authApi.me();
+      set({ user, permissions, requires2faSetup: requires2faSetup ?? false, isInitialized: true });
+      syncPreferencesToStore(user);
       connectSocket(user.id);
     } catch {
-      set({ user: null, permissions: null, isInitialized: true });
+      set({ user: null, permissions: null, requires2faSetup: false, isInitialized: true });
     }
   },
 

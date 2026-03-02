@@ -1,18 +1,22 @@
 import apiClient from './client';
-import type { User, UserPermissions, ApiResponse, LoginRequest, LoginResponse } from '@obliview/shared';
+import type { User, UserPermissions, ApiResponse, LoginRequest } from '@obliview/shared';
+
+export type LoginResult =
+  | { user: User; requires2fa?: never }
+  | { requires2fa: true; methods: { totp: boolean; email: boolean }; user?: never };
 
 export const authApi = {
-  async login(data: LoginRequest): Promise<User> {
-    const res = await apiClient.post<ApiResponse<LoginResponse>>('/auth/login', data);
-    return res.data.data!.user;
+  async login(data: LoginRequest): Promise<LoginResult> {
+    const res = await apiClient.post<ApiResponse<LoginResult>>('/auth/login', data);
+    return res.data.data!;
   },
 
   async logout(): Promise<void> {
     await apiClient.post('/auth/logout');
   },
 
-  async me(): Promise<{ user: User; permissions: UserPermissions }> {
-    const res = await apiClient.get<ApiResponse<{ user: User; permissions: UserPermissions }>>('/auth/me');
+  async me(): Promise<{ user: User; permissions: UserPermissions; requires2faSetup: boolean }> {
+    const res = await apiClient.get<ApiResponse<{ user: User; permissions: UserPermissions; requires2faSetup: boolean }>>('/auth/me');
     return res.data.data!;
   },
 

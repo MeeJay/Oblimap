@@ -3,6 +3,7 @@ import { getSocket } from '../socket/socketClient';
 import { useMonitorStore } from '../store/monitorStore';
 import { useGroupStore } from '../store/groupStore';
 import { useAuthStore } from '../store/authStore';
+import { useLiveAlertsStore } from '../store/liveAlertsStore';
 import { SOCKET_EVENTS } from '@obliview/shared';
 import type { Monitor, MonitorGroup, Heartbeat } from '@obliview/shared';
 
@@ -34,13 +35,36 @@ export function useSocket() {
 
     // Monitor status change
     socket.on(SOCKET_EVENTS.MONITOR_STATUS_CHANGE, (data: { monitorId: number; newStatus: string }) => {
+      const prevMonitor = useMonitorStore.getState().getMonitor(data.monitorId);
+      const prev = prevMonitor?.status;
+      const monitorName = prevMonitor?.name ?? `Monitor #${data.monitorId}`;
+
       // Native app: play sound on down/recovery transitions
       if (isNativeApp) {
-        const prev = useMonitorStore.getState().getMonitor(data.monitorId)?.status;
         if (data.newStatus === 'down' && prev !== 'down') {
           notifyNative('probe_down');
         } else if (prev === 'down' && data.newStatus !== 'down') {
           notifyNative('probe_up');
+        }
+      }
+
+      // Live alerts: dispatch toast on status transitions
+      const { addAlert, enabled } = useLiveAlertsStore.getState();
+      if (enabled) {
+        if (data.newStatus === 'down' && prev !== 'down') {
+          addAlert({
+            severity: 'down',
+            title: 'Monitor Down',
+            message: `${monitorName} is DOWN`,
+            navigateTo: `/monitor/${data.monitorId}`,
+          });
+        } else if (prev === 'down' && data.newStatus === 'up') {
+          addAlert({
+            severity: 'up',
+            title: 'Monitor Recovered',
+            message: `${monitorName} is back UP`,
+            navigateTo: `/monitor/${data.monitorId}`,
+          });
         }
       }
 
@@ -97,15 +121,28 @@ export function useSocket() {
 
     // Agent status — used for native app sound notifications on alert transitions
     socket.on(SOCKET_EVENTS.AGENT_STATUS_CHANGED, (data: { deviceId: number; status: string }) => {
+      const prev = agentStatusRef.current.get(data.deviceId);
+
       if (isNativeApp) {
-        const prev = agentStatusRef.current.get(data.deviceId);
         if (data.status === 'alert' && prev !== 'alert') {
           notifyNative('agent_alert');
         } else if (prev === 'alert' && data.status !== 'alert') {
           notifyNative('agent_fixed');
         }
-        agentStatusRef.current.set(data.deviceId, data.status);
       }
+
+      // Live alerts for agent threshold crossings
+      const { addAlert, enabled } = useLiveAlertsStore.getState();
+      if (enabled && data.status === 'alert' && prev !== 'alert') {
+        addAlert({
+          severity: 'warning',
+          title: 'Agent Alert',
+          message: 'Agent device threshold exceeded',
+          navigateTo: `/admin/agents?device=${data.deviceId}`,
+        });
+      }
+
+      agentStatusRef.current.set(data.deviceId, data.status);
     });
 
     return () => {

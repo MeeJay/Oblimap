@@ -4,6 +4,11 @@ import type { SettingsKey } from './settingsDefaults';
 // ============================================
 // User types
 // ============================================
+export interface UserPreferences {
+  toastEnabled: boolean;
+  toastPosition: 'top-center' | 'bottom-right';
+}
+
 export interface User {
   id: number;
   username: string;
@@ -12,6 +17,10 @@ export interface User {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  preferences?: UserPreferences | null;
+  email?: string | null;
+  totpEnabled?: boolean;
+  emailOtpEnabled?: boolean;
 }
 
 export interface UserWithPassword extends User {
@@ -284,9 +293,33 @@ export interface NotificationPluginMeta {
 export interface NotificationConfigField {
   key: string;
   label: string;
-  type: 'text' | 'password' | 'number' | 'url' | 'textarea' | 'boolean';
+  type: 'text' | 'password' | 'number' | 'url' | 'textarea' | 'boolean' | 'smtp_server_select';
   placeholder?: string;
   required?: boolean;
+}
+
+// ============================================
+// SMTP Server types
+// ============================================
+export interface SmtpServer {
+  id: number;
+  name: string;
+  host: string;
+  port: number;
+  secure: boolean;
+  username: string;
+  fromAddress: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ============================================
+// App Config types
+// ============================================
+export interface AppConfig {
+  allow_2fa: boolean;
+  force_2fa: boolean;
+  otp_smtp_server_id: number | null;
 }
 
 // ============================================
@@ -481,6 +514,8 @@ export interface AgentDevice {
     heartbeatMonitoring: boolean;
     maxMissedPushes: number;
   };
+  /** Parent group's agent_thresholds — used as the "inherited" baseline in the threshold editor */
+  groupThresholds?: AgentThresholds | null;
 }
 
 // ============================================

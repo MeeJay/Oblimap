@@ -5,17 +5,14 @@ import { statusIcon } from '../statusIcons';
 export const smtpPlugin: NotificationPlugin = {
   type: 'smtp',
   name: 'Email (SMTP)',
-  description: 'Send email notifications via SMTP',
+  description: 'Send email notifications via a global SMTP server',
   configFields: [
-    { key: 'host', label: 'SMTP Host', type: 'text', required: true, placeholder: 'smtp.gmail.com' },
-    { key: 'port', label: 'SMTP Port', type: 'number', required: true, placeholder: '587' },
-    { key: 'secure', label: 'Use TLS', type: 'boolean' },
-    { key: 'username', label: 'Username', type: 'text', required: true },
-    { key: 'password', label: 'Password', type: 'password', required: true },
-    { key: 'from', label: 'From Address', type: 'text', required: true, placeholder: 'alerts@example.com' },
+    { key: 'smtpServerId', label: 'SMTP Server', type: 'smtp_server_select', required: true },
+    { key: 'fromOverride', label: 'From Address Override', type: 'text', required: false, placeholder: 'Leave blank to use server default' },
     { key: 'to', label: 'To Address(es)', type: 'text', required: true, placeholder: 'admin@example.com' },
   ],
 
+  // config here is the RESOLVED config (host/port/etc injected by resolveChannelConfig)
   async send(config, payload) {
     const icon = statusIcon(payload.newStatus);
     const transport = nodemailer.createTransport({

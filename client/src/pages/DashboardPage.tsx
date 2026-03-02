@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, CheckSquare, Activity, Clock, AlertTriangle, ShieldOff, Folder, Bell } from 'lucide-react';
+import { Plus, CheckSquare, Activity, Clock, AlertTriangle, ShieldOff, Folder, Server, Bell } from 'lucide-react';
 import type { Monitor, GroupTreeNode } from '@obliview/shared';
 import { useMonitorStore } from '@/store/monitorStore';
 import { useGroupStore } from '@/store/groupStore';
 import { useAuthStore } from '@/store/authStore';
+import { useUiStore } from '@/store/uiStore';
 import { useSocket } from '@/hooks/useSocket';
 import { monitorsApi } from '@/api/monitors.api';
 import { MonitorCard } from '@/components/monitors/MonitorCard';
@@ -62,10 +63,12 @@ export function DashboardPage() {
   useSocket();
 
   const { canCreate } = useAuthStore();
+  const { openAddAgentModal } = useUiStore();
   const { fetchMonitors, fetchAllHeartbeats, getMonitorList, getMonitorsByGroup, getRecentHeartbeats, isLoading } = useMonitorStore();
   const { tree, fetchTree } = useGroupStore();
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [selectionKind, setSelectionKind] = useState<'monitor' | 'agent' | null>(null);
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const [overallUptime, setOverallUptime] = useState<number | null>(null);
   const [overallAvgRt, setOverallAvgRt] = useState<number | null>(null);
@@ -145,6 +148,14 @@ export function DashboardPage() {
   }, [columnBlocks, getMonitorsByGroup]);
 
   const handleSelect = (id: number) => {
+    const monitor = getMonitorList().find((m) => m.id === id);
+    if (!monitor) return;
+    const isAgent = monitor.type === 'agent';
+    const kind = isAgent ? 'agent' : 'monitor';
+
+    // Block cross-kind selection
+    if (selectionKind !== null && selectionKind !== kind && !selectedIds.has(id)) return;
+
     const newSet = new Set(selectedIds);
     if (newSet.has(id)) {
       newSet.delete(id);
@@ -152,6 +163,7 @@ export function DashboardPage() {
       newSet.add(id);
     }
     setSelectedIds(newSet);
+    setSelectionKind(newSet.size === 0 ? null : kind);
   };
 
   const renderBlock = (block: ColumnBlock) => {
@@ -169,6 +181,7 @@ export function DashboardPage() {
               heartbeats={getRecentHeartbeats(m.id)}
               selectionMode={selectionMode}
               selected={selectedIds.has(m.id)}
+              selectionDisabled={selectionKind !== null && (m.type === 'agent') !== (selectionKind === 'agent')}
               onSelect={handleSelect}
             />
           ))}
@@ -185,6 +198,7 @@ export function DashboardPage() {
         getRecentHeartbeats={getRecentHeartbeats}
         selectionMode={selectionMode}
         selectedIds={selectedIds}
+        selectionKind={selectionKind}
         onSelect={handleSelect}
       />
     );
@@ -211,13 +225,18 @@ export function DashboardPage() {
               onClick={() => {
                 setSelectionMode(!selectionMode);
                 setSelectedIds(new Set());
+                setSelectionKind(null);
               }}
             >
               <CheckSquare size={16} className="mr-1.5" />
               {selectionMode ? 'Cancel' : 'Select'}
             </Button>
+            <Button variant="secondary" size="sm" onClick={openAddAgentModal}>
+              <Plus size={16} className="mr-1.5" />
+              Add Agent
+            </Button>
             <Link to="/monitor/new">
-              <Button size="sm">
+              <Button variant="secondary" size="sm">
                 <Plus size={16} className="mr-1.5" />
                 Add Monitor
               </Button>
@@ -282,7 +301,7 @@ export function DashboardPage() {
       {selectionMode && selectedIds.size > 0 && (
         <div className="mb-4 flex items-center gap-3 rounded-lg border border-accent/30 bg-bg-tertiary p-3">
           <span className="text-sm text-text-secondary">
-            {selectedIds.size} monitor{selectedIds.size > 1 ? 's' : ''} selected
+            {selectedIds.size} {selectionKind === 'agent' ? 'agent' : 'monitor'}{selectedIds.size > 1 ? 's' : ''} selected
           </span>
           <Button variant="secondary" size="sm" onClick={() => setBulkEditOpen(true)}>
             Edit Selected
@@ -312,6 +331,7 @@ export function DashboardPage() {
                 heartbeats={getRecentHeartbeats(m.id)}
                 selectionMode={selectionMode}
                 selected={selectedIds.has(m.id)}
+                selectionDisabled={selectionKind !== null && (m.type === 'agent') !== (selectionKind === 'agent')}
                 onSelect={handleSelect}
               />
             ))}
@@ -335,6 +355,7 @@ export function DashboardPage() {
                 heartbeats={getRecentHeartbeats(m.id)}
                 selectionMode={selectionMode}
                 selected={selectedIds.has(m.id)}
+                selectionDisabled={selectionKind !== null && (m.type === 'agent') !== (selectionKind === 'agent')}
                 onSelect={handleSelect}
               />
             ))}
@@ -358,6 +379,7 @@ export function DashboardPage() {
                 heartbeats={getRecentHeartbeats(m.id)}
                 selectionMode={selectionMode}
                 selected={selectedIds.has(m.id)}
+                selectionDisabled={selectionKind !== null && (m.type === 'agent') !== (selectionKind === 'agent')}
                 onSelect={handleSelect}
               />
             ))}
@@ -386,6 +408,7 @@ export function DashboardPage() {
       {bulkEditOpen && (
         <BulkEditModal
           monitorIds={Array.from(selectedIds)}
+          isAgentSelection={selectionKind === 'agent'}
           onClose={() => setBulkEditOpen(false)}
         />
       )}
@@ -401,6 +424,7 @@ function GroupSection({
   getRecentHeartbeats,
   selectionMode,
   selectedIds,
+  selectionKind,
   onSelect,
 }: {
   node: GroupTreeNode;
@@ -409,6 +433,7 @@ function GroupSection({
   getRecentHeartbeats: (id: number) => import('@obliview/shared').Heartbeat[];
   selectionMode: boolean;
   selectedIds: Set<number>;
+  selectionKind: 'monitor' | 'agent' | null;
   onSelect: (id: number) => void;
 }) {
   const groupMonitors = getMonitorsByGroup(node.id)
@@ -417,9 +442,13 @@ function GroupSection({
   // Skip entirely empty groups (no monitors at any level)
   if (!hasAnyMonitors(node, getMonitorsByGroup)) return null;
 
+  const groupIcon = node.kind === 'agent'
+    ? <Server size={16} className="text-accent" />
+    : <Folder size={16} className="text-accent" />;
+
   return (
     <DashboardSection
-      icon={<Folder size={16} className="text-accent" />}
+      icon={groupIcon}
       title={node.name}
       depth={depth}
       borderColor="border-accent/20"
@@ -432,6 +461,7 @@ function GroupSection({
           heartbeats={getRecentHeartbeats(m.id)}
           selectionMode={selectionMode}
           selected={selectedIds.has(m.id)}
+          selectionDisabled={selectionKind !== null && (m.type === 'agent') !== (selectionKind === 'agent')}
           onSelect={onSelect}
         />
       ))}
@@ -446,6 +476,7 @@ function GroupSection({
           getRecentHeartbeats={getRecentHeartbeats}
           selectionMode={selectionMode}
           selectedIds={selectedIds}
+          selectionKind={selectionKind}
           onSelect={onSelect}
         />
       ))}

@@ -3,6 +3,8 @@ import { Outlet } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { DesktopUpdateBanner } from './DesktopUpdateBanner';
+import { LiveAlerts } from './LiveAlerts';
+import { GlobalAddAgentModal } from './GlobalAddAgentModal';
 import { useUiStore } from '@/store/uiStore';
 import { cn } from '@/utils/cn';
 
@@ -70,6 +72,12 @@ export function AppLayout() {
           <Outlet />
         </main>
       </div>
+
+      {/* Live alert toasts */}
+      <LiveAlerts />
+
+      {/* Global Add Agent modal (triggered from sidebar / dashboard) */}
+      <GlobalAddAgentModal />
     </div>
   );
 }

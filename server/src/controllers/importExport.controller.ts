@@ -10,7 +10,9 @@ type ExportSection =
   | 'settings'
   | 'notificationChannels'
   | 'agentGroups'
-  | 'teams';
+  | 'teams'
+  | 'remediationActions'
+  | 'remediationBindings';
 
 /**
  * What to do when an imported item's UUID already exists in the database.
@@ -108,7 +110,7 @@ export const importExportController = {
           'UUIDs are automatically assigned to all records on first export.',
         ].join(' '),
         sections: all
-          ? (['monitorGroups', 'monitors', 'settings', 'notificationChannels', 'agentGroups', 'teams'] as ExportSection[])
+          ? (['monitorGroups', 'monitors', 'settings', 'notificationChannels', 'agentGroups', 'teams', 'remediationActions', 'remediationBindings'] as ExportSection[])
           : (requested as ExportSection[]),
       };
 
@@ -268,6 +270,73 @@ export const importExportController = {
           agentThresholds:  g.agent_thresholds,
           agentGroupConfig: g.agent_group_config,
         }));
+      }
+
+      // ── Remediation Actions ──────────────────────────────────────────────────
+      if (want('remediationActions')) {
+        const includeSSHCredentials = req.query.includeSSHCredentials === 'true';
+        const actions = await db('remediation_actions').orderBy('id');
+
+        payload.remediationActions = actions.map((a: any) => {
+          let config = a.config;
+          // config is stored as JSONB — Knex returns it already parsed
+          const parsedConfig: Record<string, unknown> =
+            typeof config === 'string' ? (JSON.parse(config) as Record<string, unknown>) : (config as Record<string, unknown>) ?? {};
+
+          // Redact SSH credentials unless explicitly requested
+          if (a.type === 'ssh' && !includeSSHCredentials) {
+            const redacted = { ...parsedConfig };
+            if ('credentialEnc' in redacted) redacted.credentialEnc = '[redacted]';
+            if ('password' in redacted) redacted.password = '[redacted]';
+            if ('privateKey' in redacted) redacted.privateKey = '[redacted]';
+            config = redacted;
+          } else {
+            config = parsedConfig;
+          }
+
+          return {
+            uuid:    a.uuid,
+            name:    a.name,
+            type:    a.type,
+            config,
+            enabled: a.enabled,
+          };
+        });
+      }
+
+      // ── Remediation Bindings ─────────────────────────────────────────────────
+      if (want('remediationBindings')) {
+        const bindings  = await db('remediation_bindings').orderBy('id');
+        const actions   = await db('remediation_actions').select('id', 'uuid');
+        const guMap     = await getGroupUuidMap();
+        const muMap     = await getMonitorUuidMap();
+        const actionUuidById = new Map<number, string>(
+          actions.map((a: { id: number; uuid: string }) => [a.id, a.uuid]),
+        );
+
+        payload.remediationBindings = bindings
+          .map((b: any) => {
+            const actionUuid = actionUuidById.get(b.action_id);
+            if (!actionUuid) return null;
+
+            const scopeUuid =
+              b.scope === 'global'  ? null :
+              b.scope === 'group'   ? (guMap.get(b.scope_id) ?? null) :
+              b.scope === 'monitor' ? (muMap.get(b.scope_id) ?? null) :
+              null;
+
+            if (b.scope !== 'global' && scopeUuid === null) return null;
+
+            return {
+              actionUuid,
+              scope:           b.scope,
+              scopeUuid,
+              overrideMode:    b.override_mode,
+              triggerOn:       b.trigger_on,
+              cooldownSeconds: b.cooldown_seconds,
+            };
+          })
+          .filter(Boolean);
       }
 
       // ── Teams + Permissions (no memberships — users are never exported) ───────
@@ -757,6 +826,120 @@ export const importExportController = {
             }
           }
           results.teams = { created, updated, skipped };
+        }
+
+        // ── Remediation Actions ─────────────────────────────────────────────────
+        if (want('remediationActions') && Array.isArray(data.remediationActions)) {
+          let created = 0, updated = 0, skipped = 0;
+
+          // Build UUID map for remediation_actions
+          const actionIdByUuid: Map<string, number> = new Map();
+          for (const r of await trx('remediation_actions').select('id', 'uuid'))
+            actionIdByUuid.set(r.uuid, r.id);
+
+          // Also track newly imported actions so bindings can reference them in same run
+          const batchActionByOrigUuid: Map<string, number> = new Map();
+
+          for (const a of data.remediationActions as Record<string, unknown>[]) {
+            if (!a.name || !a.type) { skipped++; continue; }
+
+            const decision = resolveConflict(a.uuid as string | undefined, actionIdByUuid);
+
+            if (decision.action === 'skip') {
+              if (a.uuid) batchActionByOrigUuid.set(a.uuid as string, actionIdByUuid.get(a.uuid as string)!);
+              skipped++;
+              continue;
+            }
+
+            const configVal = typeof a.config === 'string'
+              ? a.config
+              : JSON.stringify(a.config ?? {});
+
+            const actionRow: Record<string, unknown> = {
+              name:       a.name,
+              type:       a.type,
+              config:     configVal,
+              enabled:    (a.enabled as boolean) ?? true,
+              updated_at: new Date(),
+            };
+
+            if (decision.action === 'update') {
+              await trx('remediation_actions').where({ uuid: decision.uuid }).update(actionRow);
+              batchActionByOrigUuid.set(decision.uuid, decision.existingId);
+              if (a.uuid) batchActionByOrigUuid.set(a.uuid as string, decision.existingId);
+              updated++;
+            } else {
+              const [inserted] = await trx('remediation_actions')
+                .insert({ ...actionRow, uuid: decision.uuid })
+                .returning('id');
+              actionIdByUuid.set(decision.uuid, inserted.id);
+              if (a.uuid) batchActionByOrigUuid.set(a.uuid as string, inserted.id);
+              batchActionByOrigUuid.set(decision.uuid, inserted.id);
+              created++;
+            }
+          }
+
+          // Store batch map on outer scope so remediationBindings can use it
+          (trx as any).__remediationActionBatchMap = batchActionByOrigUuid;
+          (trx as any).__remediationActionIdByUuid = actionIdByUuid;
+
+          results.remediationActions = { created, updated, skipped };
+        }
+
+        // ── Remediation Bindings ────────────────────────────────────────────────
+        if (want('remediationBindings') && Array.isArray(data.remediationBindings)) {
+          let created = 0, skipped = 0;
+
+          // Resolve action UUID → DB id: prefer batch map (from this import run)
+          // then fall back to looking up existing actions from DB
+          const batchActionMap: Map<string, number> =
+            (trx as any).__remediationActionBatchMap ?? new Map<string, number>();
+          let actionIdByUuid: Map<string, number> =
+            (trx as any).__remediationActionIdByUuid ?? new Map<string, number>();
+
+          // If remediationActions wasn't imported in this run, load from DB
+          if (actionIdByUuid.size === 0) {
+            const rows = await trx('remediation_actions').select('id', 'uuid');
+            actionIdByUuid = new Map(rows.map((r: { id: number; uuid: string }) => [r.uuid, r.id]));
+          }
+
+          function resolveAction(uuid: string | null | undefined): number | null {
+            if (!uuid) return null;
+            return batchActionMap.get(uuid) ?? actionIdByUuid.get(uuid) ?? null;
+          }
+
+          for (const b of data.remediationBindings as Record<string, unknown>[]) {
+            const bScope = b.scope as string;
+            if (!bScope) { skipped++; continue; }
+
+            const actionId = resolveAction(b.actionUuid as string | null | undefined);
+            if (actionId === null) { skipped++; continue; }
+
+            let bScopeId: number | null = null;
+            if (bScope !== 'global') {
+              const bUuid = b.scopeUuid as string | null;
+              if (!bUuid) { skipped++; continue; }
+              if (bScope === 'group')   bScopeId = resolveGroup(bUuid);
+              if (bScope === 'monitor') bScopeId = resolveMonitor(bUuid);
+              if (bScopeId === null) { skipped++; continue; }
+            }
+
+            // Upsert — replace existing binding for this action+scope combination
+            await trx('remediation_bindings')
+              .where({ action_id: actionId, scope: bScope, scope_id: bScopeId })
+              .del();
+
+            await trx('remediation_bindings').insert({
+              action_id:       actionId,
+              scope:           bScope,
+              scope_id:        bScopeId,
+              override_mode:   (b.overrideMode as string) ?? 'merge',
+              trigger_on:      (b.triggerOn   as string) ?? 'down',
+              cooldown_seconds:(b.cooldownSeconds as number) ?? 300,
+            });
+            created++;
+          }
+          results.remediationBindings = { created, updated: 0, skipped };
         }
 
       }); // end transaction

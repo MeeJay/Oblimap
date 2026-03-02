@@ -163,23 +163,42 @@ function AgentGroupThresholdEditor({
       {/* Temperature global threshold */}
       <div>
         <div className="text-xs font-medium text-text-muted uppercase tracking-wide mb-2 flex items-center gap-1.5">
-          <Thermometer size={11} /> Temperature (global)
+          <Thermometer size={11} /> Temperatures
         </div>
-        <div className={cn('flex items-center gap-3', tempValues.globalEnabled ? '' : 'opacity-50')}>
-          <Switch on={tempValues.globalEnabled} onChange={v => updTemp('globalEnabled', v)} />
-          <select value={tempValues.op} onChange={e => updTemp('op', e.target.value)}
-            disabled={!tempValues.globalEnabled}
-            className="text-xs border border-border rounded bg-bg-tertiary text-text-primary px-1.5 py-1 disabled:opacity-40">
-            {OPS.map(o => <option key={o} value={o}>{o}</option>)}
-          </select>
-          <div className="flex items-center gap-1.5">
-            <input type="number" value={tempValues.threshold}
-              onChange={e => updTemp('threshold', Number(e.target.value))}
-              disabled={!tempValues.globalEnabled} min={0} max={200}
-              className="w-24 text-xs border border-border rounded bg-bg-tertiary text-text-primary px-2 py-1 disabled:opacity-40" />
-            <span className="text-xs text-text-muted">°C</span>
-          </div>
-        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-xs uppercase text-text-muted border-b border-border">
+              <th className="text-left pb-2 font-medium">Metric</th>
+              <th className="text-center pb-2 font-medium w-12">On</th>
+              <th className="text-center pb-2 font-medium w-16">Op</th>
+              <th className="text-left pb-2 font-medium">Value</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            <tr className={tempValues.globalEnabled ? '' : 'opacity-50'}>
+              <td className="py-2.5 font-medium text-text-secondary">Temperature (global)</td>
+              <td className="py-2.5 text-center">
+                <Switch on={tempValues.globalEnabled} onChange={v => updTemp('globalEnabled', v)} />
+              </td>
+              <td className="py-2.5 text-center">
+                <select value={tempValues.op} onChange={e => updTemp('op', e.target.value)}
+                  disabled={!tempValues.globalEnabled}
+                  className="text-xs border border-border rounded bg-bg-tertiary text-text-primary px-1.5 py-1 disabled:opacity-40">
+                  {OPS.map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </td>
+              <td className="py-2.5">
+                <div className="flex items-center gap-1.5">
+                  <input type="number" value={tempValues.threshold}
+                    onChange={e => updTemp('threshold', Number(e.target.value))}
+                    disabled={!tempValues.globalEnabled} min={0} max={200}
+                    className="w-24 text-xs border border-border rounded bg-bg-tertiary text-text-primary px-2 py-1 disabled:opacity-40" />
+                  <span className="text-xs text-text-muted">°C</span>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       <div className="flex justify-end">
@@ -289,7 +308,7 @@ function AgentGroupSettingsPanel({ group, onUpdate }: { group: MonitorGroup; onU
       <div className="border-t border-border pt-4">
         <div className="text-xs font-medium text-text-muted uppercase tracking-wide mb-4 flex items-center gap-1.5">
           <Settings2 size={11} /> Default Alert Thresholds
-          <span className="ml-1 text-text-muted font-normal normal-case">Applied on agent approval</span>
+          <span className="ml-1 text-text-muted font-normal normal-case">Inherited by agents in this group (overridable per agent)</span>
         </div>
         <AgentGroupThresholdEditor thresholds={thr} onSave={handleSaveThresholds} />
       </div>

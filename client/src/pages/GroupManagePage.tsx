@@ -271,7 +271,7 @@ export function GroupManagePage() {
   };
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="p-6 max-w-5xl min-w-0 mx-auto">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold text-text-primary">Groups</h1>
         <Button size="sm" onClick={() => openCreate()}>

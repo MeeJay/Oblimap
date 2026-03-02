@@ -24,9 +24,10 @@ import type { Monitor } from '@obliview/shared';
 interface GroupTreeProps {
   selectedGroupId?: number | null;
   onSelectGroup?: (groupId: number | null) => void;
+  searchQuery?: string;
 }
 
-export function GroupTree({ selectedGroupId, onSelectGroup }: GroupTreeProps) {
+export function GroupTree({ selectedGroupId, onSelectGroup, searchQuery = '' }: GroupTreeProps) {
   const { tree, fetchTree, fetchGroupStats } = useGroupStore();
   const { getMonitorsByGroup, fetchSummary, fetchAllHeartbeats, getMonitorSummary, updateMonitor } = useMonitorStore();
   const { canCreate: canCreateCheck } = useAuthStore();
@@ -104,35 +105,50 @@ export function GroupTree({ selectedGroupId, onSelectGroup }: GroupTreeProps) {
   // Only show monitor-kind groups (not agent groups — those appear in the Agent Groups sidebar section)
   const monitorTree = tree.filter(n => n.kind !== 'agent');
 
+  // When searching, filter root nodes to those that have at least one matching monitor in their subtree
+  const hasMatchingMonitor = (node: import('@obliview/shared').GroupTreeNode): boolean => {
+    if (getMonitorsByGroup(node.id).some(m => m.name.toLowerCase().includes(searchQuery.toLowerCase()))) return true;
+    return node.children.some(hasMatchingMonitor);
+  };
+
+  const visibleMonitorTree = searchQuery
+    ? monitorTree.filter(hasMatchingMonitor)
+    : monitorTree;
+
+  const filteredUngrouped = searchQuery
+    ? ungroupedMonitors.filter(m => m.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    : ungroupedMonitors;
+
   const content = (
     <div className="space-y-0.5">
       {/* Group tree (monitor groups only) */}
-      {monitorTree.map((node) => (
+      {visibleMonitorTree.map((node) => (
         <GroupNode
           key={node.id}
           node={node}
           selectedGroupId={selectedGroupId}
           onSelectGroup={onSelectGroup}
           dndEnabled={canMove}
+          searchQuery={searchQuery}
         />
       ))}
 
       {/* Ungrouped monitors */}
-      {ungroupedMonitors.length > 0 && (
+      {filteredUngrouped.length > 0 && (
         <UngroupedSection
-          monitors={ungroupedMonitors}
+          monitors={filteredUngrouped}
           dndEnabled={canMove}
           navigate={navigate}
           location={location}
           getMonitorSummary={getMonitorSummary}
-          treeLength={monitorTree.length}
+          treeLength={visibleMonitorTree.length}
         />
       )}
 
       {/* Empty state */}
-      {monitorTree.length === 0 && ungroupedMonitors.length === 0 && (
+      {visibleMonitorTree.length === 0 && filteredUngrouped.length === 0 && (
         <div className="py-4 text-center text-sm text-text-muted">
-          No monitors yet
+          {searchQuery ? 'No matching monitors' : 'No monitors yet'}
         </div>
       )}
     </div>

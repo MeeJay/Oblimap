@@ -4,8 +4,10 @@ import type {
   NotificationChannel,
   NotificationPluginMeta,
   NotificationBinding,
+  SmtpServer,
 } from '@obliview/shared';
 import { notificationsApi } from '@/api/notifications.api';
+import { smtpServerApi } from '@/api/smtpServer.api';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import toast from 'react-hot-toast';
@@ -14,6 +16,7 @@ export function NotificationsPage() {
   const [channels, setChannels] = useState<NotificationChannel[]>([]);
   const [plugins, setPlugins] = useState<NotificationPluginMeta[]>([]);
   const [globalBindings, setGlobalBindings] = useState<NotificationBinding[]>([]);
+  const [smtpServers, setSmtpServers] = useState<SmtpServer[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [selectedType, setSelectedType] = useState('');
@@ -39,6 +42,7 @@ export function NotificationsPage() {
 
   useEffect(() => {
     load();
+    smtpServerApi.list().then(setSmtpServers).catch(() => {});
   }, []);
 
   const selectedPlugin = plugins.find((p) => p.type === selectedType);
@@ -130,7 +134,7 @@ export function NotificationsPage() {
     globalBindings.some((b) => b.channelId === channelId);
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="p-6 max-w-5xl min-w-0 mx-auto">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold text-text-primary">Notifications</h1>
         <Button size="sm" onClick={openCreate}>
@@ -194,6 +198,29 @@ export function NotificationsPage() {
                     <label htmlFor={`cfg-${field.key}`} className="text-sm text-text-secondary">
                       {field.label}
                     </label>
+                  </div>
+                );
+              }
+              if (field.type === 'smtp_server_select') {
+                return (
+                  <div key={field.key} className="space-y-1">
+                    <label className="block text-sm font-medium text-text-secondary">
+                      {field.label}{field.required && <span className="text-status-down ml-1">*</span>}
+                    </label>
+                    <select
+                      value={String(formConfig[field.key] ?? '')}
+                      onChange={(e) => setFormConfig({ ...formConfig, [field.key]: e.target.value ? Number(e.target.value) : '' })}
+                      required={field.required}
+                      className="w-full rounded-md border border-border bg-bg-tertiary px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
+                    >
+                      <option value="">— Select SMTP Server —</option>
+                      {smtpServers.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name} ({s.host}:{s.port})</option>
+                      ))}
+                    </select>
+                    {smtpServers.length === 0 && (
+                      <p className="text-xs text-amber-400">No SMTP servers configured. Add one in Settings → SMTP Servers.</p>
+                    )}
                   </div>
                 );
               }

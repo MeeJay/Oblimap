@@ -8,9 +8,10 @@ import (
 
 // Config holds all persisted user preferences.
 type Config struct {
-	URL    string `json:"url"`
-	Width  int    `json:"width,omitempty"`  // last known window content width  (logical px)
-	Height int    `json:"height,omitempty"` // last known window content height (logical px)
+	URL         string `json:"url"`
+	Width       int    `json:"width,omitempty"`        // last known window content width  (logical px)
+	Height      int    `json:"height,omitempty"`       // last known window content height (logical px)
+	DownloadDir string `json:"downloadDir,omitempty"`  // preferred folder for native file downloads
 }
 
 // configPath returns the OS-appropriate path for config.json:

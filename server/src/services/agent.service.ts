@@ -5,6 +5,7 @@ import { db } from '../db';
 import type { AgentApiKey, AgentDevice, AgentGroupConfig, AgentThresholds } from '@obliview/shared';
 import { DEFAULT_AGENT_THRESHOLDS, SOCKET_EVENTS } from '@obliview/shared';
 import { heartbeatService } from './heartbeat.service';
+import { notificationService } from './notification.service';
 import { logger } from '../utils/logger';
 
 // ── Socket.io instance (set from index.ts) ──────────────────
@@ -63,7 +64,7 @@ function rowToApiKey(row: AgentApiKeyRow): AgentApiKey {
   };
 }
 
-function rowToDevice(row: AgentDeviceRow, groupConfig?: AgentGroupConfig | null): AgentDevice {
+function rowToDevice(row: AgentDeviceRow, groupConfig?: AgentGroupConfig | null, groupThresholds?: AgentThresholds | null): AgentDevice {
   const override = row.override_group_settings ?? false;
 
   // Compute effective (resolved) settings, honouring group inheritance when override=false.
@@ -102,6 +103,7 @@ function rowToDevice(row: AgentDeviceRow, groupConfig?: AgentGroupConfig | null)
     sensorDisplayNames: (row.sensor_display_names as Record<string, string> | null) ?? null,
     overrideGroupSettings: override,
     resolvedSettings,
+    groupThresholds: groupThresholds ?? null,
   };
 }
 
@@ -113,6 +115,16 @@ async function getGroupAgentConfig(groupId: number): Promise<AgentGroupConfig | 
   return (typeof g.agent_group_config === 'string'
     ? JSON.parse(g.agent_group_config)
     : g.agent_group_config) as AgentGroupConfig;
+}
+
+/** Fetch the agent_thresholds for a group (null if group not found or has none). */
+async function getGroupAgentThresholds(groupId: number): Promise<AgentThresholds | null> {
+  const g = await db('monitor_groups').where({ id: groupId }).select('agent_thresholds').first() as
+    { agent_thresholds: unknown } | undefined;
+  if (!g?.agent_thresholds) return null;
+  return (typeof g.agent_thresholds === 'string'
+    ? JSON.parse(g.agent_thresholds)
+    : g.agent_thresholds) as AgentThresholds;
 }
 
 // ============================================================
@@ -227,32 +239,47 @@ export const agentService = {
     // can be computed without N+1 queries.
     const query = db('agent_devices as d')
       .leftJoin('monitor_groups as g', 'g.id', 'd.group_id')
-      .select('d.*', db.raw('g.agent_group_config as _group_agent_config'))
+      .select(
+        'd.*',
+        db.raw('g.agent_group_config as _group_agent_config'),
+        db.raw('g.agent_thresholds as _group_agent_thresholds'),
+      )
       .orderBy('d.created_at', 'desc');
     if (status) query.where({ 'd.status': status });
-    const rows = await query as (AgentDeviceRow & { _group_agent_config: unknown })[];
+    const rows = await query as (AgentDeviceRow & { _group_agent_config: unknown; _group_agent_thresholds: unknown })[];
     return rows.map((r) => {
       const gc = r._group_agent_config
         ? (typeof r._group_agent_config === 'string'
           ? JSON.parse(r._group_agent_config)
           : r._group_agent_config) as AgentGroupConfig
         : null;
-      return rowToDevice(r, gc);
+      const gt = r._group_agent_thresholds
+        ? (typeof r._group_agent_thresholds === 'string'
+          ? JSON.parse(r._group_agent_thresholds)
+          : r._group_agent_thresholds) as AgentThresholds
+        : null;
+      return rowToDevice(r, gc, gt);
     });
   },
 
   async getDeviceById(id: number): Promise<AgentDevice | null> {
     const row = await db('agent_devices').where({ id }).first() as AgentDeviceRow | undefined;
     if (!row) return null;
-    const groupConfig = row.group_id ? await getGroupAgentConfig(row.group_id) : null;
-    return rowToDevice(row, groupConfig);
+    const [groupConfig, groupThresholds] = await Promise.all([
+      row.group_id ? getGroupAgentConfig(row.group_id) : null,
+      row.group_id ? getGroupAgentThresholds(row.group_id) : null,
+    ]);
+    return rowToDevice(row, groupConfig, groupThresholds);
   },
 
   async getDeviceByUuid(uuid: string): Promise<AgentDevice | null> {
     const row = await db('agent_devices').where({ uuid }).first() as AgentDeviceRow | undefined;
     if (!row) return null;
-    const groupConfig = row.group_id ? await getGroupAgentConfig(row.group_id) : null;
-    return rowToDevice(row, groupConfig);
+    const [groupConfig, groupThresholds] = await Promise.all([
+      row.group_id ? getGroupAgentConfig(row.group_id) : null,
+      row.group_id ? getGroupAgentThresholds(row.group_id) : null,
+    ]);
+    return rowToDevice(row, groupConfig, groupThresholds);
   },
 
   async updateDevice(id: number, data: {
@@ -620,6 +647,10 @@ export const agentService = {
     const overallStatus: 'up' | 'alert' = violations.length > 0 ? 'alert' : 'up';
     const message = violations.length > 0 ? violations.join('; ') : 'All metrics OK';
 
+    // Capture previous status before overwriting snapshot (for transition detection)
+    const previousSnapshot = agentPushData.get(device.id);
+    const previousStatus = previousSnapshot?.overallStatus ?? 'up';
+
     // Update in-memory snapshot
     const snapshot: AgentPushSnapshot = {
       monitorId: monitor.id,
@@ -679,6 +710,14 @@ export const agentService = {
         deviceId: device.id,
         status: overallStatus,
       });
+    }
+
+    // Send notifications on status transitions (up ↔ alert)
+    if (overallStatus !== previousStatus) {
+      const deviceName = device.name ?? device.hostname;
+      notificationService.sendForAgent(device.id, deviceName, overallStatus, previousStatus, violations).catch(
+        (err) => logger.error(err, `Failed to send agent notification for device ${device.id}`),
+      );
     }
   },
 

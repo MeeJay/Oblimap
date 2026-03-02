@@ -1,6 +1,6 @@
 import { db } from '../db';
 import { hashPassword, comparePassword } from '../utils/crypto';
-import type { User } from '@obliview/shared';
+import type { User, UserPreferences } from '@obliview/shared';
 import { logger } from '../utils/logger';
 
 interface UserRow {
@@ -12,6 +12,10 @@ interface UserRow {
   is_active: boolean;
   created_at: Date;
   updated_at: Date;
+  preferences?: UserPreferences | null;
+  email?: string | null;
+  totp_enabled?: boolean;
+  email_otp_enabled?: boolean;
 }
 
 function rowToUser(row: UserRow): User {
@@ -23,6 +27,10 @@ function rowToUser(row: UserRow): User {
     isActive: row.is_active,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
+    preferences: row.preferences ?? null,
+    email: row.email ?? null,
+    totpEnabled: row.totp_enabled ?? false,
+    emailOtpEnabled: row.email_otp_enabled ?? false,
   };
 }
 

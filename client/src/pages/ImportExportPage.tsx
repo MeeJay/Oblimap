@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback } from 'react';
-import { Download, Upload, FileJson, CheckCircle2, PackageOpen } from 'lucide-react';
+import { useState, useRef, useCallback, type ReactNode } from 'react';
+import { Download, Upload, FileJson, CheckCircle2, PackageOpen, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/common/Button';
 import apiClient from '@/api/client';
 import toast from 'react-hot-toast';
@@ -12,7 +12,9 @@ type Section =
   | 'settings'
   | 'notificationChannels'
   | 'agentGroups'
-  | 'teams';
+  | 'teams'
+  | 'remediationActions'
+  | 'remediationBindings';
 
 type ConflictStrategy = 'update' | 'generateNew' | 'ignore';
 
@@ -23,6 +25,8 @@ const ALL_SECTIONS: Section[] = [
   'notificationChannels',
   'agentGroups',
   'teams',
+  'remediationActions',
+  'remediationBindings',
 ];
 
 const SECTION_LABELS: Record<Section, string> = {
@@ -32,6 +36,13 @@ const SECTION_LABELS: Record<Section, string> = {
   notificationChannels:'Notification Channels',
   agentGroups:         'Agent Groups',
   teams:               'Teams',
+  remediationActions:  'Remediation Actions',
+  remediationBindings: 'Remediation Bindings',
+};
+
+const SECTION_DESCRIPTIONS: Partial<Record<Section, string>> = {
+  remediationActions:  'Global automation actions (webhooks, scripts, etc.)',
+  remediationBindings: 'Scope-based remediation bindings (global/group/monitor)',
 };
 
 const CONFLICT_OPTIONS: { value: ConflictStrategy; label: string; description: string }[] = [
@@ -96,11 +107,15 @@ function SectionSelector({
   enabled,
   onToggle,
   onToggleAll,
+  descriptions = {},
+  extra,
 }: {
-  sections:     Section[];
-  enabled:      Set<Section>;
-  onToggle:     (s: Section) => void;
-  onToggleAll:  (on: boolean) => void;
+  sections:      Section[];
+  enabled:       Set<Section>;
+  onToggle:      (s: Section) => void;
+  onToggleAll:   (on: boolean) => void;
+  descriptions?: Partial<Record<Section, string>>;
+  extra?:        ReactNode;
 }) {
   const allOn  = sections.length > 0 && sections.every(s => enabled.has(s));
   const someOn = sections.some(s => enabled.has(s));
@@ -119,11 +134,21 @@ function SectionSelector({
 
       {/* Individual sections */}
       {sections.map((s) => (
-        <div key={s} className="flex items-center justify-between py-1.5">
-          <span className="text-sm text-text-secondary">{SECTION_LABELS[s]}</span>
-          <Toggle checked={enabled.has(s)} onChange={() => onToggle(s)} />
+        <div key={s} className="py-1.5">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-sm text-text-secondary">{SECTION_LABELS[s]}</span>
+              {descriptions[s] && (
+                <p className="text-[11px] text-text-muted mt-0.5">{descriptions[s]}</p>
+              )}
+            </div>
+            <Toggle checked={enabled.has(s)} onChange={() => onToggle(s)} />
+          </div>
         </div>
       ))}
+
+      {/* Extra content (sub-options) */}
+      {extra}
     </div>
   );
 }
@@ -133,8 +158,9 @@ function SectionSelector({
 export function ImportExportPage() {
 
   // ── Export state ──
-  const [exportSections, setExportSections] = useState<Set<Section>>(new Set(ALL_SECTIONS));
-  const [exporting,      setExporting]      = useState(false);
+  const [exportSections,       setExportSections]       = useState<Set<Section>>(new Set(ALL_SECTIONS));
+  const [exporting,            setExporting]            = useState(false);
+  const [includeSSHCredentials,setIncludeSSHCredentials]= useState(false);
 
   // ── Import state ──
   const [importFile,       setImportFile]       = useState<File | null>(null);
@@ -148,6 +174,7 @@ export function ImportExportPage() {
   >(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   // ── Export handlers ──────────────────────────────────────────────────────
 
@@ -171,8 +198,11 @@ export function ImportExportPage() {
     setExporting(true);
     try {
       const sections = [...exportSections].join(',');
+      const sshParam = exportSections.has('remediationActions') && includeSSHCredentials
+        ? '&includeSSHCredentials=true'
+        : '';
       const res = await apiClient.get(
-        `/admin/export?sections=${encodeURIComponent(sections)}`,
+        `/admin/export?sections=${encodeURIComponent(sections)}${sshParam}`,
         { responseType: 'blob' },
       );
       const url = URL.createObjectURL(res.data as Blob);
@@ -187,14 +217,12 @@ export function ImportExportPage() {
     } finally {
       setExporting(false);
     }
-  }, [exportSections]);
+  }, [exportSections, includeSSHCredentials]);
 
   // ── Import handlers ──────────────────────────────────────────────────────
 
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  /** Shared file-processing logic used by both click-select and drag-drop */
+  const processFile = useCallback((file: File) => {
     setImportFile(file);
     setImportResults(null);
 
@@ -220,6 +248,37 @@ export function ImportExportPage() {
     };
     reader.readAsText(file);
   }, []);
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    processFile(file);
+  }, [processFile]);
+
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    if (!file.name.endsWith('.json') && file.type !== 'application/json') {
+      toast.error('Please drop a .json file');
+      return;
+    }
+    processFile(file);
+  }, [processFile]);
 
   const toggleImportSection = useCallback((s: Section) => {
     setImportSections(prev => {
@@ -262,7 +321,7 @@ export function ImportExportPage() {
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8">
+    <div className="mx-auto max-w-5xl min-w-0 px-4 py-8">
 
       {/* Page header */}
       <div className="mb-8">
@@ -275,6 +334,14 @@ export function ImportExportPage() {
           UUIDs in the file enable idempotent re-imports — existing records are updated rather
           than duplicated. UUIDs are optional when creating your own import files.
         </p>
+        <a
+          href="/obliview-import-example.json"
+          download="obliview-import-example.json"
+          className="mt-2 inline-flex items-center gap-1.5 text-xs text-accent hover:underline"
+        >
+          <ExternalLink size={11} />
+          Download example / template JSON
+        </a>
       </div>
 
       {/* ── Export card ── */}
@@ -292,6 +359,26 @@ export function ImportExportPage() {
           enabled={exportSections}
           onToggle={toggleExportSection}
           onToggleAll={toggleAllExport}
+          descriptions={SECTION_DESCRIPTIONS}
+          extra={
+            exportSections.has('remediationActions') && (
+              <div className="ml-4 mt-1 flex items-start gap-3 rounded-lg border border-border bg-bg-tertiary px-3 py-2.5">
+                <input
+                  id="includeSSHCredentials"
+                  type="checkbox"
+                  checked={includeSSHCredentials}
+                  onChange={e => setIncludeSSHCredentials(e.target.checked)}
+                  className="mt-0.5 accent-accent"
+                />
+                <label htmlFor="includeSSHCredentials" className="cursor-pointer">
+                  <span className="text-sm text-text-secondary">Include SSH credentials</span>
+                  <p className="text-[11px] text-text-muted mt-0.5">
+                    Export plaintext SSH passwords and private keys. Off by default for security.
+                  </p>
+                </label>
+              </div>
+            )
+          }
         />
 
         <div className="mt-5 flex justify-end">
@@ -320,17 +407,26 @@ export function ImportExportPage() {
         {/* File drop zone */}
         <div
           onClick={() => fileInputRef.current?.click()}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
           className={[
             'mb-5 flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed',
             'px-6 py-6 transition-colors',
-            importFile
-              ? 'border-accent/50 bg-accent/5'
-              : 'border-border bg-bg-tertiary hover:border-accent hover:bg-accent/5',
+            isDragging
+              ? 'border-accent bg-accent/10 scale-[1.01]'
+              : importFile
+                ? 'border-accent/50 bg-accent/5'
+                : 'border-border bg-bg-tertiary hover:border-accent hover:bg-accent/5',
           ].join(' ')}
         >
-          <FileJson size={28} className={importFile ? 'text-accent' : 'text-text-muted'} />
+          <FileJson size={28} className={importFile || isDragging ? 'text-accent' : 'text-text-muted'} />
           <span className="text-sm text-text-secondary text-center">
-            {importFile ? importFile.name : 'Click to choose an export file (.json)'}
+            {isDragging
+              ? 'Drop the file here'
+              : importFile
+                ? importFile.name
+                : 'Click or drag & drop an export file (.json)'}
           </span>
           {importFile && (
             <span className="text-xs text-text-muted">
@@ -362,6 +458,7 @@ export function ImportExportPage() {
                 enabled={importSections}
                 onToggle={toggleImportSection}
                 onToggleAll={toggleAllImport}
+                descriptions={SECTION_DESCRIPTIONS}
               />
             </div>
 

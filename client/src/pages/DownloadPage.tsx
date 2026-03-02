@@ -1,6 +1,25 @@
-import { Monitor, Apple, Download, ExternalLink } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Monitor, Apple, Download, ExternalLink, FolderOpen, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 
-interface Download_ {
+// ── Native desktop-app Go bindings ───────────────────────────────────────────
+// These are injected by the Go overlay into window when running inside Obliview.
+
+type NativeWindow = Window & {
+  __obliview_is_native_app?: boolean;
+  /** Returns the currently saved download folder, or "" if not yet set. */
+  __go_getDownloadDir?: () => Promise<string>;
+  /** Opens a native OS folder-picker, saves the choice, returns the path. Rejects on cancel. */
+  __go_chooseDownloadDir?: () => Promise<string>;
+  /** Downloads relUrl from the Obliview server to the saved folder (opens picker if unset). Returns the full path. */
+  __go_downloadFile?: (relUrl: string, filename: string) => Promise<string>;
+};
+
+const nw = typeof window !== 'undefined' ? (window as NativeWindow) : null;
+const isNativeApp = !!nw?.__obliview_is_native_app;
+
+// ── Static data ───────────────────────────────────────────────────────────────
+
+interface DownloadEntry {
   label: string;
   filename: string;
   primary?: boolean;
@@ -11,7 +30,7 @@ interface Platform {
   name: string;
   icon: React.ReactNode;
   description: string;
-  downloads: Download_[];
+  downloads: DownloadEntry[];
 }
 
 const PLATFORMS: Platform[] = [
@@ -53,9 +72,67 @@ const PLATFORMS: Platform[] = [
   },
 ];
 
+// ── Component ─────────────────────────────────────────────────────────────────
+
 export function DownloadPage() {
+  // Native-app download folder state
+  const [downloadDir, setDownloadDir] = useState<string>('');
+
+  // Per-filename loading / success / error state
+  const [downloading, setDownloading] = useState<Record<string, boolean>>({});
+  const [downloaded, setDownloaded] = useState<Record<string, string>>({});  // filename → saved path
+  const [dlErrors, setDlErrors] = useState<Record<string, string>>({});
+
+  // On mount, read the saved download folder from Go config.
+  useEffect(() => {
+    if (!isNativeApp || !nw?.__go_getDownloadDir) return;
+    nw.__go_getDownloadDir()
+      .then(dir => setDownloadDir(dir))
+      .catch(() => {/* silently ignore */});
+  }, []);
+
+  const handleChangeDir = async () => {
+    const go = nw?.__go_chooseDownloadDir;
+    if (!go) return;
+    try {
+      const dir = await go();
+      setDownloadDir(dir);
+    } catch {
+      // cancelled — silently ignore
+    }
+  };
+
+  const handleNativeDownload = async (relUrl: string, filename: string) => {
+    const go = nw?.__go_downloadFile;
+    if (!go) return;
+
+    setDownloading(prev => ({ ...prev, [filename]: true }));
+    setDlErrors(prev => { const n = { ...prev }; delete n[filename]; return n; });
+
+    try {
+      const dest = await go(relUrl, filename);
+      setDownloaded(prev => ({ ...prev, [filename]: dest }));
+      // After 6 s reset the "Saved" badge so the button is usable again.
+      setTimeout(() => {
+        setDownloaded(prev => { const n = { ...prev }; delete n[filename]; return n; });
+      }, 6000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg !== 'cancelled') {
+        setDlErrors(prev => ({ ...prev, [filename]: msg }));
+      }
+      // If the user opened the folder picker and chose a new folder, update the displayed dir.
+      if (nw?.__go_getDownloadDir) {
+        nw.__go_getDownloadDir().then(dir => setDownloadDir(dir)).catch(() => {});
+      }
+    } finally {
+      setDownloading(prev => { const n = { ...prev }; delete n[filename]; return n; });
+    }
+  };
+
   return (
     <div className="mx-auto max-w-2xl px-4 py-12">
+
       {/* Header */}
       <div className="mb-10 text-center">
         <div className="mb-4 flex justify-center">
@@ -69,6 +146,26 @@ export function DownloadPage() {
           Get system-level sound notifications and a distraction-free monitoring experience.
         </p>
       </div>
+
+      {/* Download folder row — shown only inside the native app */}
+      {isNativeApp && (
+        <div className="mb-6 flex items-center gap-3 rounded-lg border border-border bg-bg-secondary px-4 py-3 text-sm">
+          <FolderOpen size={15} className="text-text-muted shrink-0" />
+          <div className="flex-1 min-w-0">
+            <span className="text-text-secondary">Download folder: </span>
+            {downloadDir
+              ? <span className="font-mono text-text-primary break-all">{downloadDir}</span>
+              : <span className="text-text-muted italic">Will ask on first download</span>
+            }
+          </div>
+          <button
+            onClick={handleChangeDir}
+            className="shrink-0 rounded-md border border-border px-3 py-1 text-xs text-text-secondary hover:bg-bg-hover transition-colors"
+          >
+            Change
+          </button>
+        </div>
+      )}
 
       {/* Feature pills */}
       <div className="mb-10 flex flex-wrap justify-center gap-2">
@@ -103,24 +200,64 @@ export function DownloadPage() {
               </div>
             </div>
 
-            <div className="mt-auto flex flex-col gap-2">
+            <div className="flex flex-1 flex-col gap-2">
               {p.downloads.map((d) => (
-                <div key={d.filename}>
+                <div key={d.filename} className="flex flex-1 flex-col">
                   {d.note && (
                     <p className="mb-1.5 text-xs text-text-muted leading-relaxed">{d.note}</p>
                   )}
-                  <a
-                    href={`/downloads/${d.filename}`}
-                    download={d.filename}
-                    className={
-                      d.primary
-                        ? 'flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90'
-                        : 'flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-bg-tertiary px-4 py-2 text-xs text-text-secondary transition-colors hover:bg-bg-secondary hover:text-text-primary'
-                    }
-                  >
-                    <Download size={d.primary ? 14 : 12} />
-                    {d.label}
-                  </a>
+
+                  {/* Error message (native only) */}
+                  {isNativeApp && dlErrors[d.filename] && (
+                    <div className="mb-1.5 flex items-center gap-1.5 text-xs text-red-400">
+                      <AlertCircle size={11} />
+                      {dlErrors[d.filename]}
+                    </div>
+                  )}
+
+                  {/* Native app: button calling Go binding */}
+                  {isNativeApp ? (
+                    <button
+                      onClick={() => handleNativeDownload(`/downloads/${d.filename}`, d.filename)}
+                      disabled={!!downloading[d.filename]}
+                      className={
+                        d.primary
+                          ? 'mt-auto flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60'
+                          : 'mt-auto flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-bg-tertiary px-4 py-2 text-xs text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:opacity-60'
+                      }
+                    >
+                      {downloading[d.filename] ? (
+                        <>
+                          <Loader2 size={13} className="animate-spin" />
+                          Downloading…
+                        </>
+                      ) : downloaded[d.filename] ? (
+                        <>
+                          <CheckCircle size={13} className={d.primary ? 'text-white/80' : 'text-green-400'} />
+                          Saved
+                        </>
+                      ) : (
+                        <>
+                          <Download size={13} />
+                          {d.label}
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    /* Browser: standard anchor download */
+                    <a
+                      href={`/downloads/${d.filename}`}
+                      download={d.filename}
+                      className={
+                        d.primary
+                          ? 'mt-auto flex w-full items-center justify-center gap-2 rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-white transition-opacity hover:opacity-90'
+                          : 'mt-auto flex w-full items-center justify-center gap-2 rounded-lg border border-border bg-bg-tertiary px-4 py-2 text-xs text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary'
+                      }
+                    >
+                      <Download size={13} />
+                      {d.label}
+                    </a>
+                  )}
                 </div>
               ))}
             </div>

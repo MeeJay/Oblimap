@@ -12,6 +12,8 @@ interface MonitorCardProps {
   selected?: boolean;
   onSelect?: (id: number) => void;
   selectionMode?: boolean;
+  /** Greyed out because a conflicting selection kind is active */
+  selectionDisabled?: boolean;
 }
 
 export function MonitorCard({
@@ -20,6 +22,7 @@ export function MonitorCard({
   selected,
   onSelect,
   selectionMode,
+  selectionDisabled,
 }: MonitorCardProps) {
   const lastHeartbeat = heartbeats[heartbeats.length - 1];
   const responseTime = lastHeartbeat?.responseTime;
@@ -61,9 +64,10 @@ export function MonitorCard({
         'group flex items-center gap-3 rounded-lg border border-border p-3 transition-colors',
         'hover:bg-bg-hover hover:border-border-light',
         selected && 'border-accent bg-bg-tertiary',
-        selectionMode && 'cursor-pointer',
+        selectionMode && !selectionDisabled && 'cursor-pointer',
+        selectionDisabled && 'opacity-35 pointer-events-none',
       )}
-      onClick={selectionMode ? () => onSelect?.(monitor.id) : undefined}
+      onClick={selectionMode && !selectionDisabled ? () => onSelect?.(monitor.id) : undefined}
     >
       {selectionMode && (
         <input

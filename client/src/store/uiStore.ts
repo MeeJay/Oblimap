@@ -3,10 +3,13 @@ import { create } from 'zustand';
 interface UiState {
   sidebarOpen: boolean;
   sidebarWidth: number;
+  addAgentModalOpen: boolean;
 
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
   setSidebarWidth: (width: number) => void;
+  openAddAgentModal: () => void;
+  closeAddAgentModal: () => void;
 }
 
 const MIN_SIDEBAR_WIDTH = 220;
@@ -29,9 +32,12 @@ function loadSavedWidth(): number {
 export const useUiStore = create<UiState>((set) => ({
   sidebarOpen: true,
   sidebarWidth: loadSavedWidth(),
+  addAgentModalOpen: false,
 
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
+  openAddAgentModal: () => set({ addAgentModalOpen: true }),
+  closeAddAgentModal: () => set({ addAgentModalOpen: false }),
   setSidebarWidth: (width) => {
     const clamped = Math.max(MIN_SIDEBAR_WIDTH, Math.min(MAX_SIDEBAR_WIDTH, width));
     try {

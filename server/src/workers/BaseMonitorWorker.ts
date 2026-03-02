@@ -185,6 +185,19 @@ export abstract class BaseMonitorWorker {
         heartbeat,
       });
     } catch (error) {
+      // FK violation (23503): the monitor was deleted while the worker was still running.
+      // Stop the worker gracefully instead of spamming the logs on every tick.
+      if (
+        error instanceof Error &&
+        'code' in error &&
+        (error as { code: string }).code === '23503'
+      ) {
+        logger.warn(
+          `Monitor "${this.config.name}" (id: ${this.config.id}) no longer exists in DB — stopping worker gracefully`,
+        );
+        this.stop();
+        return;
+      }
       logger.error(
         error,
         `Error processing result for monitor "${this.config.name}" (id: ${this.config.id})`,

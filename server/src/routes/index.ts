@@ -11,6 +11,9 @@ import teamsRoutes from './teams.routes';
 import agentRoutes from './agent.routes';
 import importExportRoutes from './importExport.routes';
 import remediationRoutes from './remediation.routes';
+import smtpServerRoutes from './smtpServer.routes';
+import appConfigRoutes from './appConfig.routes';
+import twoFactorRoutes from './twoFactor.routes';
 
 const router = Router();
 
@@ -26,5 +29,8 @@ router.use('/teams', teamsRoutes);
 router.use('/agent', agentRoutes);
 router.use('/admin', importExportRoutes);
 router.use('/remediation', remediationRoutes);
+router.use('/admin/smtp-servers', smtpServerRoutes);
+router.use('/admin/config', appConfigRoutes);
+router.use('/profile/2fa', twoFactorRoutes);
 
 export { router as routes };

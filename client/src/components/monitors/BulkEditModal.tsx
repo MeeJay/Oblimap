@@ -43,6 +43,7 @@ function makeDefaultState(): BulkFormState {
 
 interface BulkEditModalProps {
   monitorIds: number[];
+  isAgentSelection?: boolean;
   onClose: () => void;
 }
 
@@ -78,8 +79,11 @@ function FieldRow({
   );
 }
 
-export function BulkEditModal({ monitorIds, onClose }: BulkEditModalProps) {
+export function BulkEditModal({ monitorIds, isAgentSelection, onClose }: BulkEditModalProps) {
   const { tree } = useGroupStore();
+  const agentGroupTree = tree.filter((node) => node.kind === 'agent');
+  const monitorGroupTree = tree.filter((node) => node.kind === 'monitor');
+  const groupTree = isAgentSelection ? agentGroupTree : monitorGroupTree;
   const { updateMonitor: updateStoreMonitor } = useMonitorStore();
   const [form, setForm] = useState<BulkFormState>(makeDefaultState);
   const [saving, setSaving] = useState(false);
@@ -142,7 +146,7 @@ export function BulkEditModal({ monitorIds, onClose }: BulkEditModalProps) {
       }
 
       await Promise.all(promises);
-      toast.success(`${monitorIds.length} monitor${monitorIds.length > 1 ? 's' : ''} updated`);
+      toast.success(`${monitorIds.length} ${isAgentSelection ? 'agent' : 'monitor'}${monitorIds.length > 1 ? 's' : ''} updated`);
       onClose();
     } catch {
       toast.error('Failed to update monitors');
@@ -164,7 +168,7 @@ export function BulkEditModal({ monitorIds, onClose }: BulkEditModalProps) {
           <div>
             <h2 className="text-base font-semibold text-text-primary">Bulk Edit</h2>
             <p className="text-xs text-text-secondary mt-0.5">
-              {monitorIds.length} monitor{monitorIds.length > 1 ? 's' : ''} selected — check a field to override it
+              {monitorIds.length} {isAgentSelection ? 'agent' : 'monitor'}{monitorIds.length > 1 ? 's' : ''} selected — check a field to override it
             </p>
           </div>
           <button
@@ -207,108 +211,112 @@ export function BulkEditModal({ monitorIds, onClose }: BulkEditModalProps) {
               <GroupPicker
                 value={form.groupId.value}
                 onChange={(id) => setValue('groupId', id)}
-                tree={tree}
+                tree={groupTree}
                 placeholder="No group"
               />
             </FieldRow>
           </section>
 
-          {/* ── Timing ── */}
-          <section className="space-y-4">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-text-secondary">
-              Timing
-            </h3>
+          {/* ── Timing (monitor only) ── */}
+          {!isAgentSelection && (
+            <section className="space-y-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-text-secondary">
+                Timing
+              </h3>
 
-            <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4">
+                <FieldRow
+                  label="Check Interval (s)"
+                  enabled={form.intervalSeconds.enabled}
+                  onToggle={() => setEnabled('intervalSeconds', !form.intervalSeconds.enabled)}
+                >
+                  <Input
+                    type="number"
+                    min={1}
+                    max={86400}
+                    value={form.intervalSeconds.value}
+                    onChange={(e) => setValue('intervalSeconds', e.target.value)}
+                    placeholder="Keep"
+                    disabled={!form.intervalSeconds.enabled}
+                  />
+                </FieldRow>
+
+                <FieldRow
+                  label="Timeout (ms)"
+                  enabled={form.timeoutMs.enabled}
+                  onToggle={() => setEnabled('timeoutMs', !form.timeoutMs.enabled)}
+                >
+                  <Input
+                    type="number"
+                    min={1000}
+                    max={60000}
+                    value={form.timeoutMs.value}
+                    onChange={(e) => setValue('timeoutMs', e.target.value)}
+                    placeholder="Keep"
+                    disabled={!form.timeoutMs.enabled}
+                  />
+                </FieldRow>
+
+                <FieldRow
+                  label="Retry Interval (s)"
+                  enabled={form.retryIntervalSeconds.enabled}
+                  onToggle={() => setEnabled('retryIntervalSeconds', !form.retryIntervalSeconds.enabled)}
+                >
+                  <Input
+                    type="number"
+                    min={1}
+                    max={3600}
+                    value={form.retryIntervalSeconds.value}
+                    onChange={(e) => setValue('retryIntervalSeconds', e.target.value)}
+                    placeholder="Keep"
+                    disabled={!form.retryIntervalSeconds.enabled}
+                  />
+                </FieldRow>
+
+                <FieldRow
+                  label="Max Retries"
+                  enabled={form.maxRetries.enabled}
+                  onToggle={() => setEnabled('maxRetries', !form.maxRetries.enabled)}
+                >
+                  <Input
+                    type="number"
+                    min={0}
+                    max={10}
+                    value={form.maxRetries.value}
+                    onChange={(e) => setValue('maxRetries', e.target.value)}
+                    placeholder="Keep"
+                    disabled={!form.maxRetries.enabled}
+                  />
+                </FieldRow>
+              </div>
+            </section>
+          )}
+
+          {/* ── Behaviour (monitor only) ── */}
+          {!isAgentSelection && (
+            <section className="space-y-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-text-secondary">
+                Behaviour
+              </h3>
+
               <FieldRow
-                label="Check Interval (s)"
-                enabled={form.intervalSeconds.enabled}
-                onToggle={() => setEnabled('intervalSeconds', !form.intervalSeconds.enabled)}
+                label="Upside Down Mode"
+                enabled={form.upsideDown.enabled}
+                onToggle={() => setEnabled('upsideDown', !form.upsideDown.enabled)}
               >
-                <Input
-                  type="number"
-                  min={1}
-                  max={86400}
-                  value={form.intervalSeconds.value}
-                  onChange={(e) => setValue('intervalSeconds', e.target.value)}
-                  placeholder="Keep"
-                  disabled={!form.intervalSeconds.enabled}
-                />
+                <label className={cn('flex items-center gap-2 cursor-pointer', !form.upsideDown.enabled && 'pointer-events-none')}>
+                  <input
+                    type="checkbox"
+                    checked={form.upsideDown.value}
+                    onChange={(e) => setValue('upsideDown', e.target.checked)}
+                    disabled={!form.upsideDown.enabled}
+                    className="h-4 w-4 rounded border-border bg-bg-tertiary text-accent focus:ring-accent"
+                  />
+                  <span className="text-sm text-text-secondary">Invert UP/DOWN logic</span>
+                </label>
               </FieldRow>
-
-              <FieldRow
-                label="Timeout (ms)"
-                enabled={form.timeoutMs.enabled}
-                onToggle={() => setEnabled('timeoutMs', !form.timeoutMs.enabled)}
-              >
-                <Input
-                  type="number"
-                  min={1000}
-                  max={60000}
-                  value={form.timeoutMs.value}
-                  onChange={(e) => setValue('timeoutMs', e.target.value)}
-                  placeholder="Keep"
-                  disabled={!form.timeoutMs.enabled}
-                />
-              </FieldRow>
-
-              <FieldRow
-                label="Retry Interval (s)"
-                enabled={form.retryIntervalSeconds.enabled}
-                onToggle={() => setEnabled('retryIntervalSeconds', !form.retryIntervalSeconds.enabled)}
-              >
-                <Input
-                  type="number"
-                  min={1}
-                  max={3600}
-                  value={form.retryIntervalSeconds.value}
-                  onChange={(e) => setValue('retryIntervalSeconds', e.target.value)}
-                  placeholder="Keep"
-                  disabled={!form.retryIntervalSeconds.enabled}
-                />
-              </FieldRow>
-
-              <FieldRow
-                label="Max Retries"
-                enabled={form.maxRetries.enabled}
-                onToggle={() => setEnabled('maxRetries', !form.maxRetries.enabled)}
-              >
-                <Input
-                  type="number"
-                  min={0}
-                  max={10}
-                  value={form.maxRetries.value}
-                  onChange={(e) => setValue('maxRetries', e.target.value)}
-                  placeholder="Keep"
-                  disabled={!form.maxRetries.enabled}
-                />
-              </FieldRow>
-            </div>
-          </section>
-
-          {/* ── Behaviour ── */}
-          <section className="space-y-4">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-text-secondary">
-              Behaviour
-            </h3>
-
-            <FieldRow
-              label="Upside Down Mode"
-              enabled={form.upsideDown.enabled}
-              onToggle={() => setEnabled('upsideDown', !form.upsideDown.enabled)}
-            >
-              <label className={cn('flex items-center gap-2 cursor-pointer', !form.upsideDown.enabled && 'pointer-events-none')}>
-                <input
-                  type="checkbox"
-                  checked={form.upsideDown.value}
-                  onChange={(e) => setValue('upsideDown', e.target.checked)}
-                  disabled={!form.upsideDown.enabled}
-                  className="h-4 w-4 rounded border-border bg-bg-tertiary text-accent focus:ring-accent"
-                />
-                <span className="text-sm text-text-secondary">Invert UP/DOWN logic</span>
-              </label>
-            </FieldRow>
-          </section>
+            </section>
+          )}
         </div>
 
         {/* Footer */}
@@ -322,7 +330,7 @@ export function BulkEditModal({ monitorIds, onClose }: BulkEditModalProps) {
             disabled={!anyEnabled}
           >
             <Save size={15} className="mr-1.5" />
-            Apply to {monitorIds.length} monitor{monitorIds.length > 1 ? 's' : ''}
+            Apply to {monitorIds.length} {isAgentSelection ? 'agent' : 'monitor'}{monitorIds.length > 1 ? 's' : ''}
           </Button>
         </div>
       </div>

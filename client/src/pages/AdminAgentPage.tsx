@@ -11,8 +11,6 @@ import {
   Clock,
   Copy,
   Check,
-  ChevronDown,
-  ChevronRight,
   RefreshCw,
   ExternalLink,
   Pencil,
@@ -24,6 +22,7 @@ import { groupsApi } from '@/api/groups.api';
 import { getSocket } from '@/socket/socketClient';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
+import { useUiStore } from '@/store/uiStore';
 import toast from 'react-hot-toast';
 
 type Tab = 'keys' | 'devices';
@@ -96,124 +95,6 @@ function CopyButton({ text }: { text: string }) {
     >
       {copied ? <Check size={14} className="text-status-up" /> : <Copy size={14} />}
     </button>
-  );
-}
-
-// ── AddAgentModal ─────────────────────────────────────────────────────────────
-
-function AddAgentModal({
-  keys,
-  agentVersion,
-  onClose,
-}: {
-  keys: AgentApiKey[];
-  agentVersion: string;
-  onClose: () => void;
-}) {
-  const [expandedKeys, setExpandedKeys] = useState<Set<number>>(new Set(keys.map(k => k.id)));
-
-  const toggleKey = (id: number) => {
-    setExpandedKeys(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-2xl rounded-xl border border-border bg-bg-primary shadow-2xl overflow-y-auto max-h-[85vh]">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <div>
-            <h2 className="text-base font-semibold text-text-primary">Add Agent</h2>
-            <p className="text-xs text-text-muted mt-0.5">Agent version: {agentVersion}</p>
-          </div>
-          <button onClick={onClose} className="text-text-muted hover:text-text-primary text-xl leading-none">×</button>
-        </div>
-
-        {/* Content */}
-        <div className="p-6 space-y-3">
-          {keys.length === 0 ? (
-            <div className="text-center py-8">
-              <Key size={28} className="mx-auto mb-2 text-text-muted" />
-              <p className="text-sm text-text-muted">Create an API Key first</p>
-            </div>
-          ) : (
-            keys.map(apiKey => {
-              const expanded = expandedKeys.has(apiKey.id);
-              const linuxCmd = agentApi.getInstallerLinuxUrl(apiKey.key);
-              const macosCmd = agentApi.getInstallerMacosUrl(apiKey.key);
-              const msiUrl = agentApi.getMsiUrl();
-              const origin = window.location.origin;
-              const linuxOneliner = `curl -fsSL "${linuxCmd}" | bash`;
-              const macosOneliner = `sudo bash -c "$(curl -fsSL '${macosCmd}')"`;
-              const windowsCmd = `$m="$env:TEMP\\obliview-agent.msi"; Invoke-WebRequest "${msiUrl}" -OutFile $m -UseBasicParsing; Start-Process msiexec -ArgumentList "/i \`"$m\`" SERVERURL=\`"${origin}\`" APIKEY=\`"${apiKey.key}\`" /quiet" -Wait -Verb RunAs; Remove-Item $m`;
-
-              return (
-                <div key={apiKey.id} className="rounded-lg border border-border bg-bg-secondary">
-                  <button
-                    onClick={() => toggleKey(apiKey.id)}
-                    className="w-full flex items-center gap-2 px-4 py-3 text-left"
-                  >
-                    {expanded ? <ChevronDown size={14} className="text-text-muted shrink-0" /> : <ChevronRight size={14} className="text-text-muted shrink-0" />}
-                    <Key size={14} className="text-accent shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm font-medium text-text-primary">{apiKey.name}</span>
-                      <span className="ml-2 text-xs font-mono text-text-muted">{truncateKey(apiKey.key)}</span>
-                    </div>
-                    {apiKey.deviceCount !== undefined && (
-                      <span className="text-xs text-text-muted shrink-0">{apiKey.deviceCount} device{apiKey.deviceCount !== 1 ? 's' : ''}</span>
-                    )}
-                  </button>
-
-                  {expanded && (
-                    <div className="px-4 pb-4 space-y-3 border-t border-border">
-                      {/* Linux */}
-                      <div>
-                        <p className="text-xs font-medium text-text-muted uppercase tracking-wide mb-1.5 mt-3">Linux</p>
-                        <div className="flex items-start gap-2 rounded-md bg-bg-tertiary p-3">
-                          <code className="flex-1 text-xs font-mono text-text-primary break-all leading-relaxed">
-                            {linuxOneliner}
-                          </code>
-                          <CopyButton text={linuxOneliner} />
-                        </div>
-                      </div>
-
-                      {/* macOS */}
-                      <div>
-                        <p className="text-xs font-medium text-text-muted uppercase tracking-wide mb-1.5">macOS (Terminal, admin)</p>
-                        <div className="flex items-start gap-2 rounded-md bg-bg-tertiary p-3">
-                          <code className="flex-1 text-xs font-mono text-text-primary break-all leading-relaxed">
-                            {macosOneliner}
-                          </code>
-                          <CopyButton text={macosOneliner} />
-                        </div>
-                      </div>
-
-                      {/* Windows */}
-                      <div>
-                        <p className="text-xs font-medium text-text-muted uppercase tracking-wide mb-1.5">Windows (PowerShell, admin)</p>
-                        <div className="flex items-start gap-2 rounded-md bg-bg-tertiary p-3">
-                          <code className="flex-1 text-xs font-mono text-text-primary break-all leading-relaxed">
-                            {windowsCmd}
-                          </code>
-                          <CopyButton text={windowsCmd} />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        <div className="px-6 pb-6">
-          <Button variant="secondary" onClick={onClose} className="w-full">Close</Button>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -380,9 +261,8 @@ export function AdminAgentPage() {
   const [keys, setKeys] = useState<AgentApiKey[]>([]);
   const [devices, setDevices] = useState<AgentDevice[]>([]);
   const [groups, setGroups] = useState<MonitorGroup[]>([]);
-  const [agentVersion, setAgentVersion] = useState('1.0.0');
 
-  const [showAddAgent, setShowAddAgent] = useState(false);
+  const { openAddAgentModal } = useUiStore();
   const [showCreateKey, setShowCreateKey] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
   const [saving, setSaving] = useState(false);
@@ -392,14 +272,12 @@ export function AdminAgentPage() {
 
   const loadAll = useCallback(async () => {
     try {
-      const [k, d, v] = await Promise.all([
+      const [k, d] = await Promise.all([
         agentApi.listKeys(),
         agentApi.listDevices(),
-        agentApi.getVersion().catch(() => ({ version: '1.0.0', downloadUrl: '' })),
       ]);
       setKeys(k);
       setDevices(d);
-      setAgentVersion(v.version);
     } catch {
       toast.error('Failed to load agent data');
     }
@@ -565,7 +443,7 @@ export function AdminAgentPage() {
           >
             <RefreshCw size={14} />
           </button>
-          <Button onClick={() => setShowAddAgent(true)}>
+          <Button onClick={openAddAgentModal}>
             <Plus size={14} className="mr-1.5" />Add Agent
           </Button>
         </div>
@@ -809,14 +687,6 @@ export function AdminAgentPage() {
       )}
 
       {/* Modals */}
-      {showAddAgent && (
-        <AddAgentModal
-          keys={keys}
-          agentVersion={agentVersion}
-          onClose={() => setShowAddAgent(false)}
-        />
-      )}
-
       {approvingDevice && (
         <ApproveModal
           device={approvingDevice}

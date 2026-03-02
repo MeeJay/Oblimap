@@ -256,6 +256,59 @@ func main() {
 		fmt.Println("[obliview] bind error:", err)
 	}
 
+	// __go_getDownloadDir returns the currently saved download folder (or "" if
+	// not yet configured). Called by React on DownloadPage mount.
+	if err := w.Bind("__go_getDownloadDir", func() string {
+		return cfg.DownloadDir
+	}); err != nil {
+		fmt.Println("[obliview] bind error:", err)
+	}
+
+	// __go_chooseDownloadDir opens a native OS folder-picker dialog, persists
+	// the chosen path, and returns it. Rejects if the user cancels.
+	if err := w.Bind("__go_chooseDownloadDir", func() (string, error) {
+		dir, err := chooseFolder()
+		if err != nil {
+			return "", err // "cancelled" or system error
+		}
+		cfg.DownloadDir = dir
+		if saveErr := saveConfig(cfg); saveErr != nil {
+			fmt.Println("[obliview] error saving config:", saveErr)
+		}
+		return dir, nil
+	}); err != nil {
+		fmt.Println("[obliview] bind error:", err)
+	}
+
+	// __go_downloadFile(relURL, filename) downloads a file from the Obliview
+	// server to the configured download folder. Opens the folder-picker first
+	// if no download folder has been set yet. After a successful download the
+	// file is revealed in the system file manager.
+	// relURL is a server-relative path such as "/downloads/ObliviewSetup.msi".
+	if err := w.Bind("__go_downloadFile", func(relURL, filename string) (string, error) {
+		dir := cfg.DownloadDir
+		if dir == "" {
+			chosen, err := chooseFolder()
+			if err != nil {
+				return "", err // cancelled
+			}
+			cfg.DownloadDir = chosen
+			if saveErr := saveConfig(cfg); saveErr != nil {
+				fmt.Println("[obliview] error saving config:", saveErr)
+			}
+			dir = chosen
+		}
+		url := buildAbsoluteURL(cfg.URL, relURL)
+		dest, err := downloadFile(url, dir, filename)
+		if err != nil {
+			return "", err
+		}
+		revealFile(dest)
+		return dest, nil
+	}); err != nil {
+		fmt.Println("[obliview] bind error:", err)
+	}
+
 	// Inject the overlay script on every page load.
 	w.Init(overlayJS)
 	// Inject the app version so the React app can compare against the server's
