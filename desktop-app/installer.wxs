@@ -20,6 +20,12 @@
       Compressed="yes">
 
     <!--
+      Embed the cabinet file directly inside the MSI so the installer is
+      a single self-contained file (no external cab1.cab required).
+    -->
+    <MediaTemplate EmbedCab="yes" />
+
+    <!--
       MajorUpgrade: silently removes any older version before installing.
       If the user has a NEWER version, show a friendly error and abort.
     -->
