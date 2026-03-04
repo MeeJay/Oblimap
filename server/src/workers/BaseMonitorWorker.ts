@@ -173,7 +173,14 @@ export abstract class BaseMonitorWorker {
           // Retries exhausted — confirmed problem (DOWN or ALERT)
           if (this.confirmedStatus !== result.status) {
             await this.handleStatusChange(result.status, result.message, inMaintenance);
-            this.confirmedStatus = result.status;
+            // Do NOT advance confirmedStatus while in maintenance.
+            // Keeping the pre-maintenance value ensures that once the window ends,
+            // confirmedStatus !== result.status is still true and a notification fires
+            // immediately on the next check — even if the monitor was already down
+            // throughout the entire maintenance period.
+            if (!inMaintenance) {
+              this.confirmedStatus = result.status;
+            }
           }
         }
         // During retry period: do NOT update confirmedStatus — wait for the threshold to be met
@@ -182,10 +189,14 @@ export abstract class BaseMonitorWorker {
         this.retryCount = 0;
         if (this.confirmedStatus !== result.status) {
           await this.handleStatusChange(result.status, result.message, inMaintenance);
-          this.confirmedStatus = result.status;
+          if (!inMaintenance) {
+            this.confirmedStatus = result.status;
+          }
         }
       } else {
-        // Status is UP or other non-retryable/non-ssl (e.g. 'inactive')
+        // Status is UP (or 'inactive') — always update confirmedStatus, even during maintenance.
+        // If a down monitor recovers during a maintenance window we want to track that transition
+        // so that a subsequent drop after maintenance correctly fires a notification.
         if (this.confirmedStatus !== result.status && this.confirmedStatus !== 'pending') {
           await this.handleStatusChange(result.status, result.message, inMaintenance);
         }

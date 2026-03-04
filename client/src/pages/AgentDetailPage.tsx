@@ -7,7 +7,7 @@ import {
   Pencil, Check, X, LayoutDashboard,
   MemoryStick, Wifi, RotateCcw,
 } from 'lucide-react';
-import type { AgentDevice, AgentThresholds, AgentMetricThreshold, AgentTempThreshold, AgentDisplayConfig } from '@obliview/shared';
+import type { AgentDevice, AgentThresholds, AgentMetricThreshold, AgentTempThreshold, AgentDisplayConfig, NotificationChannel } from '@obliview/shared';
 import { DEFAULT_AGENT_THRESHOLDS } from '@obliview/shared';
 import { AgentDisplayConfigModal } from '../components/agent/AgentDisplayConfigModal';
 import { agentApi } from '../api/agent.api';
@@ -2291,6 +2291,7 @@ export function AgentDetailPage() {
   const [savingName, setSavingName] = useState(false);
 
   // Display configuration
+  const [maintenanceChannels, setMaintenanceChannels] = useState<NotificationChannel[]>([]);
   const [displayConfig, setDisplayConfig] = useState<AgentDisplayConfig>(() => DEFAULT_DISPLAY_CONFIG);
   const [configModalSection, setConfigModalSection] = useState<'cpu' | 'ram' | 'gpu' | 'drives' | 'network' | 'temps'>('cpu');
   const [configModalOpen, setConfigModalOpen] = useState(false);
@@ -2346,6 +2347,14 @@ export function AgentDetailPage() {
     setLastPush(null);
     setLoading(true);
   }, [id]);
+
+  // Fetch notification channels for the MaintenanceWindowList modal
+  useEffect(() => {
+    fetch('/api/notifications/channels')
+      .then((r) => r.json())
+      .then((res) => { if (res.success) setMaintenanceChannels(res.data); })
+      .catch(() => {});
+  }, []);
 
   // Sync displayConfig when device loads / changes
   useEffect(() => {
@@ -2669,7 +2678,7 @@ export function AgentDetailPage() {
             scopeType="agent"
             scopeId={device.id}
             scopeOptions={[{ id: device.id, name: device.name ?? device.hostname, type: 'agent' }]}
-            channels={[]}
+            channels={maintenanceChannels}
             defaultScopeType="agent"
             defaultScopeId={device.id}
           />
