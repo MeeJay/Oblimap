@@ -84,18 +84,13 @@ export function MonitorCard({
         className="flex flex-1 items-center gap-3 min-w-0"
         onClick={selectionMode ? (e) => e.preventDefault() : undefined}
       >
-        <MonitorStatusBadge status={monitor.status} size="sm" />
+        <MonitorStatusBadge status={monitor.status} size="sm" inMaintenance={monitor.inMaintenance} />
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="truncate font-medium text-text-primary text-sm">
               {monitor.name}
             </span>
-            {monitor.inMaintenance && (
-              <span className="shrink-0 rounded px-1 py-0.5 text-[10px] font-semibold bg-status-maintenance/15 text-status-maintenance border border-status-maintenance/30">
-                MAINT.
-              </span>
-            )}
             <span className="text-xs text-text-muted">
               {MONITOR_TYPE_LABELS[monitor.type]}
             </span>

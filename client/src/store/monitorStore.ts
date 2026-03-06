@@ -114,11 +114,15 @@ export const useMonitorStore = create<MonitorStore>((set, get) => ({
       const updated = [...existing, heartbeat].slice(-maxHeartbeats);
       heartbeats.set(monitorId, updated);
 
-      // Also update monitor status
+      // Also update monitor status and maintenance flag
       const monitors = new Map(state.monitors);
       const monitor = monitors.get(monitorId);
       if (monitor) {
-        monitors.set(monitorId, { ...monitor, status: heartbeat.status });
+        monitors.set(monitorId, {
+          ...monitor,
+          status: heartbeat.status,
+          inMaintenance: heartbeat.inMaintenance ?? monitor.inMaintenance,
+        });
       }
 
       return { heartbeats, monitors };

@@ -173,7 +173,7 @@ export function MonitorDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div className="flex items-center gap-4">
-          <MonitorStatusBadge status={monitor.status} size="lg" />
+          <MonitorStatusBadge status={monitor.status} size="lg" inMaintenance={monitor.inMaintenance} />
           <div>
             <h1 className="text-2xl font-semibold text-text-primary">{monitor.name}</h1>
             <p className="text-sm text-text-secondary">

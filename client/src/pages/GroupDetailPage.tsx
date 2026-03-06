@@ -631,7 +631,7 @@ export function GroupDetailPage() {
                 to={m.agentDeviceId ? `/agents/${m.agentDeviceId}` : '#'}
                 className="flex items-center gap-3 px-4 py-2.5 hover:bg-bg-hover transition-colors"
               >
-                <MonitorStatusBadge status={m.status} size="sm" />
+                <MonitorStatusBadge status={m.status} size="sm" inMaintenance={m.inMaintenance} />
                 <span className="flex-1 text-sm text-text-primary truncate">{m.name}</span>
                 <span className="text-xs text-text-muted">Agent</span>
               </Link>
@@ -655,7 +655,7 @@ export function GroupDetailPage() {
                 to={`/monitor/${m.id}`}
                 className="flex items-center gap-3 px-4 py-2.5 hover:bg-bg-hover transition-colors"
               >
-                <MonitorStatusBadge status={m.status} size="sm" />
+                <MonitorStatusBadge status={m.status} size="sm" inMaintenance={m.inMaintenance} />
                 <span className="flex-1 text-sm text-text-primary truncate">{m.name}</span>
                 <span className="text-xs text-text-muted">{MONITOR_TYPE_LABELS[m.type]}</span>
               </Link>

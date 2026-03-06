@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Globe, Monitor, Server, Folder, RefreshCw, Check } from 'lucide-react';
 import type { MonitorGroup, Monitor as MonitorType, AgentDevice, MaintenanceScopeType } from '@obliview/shared';
 import { groupsApi } from '@/api/groups.api';
@@ -111,6 +111,10 @@ export function ScopeSelector({ defaultScopeType, defaultScopeId, onChange }: Pr
   const [ungroupedAgents, setUngroupedAgents] = useState<AgentDevice[]>([]);
   const [sel, setSel] = useState<Selection>(emptySelection());
 
+  // Refs for the scrollable columns — used by auto-scroll on pre-selection
+  const monitorScrollRef = useRef<HTMLDivElement>(null);
+  const agentScrollRef = useRef<HTMLDivElement>(null);
+
   // ── Load data once on mount ────────────────────────────────────────────────
 
   useEffect(() => {
@@ -145,6 +149,14 @@ export function ScopeSelector({ defaultScopeType, defaultScopeId, onChange }: Pr
           }
         }
 
+        // Sort everything alphabetically — same visual order as the sidebar
+        mGroups.sort((a, b) => a.name.localeCompare(b.name));
+        aGroups.sort((a, b) => a.name.localeCompare(b.name));
+        mByGroup.forEach((arr) => arr.sort((a, b) => a.name.localeCompare(b.name)));
+        aByGroup.forEach((arr) => arr.sort((a, b) => (a.name ?? a.hostname).localeCompare(b.name ?? b.hostname)));
+        ungM.sort((a, b) => a.name.localeCompare(b.name));
+        ungA.sort((a, b) => (a.name ?? a.hostname).localeCompare(b.name ?? b.hostname));
+
         setMonitorGroups(mGroups);
         setAgentGroups(aGroups);
         setMonitorsByGroup(mByGroup);
@@ -174,6 +186,40 @@ export function ScopeSelector({ defaultScopeType, defaultScopeId, onChange }: Pr
       .catch(() => { if (mounted) setLoading(false); });
     return () => { mounted = false; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Auto-scroll to pre-selected element once data is loaded ───────────────
+  useEffect(() => {
+    if (loading || !defaultScopeType || defaultScopeId === undefined) return;
+
+    const timer = setTimeout(() => {
+      // Determine which column to scroll and the item key
+      let column: HTMLDivElement | null = null;
+      let key: string | null = null;
+
+      if (defaultScopeType === 'group') {
+        if (agentGroups.some((g) => g.id === defaultScopeId)) {
+          column = agentScrollRef.current;
+          key = `group-${defaultScopeId}`;
+        } else {
+          column = monitorScrollRef.current;
+          key = `group-${defaultScopeId}`;
+        }
+      } else if (defaultScopeType === 'monitor') {
+        column = monitorScrollRef.current;
+        key = `monitor-${defaultScopeId}`;
+      } else if (defaultScopeType === 'agent') {
+        column = agentScrollRef.current;
+        key = `agent-${defaultScopeId}`;
+      }
+
+      if (column && key) {
+        const el = column.querySelector<HTMLElement>(`[data-item-key="${key}"]`);
+        el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    }, 60);
+
+    return () => clearTimeout(timer);
+  }, [loading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Update helper ──────────────────────────────────────────────────────────
 
@@ -440,7 +486,7 @@ export function ScopeSelector({ defaultScopeType, defaultScopeId, onChange }: Pr
           </button>
 
           {/* Scrollable list */}
-          <div className="overflow-y-auto max-h-52 p-1 space-y-px">
+          <div ref={monitorScrollRef} className="overflow-y-auto max-h-52 p-1 space-y-px">
             {monitorGroups.length === 0 && ungroupedMonitors.length === 0 && (
               <p className="text-xs text-text-muted px-2 py-3 text-center">No monitors</p>
             )}
@@ -453,6 +499,7 @@ export function ScopeSelector({ defaultScopeType, defaultScopeId, onChange }: Pr
                   {/* Group row */}
                   <button
                     type="button"
+                    data-item-key={`group-${g.id}`}
                     onClick={() => toggleMonitorGroup(g.id)}
                     className={cn(
                       'w-full flex items-center gap-1.5 px-2 py-1 rounded text-sm text-left transition-colors',
@@ -477,6 +524,7 @@ export function ScopeSelector({ defaultScopeType, defaultScopeId, onChange }: Pr
                       <button
                         key={m.id}
                         type="button"
+                        data-item-key={`monitor-${m.id}`}
                         onClick={() =>
                           state !== 'none'
                             ? toggleMonitorChild(m.id, g.id)
@@ -512,6 +560,7 @@ export function ScopeSelector({ defaultScopeType, defaultScopeId, onChange }: Pr
                   <button
                     key={m.id}
                     type="button"
+                    data-item-key={`monitor-${m.id}`}
                     onClick={() => toggleIndividualMonitor(m.id)}
                     className={cn(
                       'w-full flex items-center gap-1.5 px-2 py-0.5 rounded text-xs text-left transition-colors',
@@ -548,7 +597,7 @@ export function ScopeSelector({ defaultScopeType, defaultScopeId, onChange }: Pr
           </button>
 
           {/* Scrollable list */}
-          <div className="overflow-y-auto max-h-52 p-1 space-y-px">
+          <div ref={agentScrollRef} className="overflow-y-auto max-h-52 p-1 space-y-px">
             {agentGroups.length === 0 && ungroupedAgents.length === 0 && (
               <p className="text-xs text-text-muted px-2 py-3 text-center">No agents</p>
             )}
@@ -560,6 +609,7 @@ export function ScopeSelector({ defaultScopeType, defaultScopeId, onChange }: Pr
                 <div key={g.id}>
                   <button
                     type="button"
+                    data-item-key={`group-${g.id}`}
                     onClick={() => toggleAgentGroup(g.id)}
                     className={cn(
                       'w-full flex items-center gap-1.5 px-2 py-1 rounded text-sm text-left transition-colors',
@@ -583,6 +633,7 @@ export function ScopeSelector({ defaultScopeType, defaultScopeId, onChange }: Pr
                       <button
                         key={a.id}
                         type="button"
+                        data-item-key={`agent-${a.id}`}
                         onClick={() =>
                           state !== 'none'
                             ? toggleAgentChild(a.id, g.id)
@@ -618,6 +669,7 @@ export function ScopeSelector({ defaultScopeType, defaultScopeId, onChange }: Pr
                   <button
                     key={a.id}
                     type="button"
+                    data-item-key={`agent-${a.id}`}
                     onClick={() => toggleIndividualAgent(a.id)}
                     className={cn(
                       'w-full flex items-center gap-1.5 px-2 py-0.5 rounded text-xs text-left transition-colors',

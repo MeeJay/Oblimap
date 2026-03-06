@@ -166,7 +166,7 @@ export function GroupTree({ selectedGroupId, onSelectGroup, searchQuery = '' }: 
       <DragOverlay dropAnimation={null}>
         {draggingMonitor && (
           <div className="flex items-center gap-2 rounded-md bg-bg-secondary border border-accent px-3 py-1.5 text-sm shadow-lg">
-            <MonitorStatusBadge status={draggingMonitor.status} size="sm" />
+            <MonitorStatusBadge status={draggingMonitor.status} size="sm" inMaintenance={draggingMonitor.inMaintenance} />
             <span className="text-text-primary">{draggingMonitor.name}</span>
           </div>
         )}
@@ -282,7 +282,7 @@ export function DraggableMonitor({
       )}
       style={{ paddingLeft: `${depth * 16 + 8}px` }}
     >
-      <MonitorStatusBadge status={monitor.status} size="sm" />
+      <MonitorStatusBadge status={monitor.status} size="sm" inMaintenance={monitor.inMaintenance} />
       <span className="truncate flex-1 text-left">{monitor.name}</span>
 
       {isValueWatcher ? (

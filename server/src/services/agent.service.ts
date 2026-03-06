@@ -330,6 +330,13 @@ export const agentService = {
     const groupConfig = row.group_id ? await getGroupAgentConfig(row.group_id) : null;
     const device = rowToDevice(row, groupConfig);
 
+    // Sync the associated monitor name whenever device.name is explicitly changed
+    if (data.name !== undefined) {
+      await db('monitors')
+        .where({ agent_device_id: id })
+        .update({ name: device.name ?? device.hostname });
+    }
+
     // Broadcast so the sidebar can update name/status/group without polling
     if (_io) {
       _io.to('role:admin').emit(SOCKET_EVENTS.AGENT_DEVICE_UPDATED, {
