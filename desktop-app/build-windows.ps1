@@ -69,14 +69,14 @@ Write-Host "  logo.ico: OK"
 # --- Step 2: Verify committed icon resource is present ---
 Write-Host "`n=== Step 2: Icon resource ===" -ForegroundColor Cyan
 # resource_windows.syso is committed to the repo; Go links it automatically.
-# We do NOT regenerate it here — rsrc can produce an incompatible syso that
+# We do NOT regenerate it here -- rsrc can produce an incompatible syso that
 # causes the exe to refuse to launch. Use tools\convert_icon + commit if the
 # icon changes.
 if (Test-Path $sysoFile) {
     $sysoSize = (Get-Item $sysoFile).Length
     Write-Host "  $sysoFile OK ($sysoSize bytes, committed)"
 } else {
-    Write-Warning "$sysoFile not found — exe will launch without a custom icon."
+    Write-Warning "$sysoFile not found - exe will launch without a custom icon."
 }
 
 # --- Step 3: Build the Go binary ---
@@ -101,7 +101,7 @@ Write-Host "  EventToken.h stub: $stubDir"
 $env:CGO_ENABLED = '1'
 # -H windowsgui  suppresses the console window that would otherwise flash on launch.
 # -s -w          strip debug symbols + DWARF info (halves binary size, required for
-#                a working GUI exe — matches the flags used in 00-D1-build-msi.bat).
+#                a working GUI exe -- matches the flags used in 00-D1-build-msi.bat.
 # -X main.appVersion injects the version string so React can detect outdated clients.
 if (-not (Test-Path $DistDir)) { New-Item -ItemType Directory -Path $DistDir | Out-Null }
 $distExe = Join-Path $DistDir $ExeName

@@ -187,19 +187,40 @@ const tabBarJS = `(function(){
       ]);
       if(res[0].ok){var d=await res[0].json();tenants=d.data||[];}
       if(res[1].ok){var d=await res[1].json();currentTenantId=(d.data&&d.data.currentTenantId)||null;}
-    }catch(e){return;}
-    if(tenants.length<=1)return;
+    }catch(e){
+      console.warn('[obliview-tabs] bootstrap fetch error:',e);
+      return;
+    }
+    console.log('[obliview-tabs] tenants:',tenants.length,'currentTenantId:',currentTenantId);
+    if(tenants.length<=1){
+      console.log('[obliview-tabs] single-tenant or no access to multiple tenants, tab bar skipped');
+      return;
+    }
 
     window.__ov_tabs_injected=true;
-    window.__ov_native_tabs=true; /* signals React TenantSwitcher to hide itself */
+    window.__ov_native_tabs=true;
 
     var tabCfg={cycleEnabled:false,cycleIntervalS:30,cycleMode:'all'};
     try{tabCfg=await window.__go_getTabConfig();}catch(e){}
-    if(!tabCfg.cycleIntervalS)tabCfg.cycleIntervalS=30;
+    if(!tabCfg||!tabCfg.cycleIntervalS)tabCfg={cycleEnabled:false,cycleIntervalS:30,cycleMode:'all'};
     if(!tabCfg.cycleMode)tabCfg.cycleMode='all';
 
-    injectBar(tenants,currentTenantId,tabCfg);
-    if(tabCfg.cycleEnabled)startCycle(tenants,currentTenantId,tabCfg);
+    /* Wait for DOM to be ready before injecting the bar */
+    function __ov_domReady(fn){
+      if(document.readyState==='loading'){
+        document.addEventListener('DOMContentLoaded',fn,{once:true});
+      }else{
+        fn();
+      }
+    }
+    __ov_domReady(function(){
+      try{
+        injectBar(tenants,currentTenantId,tabCfg);
+        if(tabCfg.cycleEnabled)startCycle(tenants,currentTenantId,tabCfg);
+      }catch(e){
+        console.error('[obliview-tabs] injectBar error:',e);
+      }
+    });
   })();
 
   /* ── Helpers ──────────────────────────────────────────────────────── */
