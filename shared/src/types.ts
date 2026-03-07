@@ -201,6 +201,10 @@ export interface NotificationChannel {
   config: Record<string, unknown>;
   isEnabled: boolean;
   createdBy: number | null;
+  /** Owner tenant of this channel */
+  tenantId?: number;
+  /** True when this channel belongs to another tenant and is shared to the current one */
+  isShared?: boolean;
   createdAt: string;
   updatedAt: string;
 }

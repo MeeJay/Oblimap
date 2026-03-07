@@ -25,6 +25,8 @@ router.post('/channels', validate(createChannelSchema), notificationsController.
 router.put('/channels/:id', validate(updateChannelSchema), notificationsController.updateChannel);
 router.delete('/channels/:id', notificationsController.deleteChannel);
 router.post('/channels/:id/test', notificationsController.testChannel);
+router.get('/channels/:id/tenants', notificationsController.getChannelTenants);
+router.put('/channels/:id/tenants', notificationsController.setChannelTenants);
 
 // Bindings
 router.get('/bindings/resolved', notificationsController.resolvedBindings);

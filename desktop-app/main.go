@@ -151,6 +151,472 @@ const overlayJS = `(function(){
   });
 })();`
 
+// tabBarJS is injected via w.Init() on every page load, AFTER overlayJS.
+// It detects multi-tenant logins and injects a 40 px fixed tab bar at the
+// top of the window with one tab per tenant, a cross-tenant Alerts panel,
+// and an auto-cycling settings dialog.  Single-tenant installs are unaffected.
+//
+// Key behaviours:
+//   - Hides the React TenantSwitcher dropdown (sets window.__ov_native_tabs)
+//   - Adjusts #root CSS so the React app starts 40 px below the bar
+//   - Alert panel fetches GET /api/live-alerts/all (cross-tenant, no requireTenant)
+//   - Mark-read uses PATCH /api/live-alerts/:id/read
+//   - Cross-tenant alert click: stores navigateTo in __ov_pnav localStorage key,
+//     then switches tenant + reloads; on next load the pending nav is consumed
+//   - Cycling state is reset on each page load; interval is driven by setTimeout
+const tabBarJS = `(function(){
+  if(!/^https?:/.test(location.protocol))return;
+  if(window.__ov_tabs_injected)return;
+  if(/^\/(login|enrollment|forgot-password|reset-password|reset)/.test(location.pathname))return;
+
+  /* Post-switch navigation — consume before tab bar init */
+  var _pnav=localStorage.getItem('__ov_pnav');
+  if(_pnav&&/^\//.test(_pnav)){
+    localStorage.removeItem('__ov_pnav');
+    setTimeout(function(){window.location.href=_pnav;},30);
+    return;
+  }
+
+  /* ── Bootstrap (async) ──────────────────────────────────────────────── */
+  (async function(){
+    var tenants=[],currentTenantId=null;
+    try{
+      var res=await Promise.all([
+        fetch('/api/tenants',{credentials:'include'}),
+        fetch('/api/auth/me',{credentials:'include'})
+      ]);
+      if(res[0].ok){var d=await res[0].json();tenants=d.data||[];}
+      if(res[1].ok){var d=await res[1].json();currentTenantId=(d.data&&d.data.currentTenantId)||null;}
+    }catch(e){return;}
+    if(tenants.length<=1)return;
+
+    window.__ov_tabs_injected=true;
+    window.__ov_native_tabs=true; /* signals React TenantSwitcher to hide itself */
+
+    var tabCfg={cycleEnabled:false,cycleIntervalS:30,cycleMode:'all'};
+    try{tabCfg=await window.__go_getTabConfig();}catch(e){}
+    if(!tabCfg.cycleIntervalS)tabCfg.cycleIntervalS=30;
+    if(!tabCfg.cycleMode)tabCfg.cycleMode='all';
+
+    injectBar(tenants,currentTenantId,tabCfg);
+    if(tabCfg.cycleEnabled)startCycle(tenants,currentTenantId,tabCfg);
+  })();
+
+  /* ── Helpers ──────────────────────────────────────────────────────── */
+  function mk(tag,css){var e=document.createElement(tag);if(css)e.style.cssText=css;return e;}
+
+  function timeAgo(iso){
+    try{
+      var ms=Date.now()-new Date(iso).getTime();
+      if(ms<60000)return'Just now';
+      if(ms<3600000)return Math.floor(ms/60000)+'m ago';
+      if(ms<86400000)return Math.floor(ms/3600000)+'h ago';
+      return Math.floor(ms/86400000)+'d ago';
+    }catch(e){return'';}
+  }
+
+  async function switchTo(tenantId){
+    try{
+      await fetch('/api/tenant/switch',{
+        method:'POST',credentials:'include',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({tenantId:tenantId})
+      });
+    }catch(e){}
+    window.location.reload();
+  }
+
+  async function fetchUnreadCount(){
+    try{
+      var r=await fetch('/api/live-alerts/all',{credentials:'include'});
+      var d=await r.json();
+      return(d.alerts||[]).filter(function(a){return!a.read;}).length;
+    }catch(e){return 0;}
+  }
+
+  function setBadge(n){
+    var el=document.getElementById('__ov_nb');
+    if(!el)return;
+    el.style.display=n>0?'inline-flex':'none';
+    el.textContent=n>9?'9+':String(n);
+  }
+
+  /* ── Tab bar injection ────────────────────────────────────────────── */
+  function injectBar(tenants,currentTenantId,tabCfg){
+    /* Push React root down by 40 px */
+    var st=mk('style');
+    st.textContent=
+      '#root{margin-top:40px!important;height:calc(100vh - 40px)!important;overflow:hidden!important}'
+      +'#root>div{height:100%!important}'
+      +'#__ov_bar *{box-sizing:border-box;font-family:system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}';
+    document.head.appendChild(st);
+
+    var bar=mk('div',
+      'position:fixed;top:0;left:0;right:0;z-index:2147483640;height:40px;'
+      +'background:#0a0a13;border-bottom:1px solid rgba(255,255,255,.09);'
+      +'display:flex;align-items:stretch;user-select:none');
+    bar.id='__ov_bar';
+
+    /* Eye logo */
+    var logo=mk('div',
+      'display:flex;align-items:center;padding:0 13px;'
+      +'border-right:1px solid rgba(255,255,255,.07);flex-shrink:0');
+    logo.innerHTML='<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M20.188 10.934C21.212 11.604 21.212 12.396 20.188 13.066C18.768 14.009 16.026 16 12 16C7.974 16 5.232 14.009 3.812 13.066C2.788 12.396 2.788 11.604 3.812 10.934C5.232 9.991 7.974 8 12 8C16.026 8 18.768 9.991 20.188 10.934Z"/></svg>';
+    bar.appendChild(logo);
+
+    /* Tenant tabs */
+    var tabsWrap=mk('div','display:flex;align-items:stretch;flex:1;overflow:hidden');
+    tenants.forEach(function(t){
+      var active=t.id===currentTenantId;
+      var tab=mk('button',
+        'padding:0 16px;border:none;border-bottom:2px solid '+(active?'#6366f1':'transparent')+';'
+        +'background:none;color:'+(active?'#e0e0e0':'#56566a')+';'
+        +'font-size:13px;font-weight:'+(active?'600':'400')+';'
+        +'cursor:pointer;white-space:nowrap;flex-shrink:0;transition:color .15s,border-color .15s');
+      tab.textContent=t.name;
+      tab.title=t.name+(t.role==='admin'?' (admin)':'');
+      if(!active){
+        tab.onmouseenter=function(){tab.style.color='#aaa';};
+        tab.onmouseleave=function(){tab.style.color='#56566a';};
+      }
+      tab.onclick=function(){if(!active)switchTo(t.id);};
+      tabsWrap.appendChild(tab);
+    });
+    bar.appendChild(tabsWrap);
+
+    /* Alerts tab */
+    var alertBtn=mk('button',
+      'padding:0 14px;border:none;border-left:1px solid rgba(255,255,255,.07);'
+      +'background:none;color:#56566a;font-size:13px;cursor:pointer;flex-shrink:0;'
+      +'display:flex;align-items:center;gap:5px;transition:color .15s');
+    alertBtn.title='All notifications';
+    alertBtn.innerHTML=
+      '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
+      +'<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>'
+      +'<path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>'
+      +'<span>Alerts</span>';
+    var badge=mk('span',
+      'display:none;background:#ef4444;color:#fff;border-radius:8px;font-size:10px;'
+      +'font-weight:700;padding:1px 4px;min-width:15px;text-align:center;'
+      +'line-height:1.5;align-items:center;justify-content:center;margin-left:2px');
+    badge.id='__ov_nb';
+    alertBtn.appendChild(badge);
+    alertBtn.onmouseenter=function(){alertBtn.style.color='#bbb';};
+    alertBtn.onmouseleave=function(){alertBtn.style.color='#56566a';};
+    alertBtn.onclick=function(){toggleAlertPanel(tenants,currentTenantId);};
+    bar.appendChild(alertBtn);
+
+    /* Cycle-settings button */
+    var cycleBtn=mk('button',
+      'padding:0 12px;border:none;border-left:1px solid rgba(255,255,255,.07);'
+      +'background:none;color:'+(tabCfg.cycleEnabled?'#6366f1':'#56566a')+';cursor:pointer;'
+      +'flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:color .15s');
+    cycleBtn.id='__ov_cb';
+    cycleBtn.title='Tab cycling settings';
+    cycleBtn.innerHTML=
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
+      +'<polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>'
+      +'<path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>';
+    cycleBtn.onmouseenter=function(){if(!tabCfg.cycleEnabled)cycleBtn.style.color='#aaa';};
+    cycleBtn.onmouseleave=function(){cycleBtn.style.color=tabCfg.cycleEnabled?'#6366f1':'#56566a';};
+    cycleBtn.onclick=function(){openCycleDlg(tabCfg,tenants,currentTenantId);};
+    bar.appendChild(cycleBtn);
+
+    document.body.insertBefore(bar,document.body.firstChild);
+
+    /* Badge: initial fetch + refresh every 20 s */
+    fetchUnreadCount().then(setBadge);
+    setInterval(function(){fetchUnreadCount().then(setBadge);},20000);
+  }
+
+  /* ── Alert panel ─────────────────────────────────────────────────── */
+  async function toggleAlertPanel(tenants,currentTenantId){
+    var ex=document.getElementById('__ov_ap');
+    if(ex){ex.remove();return;}
+
+    var panel=mk('div',
+      'position:fixed;top:40px;right:0;z-index:2147483639;width:370px;'
+      +'height:calc(100vh - 40px);background:#0e0e18;'
+      +'border-left:1px solid rgba(255,255,255,.09);'
+      +'display:flex;flex-direction:column;'
+      +'box-shadow:-12px 0 50px rgba(0,0,0,.7);'
+      +'font-family:system-ui,-apple-system,sans-serif');
+    panel.id='__ov_ap';
+
+    var hdr=mk('div',
+      'padding:12px 15px;border-bottom:1px solid rgba(255,255,255,.07);'
+      +'display:flex;align-items:center;justify-content:space-between;flex-shrink:0');
+    var htitle=mk('span','font-size:13px;font-weight:600;color:#d0d0d8');
+    htitle.textContent='All notifications';
+    var xbtn=mk('button',
+      'background:none;border:none;color:#555;cursor:pointer;font-size:20px;'
+      +'line-height:1;padding:0;width:24px;height:24px;display:flex;'
+      +'align-items:center;justify-content:center;border-radius:4px;transition:color .15s');
+    xbtn.innerHTML='&times;';
+    xbtn.onmouseenter=function(){xbtn.style.color='#aaa';};
+    xbtn.onmouseleave=function(){xbtn.style.color='#555';};
+    xbtn.onclick=function(){panel.remove();};
+    hdr.appendChild(htitle);hdr.appendChild(xbtn);
+    panel.appendChild(hdr);
+
+    var loading=mk('div','padding:48px 16px;text-align:center;color:#444;font-size:13px');
+    loading.textContent='Loading\u2026';
+    panel.appendChild(loading);
+    document.body.appendChild(panel);
+
+    try{
+      var r=await fetch('/api/live-alerts/all',{credentials:'include'});
+      var d=await r.json();
+      var alerts=(d.alerts||[]).slice(0,80);
+      var tmap={};
+      (d.tenants||tenants).forEach(function(t){tmap[t.id]=t.name;});
+      loading.remove();
+
+      if(!alerts.length){
+        var em=mk('div','padding:56px 16px;text-align:center;color:#444;font-size:13px');
+        em.textContent='No notifications yet';
+        panel.appendChild(em);
+      }else{
+        var list=mk('div','overflow-y:auto;flex:1');
+        alerts.forEach(function(al){
+          var unread=!al.read;
+          var sc={down:'#ef4444',up:'#22c55e',warning:'#f59e0b',info:'#818cf8'}[al.severity]||'#6366f1';
+          var row=mk('div',
+            'padding:10px 15px;border-bottom:1px solid rgba(255,255,255,.05);'
+            +'cursor:pointer;display:flex;align-items:flex-start;gap:9px;'
+            +'transition:background .1s;'+(unread?'background:rgba(99,102,241,.05);':''));
+          row.onmouseenter=function(){row.style.background='rgba(255,255,255,.04)';};
+          row.onmouseleave=function(){row.style.background=unread?'rgba(99,102,241,.05)':'transparent';};
+
+          var dot=mk('div','width:7px;height:7px;border-radius:50%;background:'+sc+';flex-shrink:0;margin-top:5px');
+          row.appendChild(dot);
+
+          var body=mk('div','flex:1;min-width:0');
+          var top=mk('div','display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin-bottom:2px');
+          var ttl=mk('span',
+            'font-size:13px;font-weight:'+(unread?'600':'400')+';color:#c8c8d4;'
+            +'max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:0');
+          ttl.textContent=al.title;
+          top.appendChild(ttl);
+
+          if(al.tenantId!==currentTenantId){
+            var tb=mk('span',
+              'font-size:10px;font-weight:500;background:rgba(99,102,241,.15);'
+              +'color:#818cf8;border-radius:4px;padding:1px 5px;flex-shrink:0;white-space:nowrap');
+            tb.textContent=tmap[al.tenantId]||('T#'+al.tenantId);
+            top.appendChild(tb);
+          }
+          body.appendChild(top);
+
+          var msg=mk('div',
+            'font-size:11px;color:#52525e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:3px');
+          msg.textContent=al.message;
+          body.appendChild(msg);
+
+          var ts=mk('div','font-size:10px;color:#38383f');
+          ts.textContent=timeAgo(al.createdAt);
+          body.appendChild(ts);
+
+          row.appendChild(body);
+          row.onclick=async function(){
+            try{await fetch('/api/live-alerts/'+al.id+'/read',{method:'PATCH',credentials:'include'});}catch(e){}
+            unread=false;row.style.background='transparent';
+            fetchUnreadCount().then(setBadge);
+            if(al.navigateTo&&al.tenantId!==currentTenantId){
+              localStorage.setItem('__ov_pnav',al.navigateTo);
+              await switchTo(al.tenantId);
+            }else if(al.navigateTo){
+              panel.remove();
+              window.location.href=al.navigateTo;
+            }
+          };
+          list.appendChild(row);
+        });
+        panel.appendChild(list);
+
+        var ft=mk('div','padding:10px 15px;border-top:1px solid rgba(255,255,255,.07);flex-shrink:0');
+        var mar=mk('button',
+          'width:100%;padding:7px;border-radius:7px;border:1px solid rgba(255,255,255,.1);'
+          +'background:none;color:#666;font-size:12px;cursor:pointer;transition:all .12s');
+        mar.textContent='Mark all as read';
+        mar.onmouseenter=function(){mar.style.background='rgba(255,255,255,.05)';mar.style.color='#aaa';};
+        mar.onmouseleave=function(){mar.style.background='none';mar.style.color='#666';};
+        mar.onclick=async function(){
+          var unreadList=alerts.filter(function(a){return!a.read;});
+          try{
+            await Promise.all(unreadList.map(function(a){
+              return fetch('/api/live-alerts/'+a.id+'/read',{method:'PATCH',credentials:'include'});
+            }));
+          }catch(e){}
+          setBadge(0);panel.remove();
+        };
+        ft.appendChild(mar);panel.appendChild(ft);
+      }
+    }catch(e){
+      loading.textContent='Failed to load notifications';
+    }
+    fetchUnreadCount().then(setBadge);
+  }
+
+  /* ── Cycle-settings dialog ───────────────────────────────────────── */
+  function openCycleDlg(tabCfg,tenants,currentTenantId){
+    var ex=document.getElementById('__ov_cd');
+    if(ex){ex.remove();return;}
+
+    var ov=mk('div',
+      'position:fixed;inset:0;z-index:2147483645;display:flex;align-items:center;'
+      +'justify-content:center;background:rgba(0,0,0,.72);backdrop-filter:blur(10px);'
+      +'font-family:system-ui,-apple-system,sans-serif');
+    ov.id='__ov_cd';
+
+    var bx=mk('div',
+      'background:#13131f;border:1px solid rgba(255,255,255,.12);border-radius:14px;'
+      +'padding:28px 30px;width:380px;color:#e0e0e0');
+
+    var bxtitle=mk('h3','margin:0 0 5px;font-size:15px;font-weight:700;color:#fff');
+    bxtitle.textContent='Tab cycling';
+    var bxdesc=mk('p','margin:0 0 22px;font-size:12px;color:#555;line-height:1.6');
+    bxdesc.textContent='Automatically rotate through workspace tabs. Saved per device.';
+    bx.appendChild(bxtitle);bx.appendChild(bxdesc);
+
+    /* Enable toggle */
+    var en=tabCfg.cycleEnabled;
+    var er=mk('div',
+      'display:flex;align-items:center;justify-content:space-between;'
+      +'padding-bottom:18px;margin-bottom:18px;border-bottom:1px solid rgba(255,255,255,.07)');
+    var erlbl=mk('div','');
+    var ertitle=mk('div','font-size:13px;font-weight:500;color:#d0d0d0');
+    ertitle.textContent='Enable cycling';
+    var erdesc=mk('div','font-size:11px;color:#555;margin-top:2px');
+    erdesc.textContent='Automatically switch between workspaces';
+    erlbl.appendChild(ertitle);erlbl.appendChild(erdesc);er.appendChild(erlbl);
+    var tog=mk('button',
+      'position:relative;width:42px;height:24px;border-radius:12px;border:none;'
+      +'cursor:pointer;transition:background .2s;flex-shrink:0;background:'+(en?'#6366f1':'#2a2a3a'));
+    var kn=mk('div',
+      'position:absolute;top:4px;width:16px;height:16px;border-radius:8px;'
+      +'background:#fff;transition:left .2s;left:'+(en?'22px':'4px'));
+    tog.appendChild(kn);
+    tog.onclick=function(){en=!en;tog.style.background=en?'#6366f1':'#2a2a3a';kn.style.left=en?'22px':'4px';};
+    er.appendChild(tog);bx.appendChild(er);
+
+    /* Interval */
+    var ir=mk('div','margin-bottom:18px');
+    var irlbl=mk('label',
+      'display:block;font-size:11px;font-weight:600;letter-spacing:.5px;'
+      +'color:#666;text-transform:uppercase;margin-bottom:8px');
+    irlbl.textContent='Cycle interval';
+    ir.appendChild(irlbl);
+    var sel=mk('select',
+      'width:100%;padding:9px 11px;background:#1c1c2a;border:1px solid rgba(255,255,255,.1);'
+      +'border-radius:8px;color:#d0d0d0;font-size:13px;outline:none;cursor:pointer;'
+      +'appearance:none;-webkit-appearance:none');
+    [[15,'15 seconds'],[30,'30 seconds'],[60,'1 minute'],[120,'2 minutes'],[300,'5 minutes'],[600,'10 minutes']].forEach(function(o){
+      var op=document.createElement('option');
+      op.value=o[0];op.textContent=o[1];op.selected=(tabCfg.cycleIntervalS===o[0]);
+      sel.appendChild(op);
+    });
+    ir.appendChild(sel);bx.appendChild(ir);
+
+    /* Mode */
+    var mr=mk('div','margin-bottom:24px');
+    var mrlbl=mk('label',
+      'display:block;font-size:11px;font-weight:600;letter-spacing:.5px;'
+      +'color:#666;text-transform:uppercase;margin-bottom:10px');
+    mrlbl.textContent='Cycle mode';
+    mr.appendChild(mrlbl);
+    [
+      {v:'all',   l:'Cycle all workspaces', d:'Rotate through every workspace in sequence'},
+      {v:'recent',l:'Follow recent alerts',  d:'Switch to the workspace with the newest unread alert'}
+    ].forEach(function(m){
+      var lbl=mk('label',
+        'display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:8px;'
+        +'cursor:pointer;border:1px solid rgba(255,255,255,'+(tabCfg.cycleMode===m.v?.15:.07)+');'
+        +'margin-bottom:6px;transition:border-color .15s;user-select:none');
+      var rdo=document.createElement('input');
+      rdo.type='radio';rdo.name='__ov_cm';rdo.value=m.v;rdo.checked=tabCfg.cycleMode===m.v;
+      rdo.style.cssText='margin-top:3px;accent-color:#6366f1;flex-shrink:0;cursor:pointer';
+      var txt=mk('div','');
+      var tl=mk('div','font-size:13px;font-weight:500;color:#c8c8d4');tl.textContent=m.l;
+      var td=mk('div','font-size:11px;color:#555;margin-top:3px');td.textContent=m.d;
+      txt.appendChild(tl);txt.appendChild(td);lbl.appendChild(rdo);lbl.appendChild(txt);
+      rdo.onchange=function(){
+        mr.querySelectorAll('label').forEach(function(l){l.style.borderColor='rgba(255,255,255,.07)';});
+        lbl.style.borderColor='rgba(255,255,255,.15)';
+      };
+      mr.appendChild(lbl);
+    });
+    bx.appendChild(mr);
+
+    /* Buttons */
+    var bs=mk('div','display:flex;gap:8px;justify-content:flex-end');
+    var cb2=mk('button',
+      'padding:8px 18px;border-radius:8px;border:1px solid rgba(255,255,255,.12);'
+      +'background:none;color:#888;cursor:pointer;font-size:13px;transition:all .12s');
+    cb2.textContent='Cancel';
+    cb2.onmouseenter=function(){cb2.style.color='#ccc';cb2.style.borderColor='rgba(255,255,255,.2)';};
+    cb2.onmouseleave=function(){cb2.style.color='#888';cb2.style.borderColor='rgba(255,255,255,.12)';};
+    cb2.onclick=function(){ov.remove();};
+    var sb=mk('button',
+      'padding:8px 18px;border-radius:8px;border:none;background:#6366f1;'
+      +'color:#fff;cursor:pointer;font-size:13px;font-weight:500;transition:opacity .15s');
+    sb.textContent='Save';
+    sb.onmouseenter=function(){sb.style.opacity='.85';};
+    sb.onmouseleave=function(){sb.style.opacity='1';};
+    sb.onclick=async function(){
+      var modeEl=mr.querySelector('input[name="__ov_cm"]:checked');
+      var mode=modeEl?modeEl.value:'all';
+      var intervalS=parseInt(sel.value)||30;
+      var newCfg={cycleEnabled:en,cycleIntervalS:intervalS,cycleMode:mode};
+      try{await window.__go_saveTabConfig(en,intervalS,mode);}catch(e){}
+      ov.remove();
+      var btn=document.getElementById('__ov_cb');
+      if(btn)btn.style.color=en?'#6366f1':'#56566a';
+      clearTimeout(window.__ov_ct);
+      if(en)startCycle(tenants,currentTenantId,newCfg);
+      tabCfg.cycleEnabled=en;tabCfg.cycleIntervalS=intervalS;tabCfg.cycleMode=mode;
+    };
+    bs.appendChild(cb2);bs.appendChild(sb);bx.appendChild(bs);
+
+    ov.appendChild(bx);
+    ov.onclick=function(e){if(e.target===ov)ov.remove();};
+    document.body.appendChild(ov);
+  }
+
+  /* ── Auto-cycling ────────────────────────────────────────────────── */
+  window.__ov_ct=null;
+  function startCycle(tenants,currentTenantId,tabCfg){
+    clearTimeout(window.__ov_ct);
+    var ms=(tabCfg.cycleIntervalS||30)*1000;
+    if(tabCfg.cycleMode==='recent'){
+      /* Poll for unread alerts; jump to the tenant of the newest one */
+      function checkRecent(){
+        fetchUnreadCount(); /* side-effect: keep badge fresh */
+        fetch('/api/live-alerts/all',{credentials:'include'}).then(function(r){
+          return r.json();
+        }).then(function(d){
+          var unread=(d.alerts||[]).filter(function(a){return!a.read;});
+          if(unread.length>0&&unread[0].tenantId&&unread[0].tenantId!==currentTenantId){
+            switchTo(unread[0].tenantId); /* page reloads — no need to reschedule */
+            return;
+          }
+          window.__ov_ct=setTimeout(checkRecent,ms);
+        }).catch(function(){
+          window.__ov_ct=setTimeout(checkRecent,ms);
+        });
+      }
+      window.__ov_ct=setTimeout(checkRecent,ms);
+    }else{
+      /* Round-robin through all tenant tabs */
+      window.__ov_ct=setTimeout(function(){
+        var idx=tenants.findIndex(function(t){return t.id===currentTenantId;});
+        var next=tenants[(idx+1)%tenants.length];
+        switchTo(next.id); /* page reloads — cycle restarts automatically */
+      },ms);
+    }
+  }
+})();`
+
 // setupHTML is shown on first launch when no URL has been saved yet.
 // It is loaded via w.SetHtml(), so window.location.protocol will NOT be http/https.
 // The overlayJS guard (!/^https?:/.test(location.protocol)) skips injection here.
@@ -309,8 +775,31 @@ func main() {
 		fmt.Println("[obliview] bind error:", err)
 	}
 
+	// __go_getTabConfig returns the current tab-cycling configuration.
+	// Called by tabBarJS on every page load to restore cycling state.
+	if err := w.Bind("__go_getTabConfig", func() TabConfig {
+		return cfg.TabConfig
+	}); err != nil {
+		fmt.Println("[obliview] bind error:", err)
+	}
+
+	// __go_saveTabConfig persists tab-cycling settings to disk.
+	// JS sends: enabled (bool), intervalS (number → float64), mode (string).
+	if err := w.Bind("__go_saveTabConfig", func(enabled bool, intervalS float64, mode string) {
+		cfg.TabConfig.CycleEnabled = enabled
+		cfg.TabConfig.CycleIntervalS = int(intervalS)
+		cfg.TabConfig.CycleMode = mode
+		if err := saveConfig(cfg); err != nil {
+			fmt.Println("[obliview] error saving tab config:", err)
+		}
+	}); err != nil {
+		fmt.Println("[obliview] bind error:", err)
+	}
+
 	// Inject the overlay script on every page load.
 	w.Init(overlayJS)
+	// Inject the multi-tenant tab bar (no-op for single-tenant installs).
+	w.Init(tabBarJS)
 	// Inject the app version so the React app can compare against the server's
 	// latest-desktop-version endpoint and show an update banner if needed.
 	w.Init(fmt.Sprintf("window.__obliview_app_version=%q;", appVersion))

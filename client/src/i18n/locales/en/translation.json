@@ -504,7 +504,15 @@
     "removedFromGlobal": "Removed from global",
     "addedToGlobal": "Added to global",
     "noSmtp": "No SMTP servers configured. Add one in Settings → SMTP Servers.",
-    "selectSmtp": "— Select SMTP Server —"
+    "selectSmtp": "— Select SMTP Server —",
+    "workspaces": "Workspaces",
+    "manageTenantAccess": "Manage workspace access",
+    "sharedWith": "Shared with workspaces",
+    "notShared": "Not shared with other workspaces",
+    "selectTenant": "— Select workspace —",
+    "grantAccess": "Grant access",
+    "removeTenantAccess": "Remove workspace access",
+    "failedTenantAssign": "Failed to update workspace access"
   },
 
   "settings": {

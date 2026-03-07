@@ -6,12 +6,20 @@ import (
 	"path/filepath"
 )
 
+// TabConfig holds the multi-tenant tab-cycling preferences for the desktop app.
+type TabConfig struct {
+	CycleEnabled   bool   `json:"cycleEnabled"`
+	CycleIntervalS int    `json:"cycleIntervalS"` // seconds between automatic tenant switches
+	CycleMode      string `json:"cycleMode"`      // "all" (round-robin) | "recent" (follow latest alert)
+}
+
 // Config holds all persisted user preferences.
 type Config struct {
-	URL         string `json:"url"`
-	Width       int    `json:"width,omitempty"`        // last known window content width  (logical px)
-	Height      int    `json:"height,omitempty"`       // last known window content height (logical px)
-	DownloadDir string `json:"downloadDir,omitempty"`  // preferred folder for native file downloads
+	URL         string    `json:"url"`
+	Width       int       `json:"width,omitempty"`       // last known window content width  (logical px)
+	Height      int       `json:"height,omitempty"`      // last known window content height (logical px)
+	DownloadDir string    `json:"downloadDir,omitempty"` // preferred folder for native file downloads
+	TabConfig   TabConfig `json:"tabConfig"`             // multi-tenant tab-bar cycling settings
 }
 
 // configPath returns the OS-appropriate path for config.json:
@@ -43,6 +51,14 @@ func loadConfig() (*Config, error) {
 	var cfg Config
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return &Config{}, nil
+	}
+
+	// Apply defaults for TabConfig
+	if cfg.TabConfig.CycleIntervalS <= 0 {
+		cfg.TabConfig.CycleIntervalS = 30
+	}
+	if cfg.TabConfig.CycleMode == "" {
+		cfg.TabConfig.CycleMode = "all"
 	}
 
 	return &cfg, nil

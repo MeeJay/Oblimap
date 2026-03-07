@@ -26,8 +26,8 @@ interface BindingRow {
   override_mode: string;
 }
 
-function rowToChannel(row: ChannelRow): NotificationChannel {
-  return {
+function rowToChannel(row: ChannelRow, currentTenantId?: number): NotificationChannel {
+  const ch: NotificationChannel = {
     id: row.id,
     name: row.name,
     type: row.type,
@@ -37,6 +37,11 @@ function rowToChannel(row: ChannelRow): NotificationChannel {
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
+  if (currentTenantId !== undefined) {
+    ch.tenantId = row.tenant_id;
+    ch.isShared = row.tenant_id !== currentTenantId;
+  }
+  return ch;
 }
 
 function rowToBinding(row: BindingRow): NotificationBinding {
@@ -53,8 +58,17 @@ export const notificationService = {
   // ── Channel CRUD ──
 
   async getAllChannels(tenantId: number): Promise<NotificationChannel[]> {
-    const rows = await db<ChannelRow>('notification_channels').where({ tenant_id: tenantId }).orderBy('name');
-    return rows.map(rowToChannel);
+    // Own channels + channels shared to this tenant via the junction table
+    const rows = await db<ChannelRow>('notification_channels')
+      .where(function () {
+        this.where('notification_channels.tenant_id', tenantId)
+          .orWhereIn(
+            'notification_channels.id',
+            db('notification_channel_tenants').select('channel_id').where({ tenant_id: tenantId }),
+          );
+      })
+      .orderBy('name');
+    return rows.map((row) => rowToChannel(row, tenantId));
   },
 
   async getChannelById(id: number): Promise<NotificationChannel | null> {
@@ -106,6 +120,28 @@ export const notificationService = {
   async deleteChannel(id: number): Promise<boolean> {
     const count = await db('notification_channels').where({ id }).del();
     return count > 0;
+  },
+
+  // ── Cross-tenant channel sharing ──
+
+  /** Returns the list of tenant IDs the channel is shared to (not including its own tenant). */
+  async getChannelTenants(channelId: number): Promise<number[]> {
+    const rows = await db('notification_channel_tenants')
+      .where({ channel_id: channelId })
+      .select('tenant_id');
+    return rows.map((r: { tenant_id: number }) => r.tenant_id);
+  },
+
+  /** Replaces the sharing list for a channel (full replace — not additive). */
+  async setChannelTenants(channelId: number, tenantIds: number[]): Promise<void> {
+    await db.transaction(async (trx) => {
+      await trx('notification_channel_tenants').where({ channel_id: channelId }).del();
+      if (tenantIds.length > 0) {
+        await trx('notification_channel_tenants').insert(
+          tenantIds.map((tenant_id) => ({ channel_id: channelId, tenant_id })),
+        );
+      }
+    });
   },
 
   /**

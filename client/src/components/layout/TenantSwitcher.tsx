@@ -3,6 +3,7 @@ import { ChevronDown, Building2, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useTenantStore } from '@/store/tenantStore';
 import { useGroupStore } from '@/store/groupStore';
+import { useMonitorStore } from '@/store/monitorStore';
 import { disconnectSocket, connectSocket } from '@/socket/socketClient';
 import { useAuthStore } from '@/store/authStore';
 import { cn } from '@/utils/cn';
@@ -31,6 +32,10 @@ export function TenantSwitcher() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [open]);
 
+  // In the native desktop app the injected tab bar replaces this dropdown
+  const isNativeApp = !!(window as Window & { __obliview_is_native_app?: boolean }).__obliview_is_native_app;
+  if (isNativeApp && tenants.length > 1) return null;
+
   // Only show when there are multiple tenants
   if (tenants.length <= 1) return null;
 
@@ -44,8 +49,11 @@ export function TenantSwitcher() {
     try {
       await setCurrentTenant(tenantId);
 
-      // Reload group tree and reconnect socket with new tenant
-      await useGroupStore.getState().fetchTree();
+      // Reload all tenant-scoped data in parallel
+      await Promise.all([
+        useMonitorStore.getState().fetchMonitors(),
+        useGroupStore.getState().fetchTree(),
+      ]);
 
       // Reconnect socket with new tenantId
       if (user) {

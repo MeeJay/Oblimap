@@ -45,6 +45,15 @@ export const notificationsApi = {
     await apiClient.post(`/notifications/channels/${id}/test`);
   },
 
+  async getChannelTenants(channelId: number): Promise<number[]> {
+    const res = await apiClient.get<ApiResponse<number[]>>(`/notifications/channels/${channelId}/tenants`);
+    return res.data.data!;
+  },
+
+  async setChannelTenants(channelId: number, tenantIds: number[]): Promise<void> {
+    await apiClient.put(`/notifications/channels/${channelId}/tenants`, { tenantIds });
+  },
+
   // Bindings
   async getBindings(scope: string, scopeId: number | null): Promise<NotificationBinding[]> {
     const res = await apiClient.get<ApiResponse<NotificationBinding[]>>('/notifications/bindings', {

@@ -4,8 +4,6 @@ import { Bell, X, Trash2, CheckCheck } from 'lucide-react';
 import { useLiveAlertsStore, countUnread } from '@/store/liveAlertsStore';
 import type { LiveAlert, AlertSeverity } from '@/store/liveAlertsStore';
 import { useTenantStore } from '@/store/tenantStore';
-import { useAuthStore } from '@/store/authStore';
-import { connectSocket, disconnectSocket } from '@/socket/socketClient';
 import { cn } from '@/utils/cn';
 
 const SEVERITY_STYLES: Record<AlertSeverity, { bar: string; dot: string; title: string }> = {
@@ -122,7 +120,6 @@ export function NotificationCenter() {
   } = useLiveAlertsStore();
 
   const { currentTenantId, tenants } = useTenantStore();
-  const { user } = useAuthStore();
   const navigate = useNavigate();
   const panelRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -161,22 +158,23 @@ export function NotificationCenter() {
   /**
    * Handle a notification click:
    * - Mark as read
-   * - If the alert belongs to another tenant, switch to it (including socket reconnect)
+   * - If the alert belongs to another tenant, switch to it then reload all tenant-scoped data
    * - Navigate to alert.navigateTo if set
    */
   const handleAlertClick = async (alert: LiveAlert) => {
     await markAlertRead(alert.id);
 
     if (alert.tenantId && alert.tenantId !== currentTenantId) {
-      // Switch tenant on the server
+      // Switch tenant session on the server, then do a full page navigation.
+      // A client-side navigate() leaves stale store data in memory; a hard
+      // redirect reloads the app fresh with the new tenant context — same as F5.
       await useTenantStore.getState().setCurrentTenant(alert.tenantId);
-      // Reconnect socket with the new tenantId so real-time events scope correctly
-      if (user) {
-        disconnectSocket();
-        connectSocket(user.id, alert.tenantId);
-      }
+      setOpen(false);
+      window.location.href = alert.navigateTo ?? '/';
+      return;
     }
 
+    // Same-tenant: normal client-side navigation
     if (alert.navigateTo) {
       setOpen(false);
       navigate(alert.navigateTo);

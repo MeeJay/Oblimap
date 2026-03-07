@@ -101,6 +101,32 @@ export const notificationsController = {
     }
   },
 
+  // GET /api/notifications/channels/:id/tenants — list tenant IDs the channel is shared to
+  async getChannelTenants(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const tenantIds = await notificationService.getChannelTenants(id);
+      res.json({ success: true, data: tenantIds });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // PUT /api/notifications/channels/:id/tenants — replace sharing list
+  async setChannelTenants(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const tenantIds: number[] = req.body.tenantIds ?? [];
+      if (!Array.isArray(tenantIds)) {
+        throw new AppError(400, 'tenantIds must be an array');
+      }
+      await notificationService.setChannelTenants(id, tenantIds);
+      res.json({ success: true, message: 'Channel tenants updated' });
+    } catch (err) {
+      next(err);
+    }
+  },
+
   // ── Bindings ──
 
   // GET /api/notifications/bindings?scope=...&scopeId=...
