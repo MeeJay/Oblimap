@@ -54,15 +54,15 @@ export function useSocket() {
         if (data.newStatus === 'down' && prev !== 'down') {
           addAlert({
             severity: 'down',
-            title: 'Monitor Down',
-            message: `${monitorName} is DOWN`,
+            title: monitorName,
+            message: 'Monitor went DOWN',
             navigateTo: `/monitor/${data.monitorId}`,
           });
         } else if (prev === 'down' && data.newStatus === 'up') {
           addAlert({
             severity: 'up',
-            title: 'Monitor Recovered',
-            message: `${monitorName} is back UP`,
+            title: monitorName,
+            message: 'Monitor recovered',
             navigateTo: `/monitor/${data.monitorId}`,
           });
         }
@@ -131,15 +131,29 @@ export function useSocket() {
         }
       }
 
+      // Resolve agent name: look for the agent monitor in the store
+      const agentMonitor = useMonitorStore.getState().getMonitorList()
+        .find((m) => m.type === 'agent' && m.agentDeviceId === data.deviceId);
+      const agentName = (agentMonitor?.agentDeviceName || agentMonitor?.name) ?? `Agent #${data.deviceId}`;
+
       // Live alerts for agent threshold crossings
       const { addAlert, enabled } = useLiveAlertsStore.getState();
-      if (enabled && data.status === 'alert' && prev !== 'alert') {
-        addAlert({
-          severity: 'warning',
-          title: 'Agent Alert',
-          message: 'Agent device threshold exceeded',
-          navigateTo: `/admin/agents?device=${data.deviceId}`,
-        });
+      if (enabled) {
+        if (data.status === 'alert' && prev !== 'alert') {
+          addAlert({
+            severity: 'warning',
+            title: agentName,
+            message: 'Threshold exceeded',
+            navigateTo: `/agents/${data.deviceId}`,
+          });
+        } else if (prev === 'alert' && data.status !== 'alert' && data.status !== 'down') {
+          addAlert({
+            severity: 'up',
+            title: agentName,
+            message: 'All metrics back to normal',
+            navigateTo: `/agents/${data.deviceId}`,
+          });
+        }
       }
 
       agentStatusRef.current.set(data.deviceId, data.status);

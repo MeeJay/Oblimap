@@ -38,7 +38,7 @@ export function ProfilePage() {
   const [totpSaving, setTotpSaving] = useState(false);
 
   // Email OTP setup flow
-  const [emailSetupStep, setEmailSetupStep] = useState<'idle' | 'sent'>('idle');
+  const [emailSetupStep, setEmailSetupStep] = useState<'idle' | 'entering' | 'sent'>('idle');
   const [emailInput, setEmailInput] = useState('');
   const [emailCode, setEmailCode] = useState('');
   const [emailSaving, setEmailSaving] = useState(false);
@@ -428,77 +428,77 @@ export function ProfilePage() {
                     {t('common.disable')}
                   </Button>
                 ) : emailSetupStep === 'idle' ? (
-                  <Button size="sm" onClick={() => setEmailSetupStep('sent')}>{t('common.enable')}</Button>
+                  <Button size="sm" onClick={() => setEmailSetupStep('entering')}>{t('common.enable')}</Button>
                 ) : null}
               </div>
 
+              {!tfaStatus?.emailOtpEnabled && emailSetupStep === 'entering' && (
+                <div className="space-y-3">
+                  <Input
+                    label={t('profile.security.yourEmail')}
+                    type="email"
+                    value={emailInput}
+                    onChange={(e) => setEmailInput(e.target.value)}
+                    placeholder={t('profile.security.emailPlaceholder')}
+                    autoFocus
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      disabled={!emailInput || emailSaving}
+                      loading={emailSaving}
+                      onClick={async () => {
+                        setEmailSaving(true);
+                        try {
+                          await twoFactorApi.emailSetup(emailInput);
+                          setEmailSetupStep('sent');
+                          toast.success(t('profile.security.codeSent'));
+                        } catch { toast.error(t('profile.security.failedSendCode')); }
+                        finally { setEmailSaving(false); }
+                      }}
+                    >
+                      {t('profile.security.sendCode')}
+                    </Button>
+                    <Button variant="ghost" onClick={() => { setEmailSetupStep('idle'); setEmailInput(''); setEmailCode(''); }}>{t('common.cancel')}</Button>
+                  </div>
+                </div>
+              )}
+
               {!tfaStatus?.emailOtpEnabled && emailSetupStep === 'sent' && (
                 <div className="space-y-3">
-                  {emailSetupStep === 'sent' && !emailInput && (
-                    <>
+                  <p className="text-xs text-text-muted">{t('profile.security.enterCode', { email: emailInput })}</p>
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1">
                       <Input
-                        label={t('profile.security.yourEmail')}
-                        type="email"
-                        value={emailInput}
-                        onChange={(e) => setEmailInput(e.target.value)}
-                        placeholder={t('profile.security.emailPlaceholder')}
+                        label={t('profile.security.verificationCode')}
+                        type="text"
+                        inputMode="numeric"
+                        value={emailCode}
+                        onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                        placeholder="000000"
+                        autoFocus
                       />
-                      <div className="flex gap-2">
-                        <Button
-                          disabled={!emailInput || emailSaving}
-                          loading={emailSaving}
-                          onClick={async () => {
-                            setEmailSaving(true);
-                            try {
-                              await twoFactorApi.emailSetup(emailInput);
-                              toast.success(t('profile.security.codeSent'));
-                            } catch { toast.error(t('profile.security.failedSendCode')); setEmailInput(''); }
-                            finally { setEmailSaving(false); }
-                          }}
-                        >
-                          {t('profile.security.sendCode')}
-                        </Button>
-                        <Button variant="ghost" onClick={() => { setEmailSetupStep('idle'); setEmailInput(''); setEmailCode(''); }}>{t('common.cancel')}</Button>
-                      </div>
-                    </>
-                  )}
-                  {emailInput && (
-                    <>
-                      <p className="text-xs text-text-muted">{t('profile.security.enterCode', { email: emailInput })}</p>
-                      <div className="flex items-end gap-2">
-                        <div className="flex-1">
-                          <Input
-                            label={t('profile.security.verificationCode')}
-                            type="text"
-                            inputMode="numeric"
-                            value={emailCode}
-                            onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                            placeholder="000000"
-                          />
-                        </div>
-                        <Button
-                          disabled={emailCode.length !== 6 || emailSaving}
-                          loading={emailSaving}
-                          onClick={async () => {
-                            setEmailSaving(true);
-                            try {
-                              await twoFactorApi.emailEnable(emailCode);
-                              const status = await twoFactorApi.getStatus();
-                              setTfaStatus(status);
-                              setEmailSetupStep('idle');
-                              setEmailInput('');
-                              setEmailCode('');
-                              toast.success(t('profile.security.emailOtpEnabled'));
-                            } catch { toast.error(t('profile.security.invalidCode')); }
-                            finally { setEmailSaving(false); }
-                          }}
-                        >
-                          {t('common.confirm')}
-                        </Button>
-                        <Button variant="ghost" onClick={() => { setEmailSetupStep('idle'); setEmailInput(''); setEmailCode(''); }}>{t('common.cancel')}</Button>
-                      </div>
-                    </>
-                  )}
+                    </div>
+                    <Button
+                      disabled={emailCode.length !== 6 || emailSaving}
+                      loading={emailSaving}
+                      onClick={async () => {
+                        setEmailSaving(true);
+                        try {
+                          await twoFactorApi.emailEnable(emailCode);
+                          const status = await twoFactorApi.getStatus();
+                          setTfaStatus(status);
+                          setEmailSetupStep('idle');
+                          setEmailInput('');
+                          setEmailCode('');
+                          toast.success(t('profile.security.emailOtpEnabled'));
+                        } catch { toast.error(t('profile.security.invalidCode')); }
+                        finally { setEmailSaving(false); }
+                      }}
+                    >
+                      {t('common.confirm')}
+                    </Button>
+                    <Button variant="ghost" onClick={() => { setEmailSetupStep('idle'); setEmailInput(''); setEmailCode(''); }}>{t('common.cancel')}</Button>
+                  </div>
                 </div>
               )}
             </div>

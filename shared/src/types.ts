@@ -113,6 +113,7 @@ export interface Monitor {
 
   // Agent Monitor
   agentDeviceId: number | null;
+  agentDeviceName: string | null;  // display name from agent_devices.name (null if not set)
   agentThresholds: AgentThresholds | null;
 
   // Metadata

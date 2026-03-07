@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Pencil, Trash2, CalendarClock, Clock, RefreshCw, CheckCircle2, Globe, Users, Ban } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { MaintenanceWindow, MaintenanceScopeType, NotificationChannel } from '@obliview/shared';
 import { maintenanceApi } from '@/api/maintenance.api';
 import { MaintenanceWindowModal } from './MaintenanceWindowModal';
@@ -31,32 +32,35 @@ interface Props {
   defaultScopeId?: number;
 }
 
-function formatSchedule(w: MaintenanceWindow): string {
+function formatSchedule(w: MaintenanceWindow, t: (k: string, opts?: Record<string, unknown>) => string): string {
   if (w.scheduleType === 'one_time') {
     const start = w.startAt ? new Date(w.startAt).toLocaleString() : '?';
     const end = w.endAt ? new Date(w.endAt).toLocaleString() : '?';
     return `${start} → ${end}`;
   }
+  const dayKeys = ['dayMon', 'dayTue', 'dayWed', 'dayThu', 'dayFri', 'daySat', 'daySun'];
   const days = w.daysOfWeek && w.daysOfWeek.length > 0
-    ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].filter((_, i) => w.daysOfWeek!.includes(i)).join(', ')
+    ? dayKeys.filter((_, i) => w.daysOfWeek!.includes(i)).map((k) => t(`maintenance.${k}`)).join(', ')
     : null;
 
   const recurrence = w.recurrenceType === 'daily'
-    ? 'Every day'
-    : days ? `Every ${days}` : 'Weekly';
+    ? t('maintenance.scheduleEveryDay')
+    : days ? t('maintenance.scheduleEveryDays', { days }) : t('maintenance.scheduleWeekly');
 
   return `${recurrence} · ${w.startTime ?? '?'} – ${w.endTime ?? '?'} (${w.timezone})`;
 }
 
-function StatusPip({ active, isActiveNow }: { active: boolean; isActiveNow?: boolean }) {
-  if (!active) return <span className="text-xs text-text-muted">Inactive</span>;
+function StatusPip({ active, isActiveNow, expired }: { active: boolean; isActiveNow?: boolean; expired?: boolean }) {
+  const { t } = useTranslation();
+  if (expired) return <span className="text-xs text-text-muted">{t('maintenance.statusExpired')}</span>;
+  if (!active) return <span className="text-xs text-text-muted">{t('maintenance.statusInactive')}</span>;
   if (isActiveNow) return (
     <span className="flex items-center gap-1 text-xs text-status-maintenance font-medium">
       <CheckCircle2 size={11} />
-      Active now
+      {t('maintenance.statusActiveNow')}
     </span>
   );
-  return <span className="text-xs text-status-up">Scheduled</span>;
+  return <span className="text-xs text-status-up">{t('maintenance.statusScheduled')}</span>;
 }
 
 function SourceBadge({ source, sourceName }: { source: MaintenanceWindow['source']; sourceName?: string }) {
@@ -88,6 +92,7 @@ function WindowRow({
   onEnable,
   deleting,
   disabling,
+  expired,
 }: {
   w: MaintenanceWindow;
   onEdit?: (w: MaintenanceWindow) => void;
@@ -96,22 +101,26 @@ function WindowRow({
   onEnable?: (id: number) => void;
   deleting: number | null;
   disabling: number | null;
+  expired?: boolean;
 }) {
+  const { t } = useTranslation();
   const isDisabled = w.isDisabledHere;
   return (
     <div
       className={cn(
         'flex items-start justify-between gap-3 rounded-lg border px-3 py-2.5 transition-colors',
-        isDisabled
-          ? 'border-border bg-bg-tertiary opacity-50'
-          : w.isActiveNow
-            ? 'border-status-maintenance/40 bg-status-maintenance/5'
-            : 'border-border bg-bg-tertiary',
+        expired
+          ? 'border-border bg-bg-tertiary opacity-40'
+          : isDisabled
+            ? 'border-border bg-bg-tertiary opacity-50'
+            : w.isActiveNow
+              ? 'border-status-maintenance/40 bg-status-maintenance/5'
+              : 'border-border bg-bg-tertiary',
       )}
     >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={cn('text-sm font-medium truncate', isDisabled ? 'text-text-muted line-through' : 'text-text-primary')}>
+          <span className={cn('text-sm font-medium truncate', isDisabled || expired ? 'text-text-muted line-through' : 'text-text-primary')}>
             {w.name}
           </span>
           {isDisabled && (
@@ -120,24 +129,24 @@ function WindowRow({
               DISABLED
             </span>
           )}
-          {!isDisabled && <StatusPip active={w.active} isActiveNow={w.isActiveNow} />}
+          {!isDisabled && <StatusPip active={w.active} isActiveNow={w.isActiveNow} expired={expired} />}
           {w.source && w.source !== 'local' && (
             <SourceBadge source={w.source} sourceName={w.sourceName} />
           )}
         </div>
         <div className="mt-0.5 flex items-center gap-1.5 text-xs text-text-muted">
           {w.scheduleType === 'one_time' ? <Clock size={11} /> : <RefreshCw size={11} />}
-          <span className="truncate">{formatSchedule(w)}</span>
+          <span className="truncate">{formatSchedule(w, t)}</span>
         </div>
       </div>
 
       <div className="flex items-center gap-1 shrink-0">
         {/* Local window actions */}
-        {w.canEdit && onEdit && (
+        {w.canEdit && onEdit && !expired && (
           <button
             onClick={() => onEdit(w)}
             className="p-1.5 rounded text-text-muted hover:text-text-primary hover:bg-bg-hover transition-colors"
-            title="Edit"
+            title={t('common.edit')}
           >
             <Pencil size={13} />
           </button>
@@ -147,7 +156,7 @@ function WindowRow({
             onClick={() => onDelete(w.id)}
             disabled={deleting === w.id}
             className="p-1.5 rounded text-text-muted hover:text-red-400 hover:bg-bg-hover transition-colors disabled:opacity-50"
-            title="Delete"
+            title={t('common.delete')}
           >
             <Trash2 size={13} />
           </button>
@@ -158,9 +167,8 @@ function WindowRow({
             onClick={() => onDisable(w.id)}
             disabled={disabling === w.id}
             className="px-2 py-1 rounded text-xs font-medium text-text-muted hover:text-red-400 hover:bg-bg-hover border border-border transition-colors disabled:opacity-50"
-            title="Disable this inherited window at this scope"
           >
-            Disable
+            {t('maintenance.disableBtn')}
           </button>
         )}
         {w.canEnable && onEnable && (
@@ -168,9 +176,8 @@ function WindowRow({
             onClick={() => onEnable(w.id)}
             disabled={disabling === w.id}
             className="px-2 py-1 rounded text-xs font-medium text-text-muted hover:text-status-up hover:bg-bg-hover border border-border transition-colors disabled:opacity-50"
-            title="Re-enable this inherited window at this scope"
           >
-            Enable
+            {t('maintenance.enableBtn')}
           </button>
         )}
       </div>
@@ -248,6 +255,7 @@ function EffectiveList({
     }
   }
 
+  const { t } = useTranslation();
   const local = windows.filter((w) => w.source === 'local');
   const fromGlobal = windows.filter((w) => w.source === 'global');
 
@@ -273,12 +281,12 @@ function EffectiveList({
               className="flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium bg-accent text-white hover:bg-accent-hover transition-colors"
             >
               <Plus size={11} />
-              Add
+              {t('maintenance.add')}
             </button>
           )}
         </div>
         {items.length === 0 ? (
-          <p className="text-xs text-text-muted py-1 pl-1">None</p>
+          <p className="text-xs text-text-muted py-1 pl-1">{t('maintenance.sectionNone')}</p>
         ) : (
           <div className="space-y-1.5">
             {items.map((w) => (
@@ -304,20 +312,20 @@ function EffectiveList({
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-text-muted py-3">
           <RefreshCw size={14} className="animate-spin" />
-          Loading…
+          {t('common.loading')}
         </div>
       ) : (
         <>
           {/* Local windows */}
-          {renderSection('Local', local, true)}
+          {renderSection(t('maintenance.sectionLocal'), local, true)}
 
           {/* From group(s) */}
           {[...fromGroupMap.entries()].map(([groupName, items]) =>
-            renderSection(`From group: ${groupName}`, items)
+            renderSection(t('maintenance.sectionFromGroup', { name: groupName }), items)
           )}
 
           {/* From global */}
-          {renderSection('From global', fromGlobal)}
+          {renderSection(t('maintenance.sectionFromGlobal'), fromGlobal)}
         </>
       )}
 
@@ -384,8 +392,80 @@ function FlatList({
     }
   }
 
+  const { t } = useTranslation();
   const channelOptions = channels.map((ch) => ({ id: ch.id, name: ch.name, type: ch.type }));
-  const scopeLabels: Record<string, string> = { all: 'All', global: 'Global', group: 'Groups', monitor: 'Monitors', agent: 'Agents' };
+
+  const scopeFilterLabels: Record<string, string> = {
+    all: t('maintenance.filterAll'),
+    global: t('maintenance.filterGlobal'),
+    group: t('maintenance.filterGroups'),
+    monitor: t('maintenance.filterMonitors'),
+    agent: t('maintenance.filterAgents'),
+  };
+
+  const now = new Date();
+  const isExpired = (w: MaintenanceWindow) =>
+    w.scheduleType === 'one_time' && w.endAt != null && new Date(w.endAt) < now;
+
+  const activeWindows = windows.filter((w) => !isExpired(w));
+  const expiredWindows = windows.filter(isExpired);
+
+  function renderFlatRow(w: MaintenanceWindow, exp?: boolean) {
+    return (
+      <div
+        key={w.id}
+        className={cn(
+          'flex items-start justify-between gap-3 rounded-lg border px-3 py-2.5 transition-colors',
+          exp
+            ? 'border-border bg-bg-tertiary opacity-40'
+            : w.isActiveNow
+              ? 'border-status-maintenance/40 bg-status-maintenance/5'
+              : 'border-border bg-bg-tertiary',
+        )}
+      >
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className={cn('text-sm font-medium truncate', exp ? 'text-text-muted line-through' : 'text-text-primary')}>
+              {w.name}
+            </span>
+            <StatusPip active={w.active} isActiveNow={w.isActiveNow} expired={exp} />
+            {w.scopeType === 'global' && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-400 border border-purple-500/20 shrink-0">
+                <Globe size={9} />
+                GLOBAL
+              </span>
+            )}
+          </div>
+          <div className="mt-0.5 flex items-center gap-1.5 text-xs text-text-muted">
+            {w.scheduleType === 'one_time' ? <Clock size={11} /> : <RefreshCw size={11} />}
+            <span className="truncate">{formatSchedule(w, t)}</span>
+          </div>
+          {w.scopeName && w.scopeType !== 'global' && (
+            <div className="mt-0.5 text-xs text-text-muted">
+              {w.scopeType.charAt(0).toUpperCase() + w.scopeType.slice(1)}: <span className="text-text-secondary">{w.scopeName}</span>
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={() => { setEditing(w); setModalOpen(true); }}
+            className="p-1.5 rounded text-text-muted hover:text-text-primary hover:bg-bg-hover transition-colors"
+            title={t('common.edit')}
+          >
+            <Pencil size={13} />
+          </button>
+          <button
+            onClick={() => handleDelete(w.id)}
+            disabled={deleting === w.id}
+            className="p-1.5 rounded text-text-muted hover:text-red-400 hover:bg-bg-hover transition-colors disabled:opacity-50"
+            title={t('common.delete')}
+          >
+            <Trash2 size={13} />
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -402,7 +482,7 @@ function FlatList({
                 : 'border-border text-text-secondary hover:border-accent',
             )}
           >
-            {scopeLabels[s]}
+            {scopeFilterLabels[s]}
           </button>
         ))}
         <button
@@ -410,67 +490,37 @@ function FlatList({
           className="ml-auto flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium bg-accent text-white hover:bg-accent-hover transition-colors"
         >
           <Plus size={12} />
-          Add window
+          {t('maintenance.addWindow')}
         </button>
       </div>
 
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-text-muted py-3">
           <RefreshCw size={14} className="animate-spin" />
-          Loading…
+          {t('common.loading')}
         </div>
       ) : windows.length === 0 ? (
-        <p className="text-sm text-text-muted py-2">No maintenance windows defined.</p>
+        <p className="text-sm text-text-muted py-2">{t('maintenance.noWindows')}</p>
       ) : (
-        <div className="space-y-2">
-          {windows.map((w) => (
-            <div
-              key={w.id}
-              className={cn(
-                'flex items-start justify-between gap-3 rounded-lg border px-3 py-2.5 transition-colors',
-                w.isActiveNow ? 'border-status-maintenance/40 bg-status-maintenance/5' : 'border-border bg-bg-tertiary',
-              )}
-            >
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-medium text-text-primary truncate">{w.name}</span>
-                  <StatusPip active={w.active} isActiveNow={w.isActiveNow} />
-                  {w.scopeType === 'global' && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-400 border border-purple-500/20 shrink-0">
-                      <Globe size={9} />
-                      GLOBAL
-                    </span>
-                  )}
-                </div>
-                <div className="mt-0.5 flex items-center gap-1.5 text-xs text-text-muted">
-                  {w.scheduleType === 'one_time' ? <Clock size={11} /> : <RefreshCw size={11} />}
-                  <span className="truncate">{formatSchedule(w)}</span>
-                </div>
-                {w.scopeName && w.scopeType !== 'global' && (
-                  <div className="mt-0.5 text-xs text-text-muted">
-                    {w.scopeType.charAt(0).toUpperCase() + w.scopeType.slice(1)}: <span className="text-text-secondary">{w.scopeName}</span>
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  onClick={() => { setEditing(w); setModalOpen(true); }}
-                  className="p-1.5 rounded text-text-muted hover:text-text-primary hover:bg-bg-hover transition-colors"
-                  title="Edit"
-                >
-                  <Pencil size={13} />
-                </button>
-                <button
-                  onClick={() => handleDelete(w.id)}
-                  disabled={deleting === w.id}
-                  className="p-1.5 rounded text-text-muted hover:text-red-400 hover:bg-bg-hover transition-colors disabled:opacity-50"
-                  title="Delete"
-                >
-                  <Trash2 size={13} />
-                </button>
+        <div className="space-y-4">
+          {/* Active / upcoming windows */}
+          {activeWindows.length > 0 && (
+            <div className="space-y-2">
+              {activeWindows.map((w) => renderFlatRow(w, false))}
+            </div>
+          )}
+
+          {/* Expired one-time windows */}
+          {expiredWindows.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">
+                {t('maintenance.sectionExpired')}
+              </p>
+              <div className="space-y-2">
+                {expiredWindows.map((w) => renderFlatRow(w, true))}
               </div>
             </div>
-          ))}
+          )}
         </div>
       )}
 

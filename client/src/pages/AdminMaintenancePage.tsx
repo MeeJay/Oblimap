@@ -80,12 +80,12 @@ export function AdminMaintenancePage() {
       <div className="rounded-lg border border-border bg-bg-secondary p-4 space-y-2">
         <h2 className="text-xs font-semibold text-text-muted uppercase tracking-wider">{t('maintenance.howItWorks')}</h2>
         <ul className="text-sm text-text-secondary space-y-1">
-          <li>• <strong className="text-text-primary">Global windows</strong> apply to all groups, monitors and agents system-wide.</li>
-          <li>• <strong className="text-text-primary">Group windows</strong> apply to all monitors and agents in the group and its subgroups.</li>
-          <li>• <strong className="text-text-primary">Monitor / Agent windows</strong> are local to that specific monitor or agent.</li>
-          <li>• Windows are <strong className="text-text-primary">additive</strong> — all applicable windows (global + group + local) are active simultaneously.</li>
-          <li>• Any scope can <strong className="text-text-primary">disable</strong> a specific inherited window without affecting other scopes.</li>
-          <li>• During maintenance, <strong className="text-status-maintenance">down/pending heartbeats appear in blue</strong> and are excluded from uptime % and average response time.</li>
+          <li>• {t('maintenance.rule1')}</li>
+          <li>• {t('maintenance.rule2')}</li>
+          <li>• {t('maintenance.rule3')}</li>
+          <li>• {t('maintenance.rule4')}</li>
+          <li>• {t('maintenance.rule5')}</li>
+          <li>• {t('maintenance.rule6')}</li>
           <li>• {t('maintenance.rule7')}</li>
           <li>• {t('maintenance.rule8')}</li>
         </ul>

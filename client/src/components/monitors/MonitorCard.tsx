@@ -89,7 +89,7 @@ export function MonitorCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="truncate font-medium text-text-primary text-sm">
-              {monitor.name}
+              {isAgent ? (monitor.agentDeviceName || monitor.name) : monitor.name}
             </span>
             <span className="text-xs text-text-muted">
               {MONITOR_TYPE_LABELS[monitor.type]}

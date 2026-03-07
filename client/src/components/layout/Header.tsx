@@ -1,10 +1,10 @@
-import { LogOut, Menu, Download, Bell } from 'lucide-react';
+import { LogOut, Menu, Download } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/store/authStore';
 import { useUiStore } from '@/store/uiStore';
-import { useLiveAlertsStore } from '@/store/liveAlertsStore';
 import { Button } from '@/components/common/Button';
+import { NotificationCenter } from './NotificationCenter';
 
 /** True when running inside the Obliview native desktop app (gear overlay sets this). */
 const isNativeApp = typeof window !== 'undefined' &&
@@ -14,7 +14,6 @@ export function Header() {
   const { t } = useTranslation();
   const { user, logout } = useAuthStore();
   const { toggleSidebar } = useUiStore();
-  const { enabled } = useLiveAlertsStore();
 
   return (
     <header className="flex h-14 items-center justify-between border-b border-border bg-bg-secondary px-4">
@@ -39,14 +38,8 @@ export function Header() {
           </Link>
         )}
 
-        {/* Live alerts toggle */}
-        <button
-          onClick={() => useLiveAlertsStore.getState().setEnabled(!enabled)}
-          title={enabled ? t('header.disableAlerts') : t('header.enableAlerts')}
-          className="flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors"
-        >
-          <Bell size={14} className={enabled ? 'text-accent' : 'text-text-muted'} />
-        </button>
+        {/* Notification Center */}
+        <NotificationCenter />
 
         {user && (
           <>

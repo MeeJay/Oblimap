@@ -127,19 +127,9 @@ export const twoFactorController = {
 
       if (method === 'totp' && row.totp_enabled && row.totp_secret) {
         valid = twoFactorService.verifyTotp(row.totp_secret, String(code));
-        logger.warn({
-          userId,
-          method: 'totp',
-          codeLength: String(code).length,
-          secretLength: (row.totp_secret as string).length,
-          secretPrefix: (row.totp_secret as string).substring(0, 4),
-          serverTime: new Date().toISOString(),
-          serverTimestamp: Date.now(),
-          valid,
-        }, '[2FA] TOTP verification attempt');
       } else if (method === 'totp') {
         logger.warn({ userId, totpEnabled: row.totp_enabled, hasSecret: !!row.totp_secret },
-          '[2FA] TOTP verify failed: totp_enabled or totp_secret missing in DB');
+          'TOTP verify: totp_enabled or totp_secret missing in DB');
       } else if (method === 'email' && row.email_otp_enabled) {
         const pending = req.session.pendingEmailOtp;
         if (pending && Date.now() <= pending.expires && pending.code === String(code)) {

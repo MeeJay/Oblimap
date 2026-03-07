@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Globe, Monitor, Server, Folder, RefreshCw, Check } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type { MonitorGroup, Monitor as MonitorType, AgentDevice, MaintenanceScopeType } from '@obliview/shared';
 import { groupsApi } from '@/api/groups.api';
 import { monitorsApi } from '@/api/monitors.api';
@@ -102,6 +103,7 @@ interface Props {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function ScopeSelector({ defaultScopeType, defaultScopeId, onChange }: Props) {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [monitorGroups, setMonitorGroups] = useState<MonitorGroup[]>([]);
   const [agentGroups, setAgentGroups] = useState<MonitorGroup[]>([]);
@@ -440,7 +442,7 @@ export function ScopeSelector({ defaultScopeType, defaultScopeId, onChange }: Pr
     return (
       <div className="flex items-center justify-center gap-2 py-6 text-sm text-text-muted">
         <RefreshCw size={14} className="animate-spin" />
-        Loading…
+        {t('common.loading')}
       </div>
     );
   }
@@ -460,7 +462,7 @@ export function ScopeSelector({ defaultScopeType, defaultScopeId, onChange }: Pr
         )}
       >
         <Globe size={14} className={sel.global ? 'text-purple-400' : 'text-text-muted'} />
-        <span className="flex-1 text-left">Global — apply to everything</span>
+        <span className="flex-1 text-left">{t('maintenance.scopeGlobalBtn')}</span>
         {sel.global && <Check size={13} className="text-purple-400 shrink-0" />}
       </button>
 
@@ -481,14 +483,14 @@ export function ScopeSelector({ defaultScopeType, defaultScopeId, onChange }: Pr
             )}
           >
             <Monitor size={11} className={allMonitorsSel ? 'text-blue-400' : ''} />
-            <span className="flex-1 text-left">Monitors</span>
+            <span className="flex-1 text-left">{t('maintenance.colMonitors')}</span>
             {allMonitorsSel && <Check size={11} className="text-blue-400" />}
           </button>
 
           {/* Scrollable list */}
           <div ref={monitorScrollRef} className="overflow-y-auto max-h-52 p-1 space-y-px">
             {monitorGroups.length === 0 && ungroupedMonitors.length === 0 && (
-              <p className="text-xs text-text-muted px-2 py-3 text-center">No monitors</p>
+              <p className="text-xs text-text-muted px-2 py-3 text-center">{t('maintenance.noMonitorsInList')}</p>
             )}
 
             {monitorGroups.map((g) => {
@@ -511,7 +513,7 @@ export function ScopeSelector({ defaultScopeType, defaultScopeId, onChange }: Pr
                     <Folder size={12} className={state !== 'none' ? 'text-blue-400 shrink-0' : 'text-text-muted shrink-0'} />
                     <span className="flex-1 truncate font-medium">{g.name}</span>
                     {state === 'partial' && (
-                      <span className="text-[9px] text-blue-400/70 font-bold shrink-0 ml-1">partial</span>
+                      <span className="text-[9px] text-blue-400/70 font-bold shrink-0 ml-1">{t('maintenance.partialLabel')}</span>
                     )}
                     {state === 'selected' && <Check size={11} className="text-blue-400 shrink-0" />}
                   </button>
@@ -553,7 +555,7 @@ export function ScopeSelector({ defaultScopeType, defaultScopeId, onChange }: Pr
               <>
                 {monitorGroups.length > 0 && (
                   <div className="px-2 pt-1.5 pb-0.5">
-                    <span className="text-[9px] text-text-muted font-semibold uppercase tracking-wider">No group</span>
+                    <span className="text-[9px] text-text-muted font-semibold uppercase tracking-wider">{t('maintenance.noGroupLabel')}</span>
                   </div>
                 )}
                 {ungroupedMonitors.map((m) => (
@@ -592,14 +594,14 @@ export function ScopeSelector({ defaultScopeType, defaultScopeId, onChange }: Pr
             )}
           >
             <Server size={11} className={allAgentsSel ? 'text-blue-400' : ''} />
-            <span className="flex-1 text-left">Agents</span>
+            <span className="flex-1 text-left">{t('maintenance.colAgents')}</span>
             {allAgentsSel && <Check size={11} className="text-blue-400" />}
           </button>
 
           {/* Scrollable list */}
           <div ref={agentScrollRef} className="overflow-y-auto max-h-52 p-1 space-y-px">
             {agentGroups.length === 0 && ungroupedAgents.length === 0 && (
-              <p className="text-xs text-text-muted px-2 py-3 text-center">No agents</p>
+              <p className="text-xs text-text-muted px-2 py-3 text-center">{t('maintenance.noAgentsInList')}</p>
             )}
 
             {agentGroups.map((g) => {
@@ -621,7 +623,7 @@ export function ScopeSelector({ defaultScopeType, defaultScopeId, onChange }: Pr
                     <Folder size={12} className={state !== 'none' ? 'text-blue-400 shrink-0' : 'text-text-muted shrink-0'} />
                     <span className="flex-1 truncate font-medium">{g.name}</span>
                     {state === 'partial' && (
-                      <span className="text-[9px] text-blue-400/70 font-bold shrink-0 ml-1">partial</span>
+                      <span className="text-[9px] text-blue-400/70 font-bold shrink-0 ml-1">{t('maintenance.partialLabel')}</span>
                     )}
                     {state === 'selected' && <Check size={11} className="text-blue-400 shrink-0" />}
                   </button>
@@ -662,7 +664,7 @@ export function ScopeSelector({ defaultScopeType, defaultScopeId, onChange }: Pr
               <>
                 {agentGroups.length > 0 && (
                   <div className="px-2 pt-1.5 pb-0.5">
-                    <span className="text-[9px] text-text-muted font-semibold uppercase tracking-wider">No group</span>
+                    <span className="text-[9px] text-text-muted font-semibold uppercase tracking-wider">{t('maintenance.noGroupLabel')}</span>
                   </div>
                 )}
                 {ungroupedAgents.map((a) => (

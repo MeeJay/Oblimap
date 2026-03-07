@@ -633,12 +633,15 @@ export const maintenanceService = {
   // ── Background jobs ────────────────────────────────────────────────────────
 
   /**
-   * Delete one-time windows that have expired.
+   * Delete one-time windows that expired more than 30 days ago.
+   * Windows are kept for 30 days so admins can review past maintenance periods
+   * on the Maintenance page (they appear as greyed-out expired entries).
    */
   async cleanupExpiredOneTime(): Promise<void> {
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     await db('maintenance_windows')
       .where({ schedule_type: 'one_time' })
-      .where('end_at', '<', new Date())
+      .where('end_at', '<', cutoff)
       .del();
   },
 

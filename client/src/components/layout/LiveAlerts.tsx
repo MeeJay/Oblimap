@@ -115,8 +115,8 @@ export function LiveAlerts() {
     );
   }
 
-  // bottom-right: show up to 5, newest at bottom, older stacked above
-  const visible = alerts.slice(0, 5);
+  // bottom-right: show up to 10, newest at bottom, older stacked above
+  const visible = alerts.slice(0, 10);
 
   return (
     <div className="fixed bottom-4 right-4 z-50 flex flex-col-reverse gap-2 w-80 max-w-[calc(100vw-2rem)]">

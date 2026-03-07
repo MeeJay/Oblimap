@@ -57,10 +57,18 @@ interface MonitorRow {
   value_watcher_headers: Record<string, string> | null;
   // Agent Monitor
   agent_device_id: number | null;
+  agent_device_name?: string | null;  // from LEFT JOIN with agent_devices (read queries only)
   agent_thresholds: AgentThresholds | null;
   created_by: number | null;
   created_at: Date;
   updated_at: Date;
+}
+
+/** Base query that LEFT JOINs agent_devices to populate agent_device_name. */
+function monitorBaseQuery() {
+  return db('monitors')
+    .leftJoin('agent_devices as ad', 'monitors.agent_device_id', 'ad.id')
+    .select<MonitorRow[]>('monitors.*', db.raw('ad.name as agent_device_name'));
 }
 
 function rowToMonitor(row: MonitorRow): Monitor {
@@ -118,6 +126,7 @@ function rowToMonitor(row: MonitorRow): Monitor {
     valueWatcherHeaders: typeof row.value_watcher_headers === 'string' ? JSON.parse(row.value_watcher_headers) : row.value_watcher_headers,
     // Agent Monitor
     agentDeviceId: row.agent_device_id,
+    agentDeviceName: row.agent_device_name ?? null,
     agentThresholds: row.agent_thresholds ?? null,
     createdBy: row.created_by,
     createdAt: row.created_at.toISOString(),
@@ -187,26 +196,26 @@ function monitorToRow(data: Partial<Monitor>): Record<string, unknown> {
 
 export const monitorService = {
   async getAll(): Promise<Monitor[]> {
-    const rows = await db<MonitorRow>('monitors').orderBy('name');
+    const rows = await monitorBaseQuery().orderBy('monitors.name');
     return rows.map(rowToMonitor);
   },
 
   async getByIds(ids: number[]): Promise<Monitor[]> {
     if (ids.length === 0) return [];
-    const rows = await db<MonitorRow>('monitors').whereIn('id', ids).orderBy('name');
+    const rows = await monitorBaseQuery().whereIn('monitors.id', ids).orderBy('monitors.name');
     return rows.map(rowToMonitor);
   },
 
   async getAllActive(): Promise<Monitor[]> {
-    const rows = await db<MonitorRow>('monitors')
-      .where({ is_active: true })
-      .whereNot({ status: 'paused' })
-      .orderBy('name');
+    const rows = await monitorBaseQuery()
+      .where({ 'monitors.is_active': true })
+      .whereNot({ 'monitors.status': 'paused' })
+      .orderBy('monitors.name');
     return rows.map(rowToMonitor);
   },
 
   async getById(id: number): Promise<Monitor | null> {
-    const row = await db<MonitorRow>('monitors').where({ id }).first();
+    const row = await monitorBaseQuery().where({ 'monitors.id': id }).first();
     if (!row) return null;
     return rowToMonitor(row);
   },

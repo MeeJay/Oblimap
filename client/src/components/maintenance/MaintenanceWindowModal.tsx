@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, CalendarClock } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import type {
   MaintenanceWindow,
   CreateMaintenanceWindowRequest,
@@ -12,7 +13,18 @@ import { maintenanceApi } from '@/api/maintenance.api';
 import { ScopeSelector } from './ScopeSelector';
 import type { ScopeTarget } from './ScopeSelector';
 
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+/**
+ * Convert a UTC ISO string to the "YYYY-MM-DDTHH:MM" format expected by
+ * <input type="datetime-local">, expressed in the browser's local timezone.
+ * (The datetime-local input has no timezone concept — it always shows/reads
+ *  local time, so we must convert accordingly.)
+ */
+function utcToLocalInput(isoString: string): string {
+  const date = new Date(isoString);
+  // getTimezoneOffset() returns minutes BEHIND UTC (negative for UTC+ zones)
+  const localMs = date.getTime() - date.getTimezoneOffset() * 60_000;
+  return new Date(localMs).toISOString().slice(0, 16);
+}
 
 const TIMEZONES = [
   'UTC',
@@ -98,7 +110,14 @@ export function MaintenanceWindowModal({
   defaultScopeType,
   defaultScopeId,
 }: Props) {
+  const { t } = useTranslation();
   const isEdit = !!initial;
+
+  // Translated day labels — computed here so they react to language changes
+  const DAYS = [
+    t('maintenance.dayMon'), t('maintenance.dayTue'), t('maintenance.dayWed'),
+    t('maintenance.dayThu'), t('maintenance.dayFri'), t('maintenance.daySat'), t('maintenance.daySun'),
+  ];
 
   // ── Schedule fields ───────────────────────────────────────────────────────
   const [name, setName] = useState('');
@@ -129,8 +148,8 @@ export function MaintenanceWindowModal({
     if (initial) {
       setName(initial.name);
       setScheduleType(initial.scheduleType);
-      setStartAt(initial.startAt ? initial.startAt.slice(0, 16) : '');
-      setEndAt(initial.endAt ? initial.endAt.slice(0, 16) : '');
+      setStartAt(initial.startAt ? utcToLocalInput(initial.startAt) : '');
+      setEndAt(initial.endAt ? utcToLocalInput(initial.endAt) : '');
       setStartTime(initial.startTime ?? '02:00');
       setEndTime(initial.endTime ?? '04:00');
       setRecurrenceType(initial.recurrenceType ?? 'weekly');
@@ -182,13 +201,13 @@ export function MaintenanceWindowModal({
 
   // ── Validate shared fields ────────────────────────────────────────────────
   function validateBase(): string | null {
-    if (!name.trim()) return 'Name is required.';
+    if (!name.trim()) return t('maintenance.validationName');
     if (scheduleType === 'one_time') {
-      if (!startAt || !endAt) return 'Start and end date/time are required.';
-      if (new Date(startAt) >= new Date(endAt)) return 'End must be after start.';
+      if (!startAt || !endAt) return t('maintenance.validationDates');
+      if (new Date(startAt) >= new Date(endAt)) return t('maintenance.validationEndAfterStart');
     }
     if (scheduleType === 'recurring' && recurrenceType === 'weekly' && daysOfWeek.length === 0) {
-      return 'Select at least one day.';
+      return t('maintenance.validationDays');
     }
     return null;
   }
@@ -215,7 +234,7 @@ export function MaintenanceWindowModal({
         // ── CREATE mode: one window per selected scope target ────────────
         if (scopeTargets.length === 0) {
           setSaving(false);
-          return setError('Please select at least one scope target.');
+          return setError(t('maintenance.validationScope'));
         }
 
         const base = buildBaseData();
@@ -236,7 +255,7 @@ export function MaintenanceWindowModal({
         onClose();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save');
+      setError(err instanceof Error ? err.message : t('maintenance.failedSave'));
     } finally {
       setSaving(false);
     }
@@ -253,7 +272,7 @@ export function MaintenanceWindowModal({
           <div className="flex items-center gap-2">
             <CalendarClock size={18} className="text-accent" />
             <h2 className="text-base font-semibold text-text-primary">
-              {isEdit ? 'Edit Maintenance Window' : 'New Maintenance Window'}
+              {isEdit ? t('maintenance.editTitle') : t('maintenance.newTitle')}
             </h2>
           </div>
           <button onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors">
@@ -266,13 +285,13 @@ export function MaintenanceWindowModal({
 
           {/* Name */}
           <div>
-            <Label>Name</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Weekly DB backup" />
+            <Label>{t('maintenance.fieldName')}</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('maintenance.namePlaceholder')} />
           </div>
 
           {/* ── Scope ────────────────────────────────────────────────────── */}
           <div>
-            <Label>Scope</Label>
+            <Label>{t('maintenance.fieldScope')}</Label>
 
             {isEdit ? (
               /* Edit mode: simple dropdowns (scope already set, allow changing) */
@@ -282,10 +301,10 @@ export function MaintenanceWindowModal({
                     value={editScopeType}
                     onChange={(e) => { setEditScopeType(e.target.value as MaintenanceScopeType); setEditScopeId(''); }}
                   >
-                    <option value="monitor">Monitor</option>
-                    <option value="agent">Agent</option>
-                    <option value="group">Group</option>
-                    <option value="global">Global — applies to everything</option>
+                    <option value="monitor">{t('common.monitor')}</option>
+                    <option value="agent">{t('common.agent')}</option>
+                    <option value="group">{t('common.group')}</option>
+                    <option value="global">{t('maintenance.scopeGlobal')}</option>
                   </Select>
                 </div>
                 {editScopeType !== 'global' && (
@@ -294,7 +313,7 @@ export function MaintenanceWindowModal({
                       type="number"
                       value={editScopeId}
                       onChange={(e) => setEditScopeId(Number(e.target.value))}
-                      placeholder="Scope ID"
+                      placeholder={t('maintenance.scopeIdPlaceholder')}
                     />
                   </div>
                 )}
@@ -311,21 +330,21 @@ export function MaintenanceWindowModal({
 
           {/* Schedule type tabs */}
           <div>
-            <Label>Schedule type</Label>
+            <Label>{t('maintenance.fieldScheduleType')}</Label>
             <div className="flex rounded-md overflow-hidden border border-border">
-              {(['one_time', 'recurring'] as const).map((t) => (
+              {(['one_time', 'recurring'] as const).map((st) => (
                 <button
-                  key={t}
+                  key={st}
                   type="button"
-                  onClick={() => setScheduleType(t)}
+                  onClick={() => setScheduleType(st)}
                   className={cn(
                     'flex-1 py-1.5 text-sm font-medium transition-colors',
-                    scheduleType === t
+                    scheduleType === st
                       ? 'bg-accent text-white'
                       : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover',
                   )}
                 >
-                  {t === 'one_time' ? 'One-time' : 'Recurring'}
+                  {st === 'one_time' ? t('maintenance.oneTime') : t('maintenance.recurring')}
                 </button>
               ))}
             </div>
@@ -335,11 +354,11 @@ export function MaintenanceWindowModal({
           {scheduleType === 'one_time' && (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Start</Label>
+                <Label>{t('maintenance.fieldStart')}</Label>
                 <Input type="datetime-local" value={startAt} onChange={(e) => setStartAt(e.target.value)} />
               </div>
               <div>
-                <Label>End</Label>
+                <Label>{t('maintenance.fieldEnd')}</Label>
                 <Input type="datetime-local" value={endAt} onChange={(e) => setEndAt(e.target.value)} />
               </div>
             </div>
@@ -350,17 +369,17 @@ export function MaintenanceWindowModal({
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Recurrence</Label>
+                  <Label>{t('maintenance.fieldRecurrence')}</Label>
                   <Select
                     value={recurrenceType}
                     onChange={(e) => setRecurrenceType(e.target.value as MaintenanceRecurrenceType)}
                   >
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly (select days)</option>
+                    <option value="daily">{t('maintenance.recurrenceDaily')}</option>
+                    <option value="weekly">{t('maintenance.recurrenceWeekly')}</option>
                   </Select>
                 </div>
                 <div>
-                  <Label>Timezone</Label>
+                  <Label>{t('maintenance.fieldTimezone')}</Label>
                   <Select value={timezone} onChange={(e) => setTimezone(e.target.value)}>
                     {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
                   </Select>
@@ -369,11 +388,11 @@ export function MaintenanceWindowModal({
 
               {recurrenceType === 'weekly' && (
                 <div>
-                  <Label>Days of week</Label>
+                  <Label>{t('maintenance.fieldDaysOfWeek')}</Label>
                   <div className="flex gap-1.5 flex-wrap">
                     {DAYS.map((d, i) => (
                       <button
-                        key={d}
+                        key={i}
                         type="button"
                         onClick={() => toggleDay(i)}
                         className={cn(
@@ -392,11 +411,11 @@ export function MaintenanceWindowModal({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label>Start time (HH:MM)</Label>
+                  <Label>{t('maintenance.fieldStartTime')}</Label>
                   <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
                 </div>
                 <div>
-                  <Label>End time (HH:MM)</Label>
+                  <Label>{t('maintenance.fieldEndTime')}</Label>
                   <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
                 </div>
               </div>
@@ -406,9 +425,9 @@ export function MaintenanceWindowModal({
           {/* Notification channels */}
           {channelOptions.length > 0 && (
             <div>
-              <Label>Notify channels (optional)</Label>
+              <Label>{t('maintenance.notifyChannels')}</Label>
               <p className="text-xs text-text-muted mb-2">
-                Selected channels receive a message when maintenance starts and ends.
+                {t('maintenance.notifyChannelsDesc')}
               </p>
               <div className="space-y-1.5 max-h-32 overflow-y-auto">
                 {channelOptions.map((ch) => (
@@ -435,7 +454,7 @@ export function MaintenanceWindowModal({
               onChange={(e) => setActive(e.target.checked)}
               className="h-4 w-4 rounded border-border bg-bg-tertiary text-accent focus:ring-accent"
             />
-            <span className="text-sm font-medium text-text-primary">Active</span>
+            <span className="text-sm font-medium text-text-primary">{t('maintenance.fieldActive')}</span>
           </label>
 
           {error && <p className="text-sm text-red-500">{error}</p>}
@@ -446,12 +465,10 @@ export function MaintenanceWindowModal({
           {/* Selection summary (create mode only) */}
           {!isEdit && scopeTargets.length > 0 && (
             <p className="text-xs text-text-muted">
-              {scopeTargets.length === 1
-                ? '1 window will be created'
-                : `${scopeTargets.length} windows will be created`}
-              {scopeTargets.some((t) => t.disables?.length) && (
+              {t('maintenance.willCreate', { count: scopeTargets.length })}
+              {scopeTargets.some((st) => st.disables?.length) && (
                 <span className="text-text-muted/70">
-                  {' '}(with {scopeTargets.reduce((n, t) => n + (t.disables?.length ?? 0), 0)} exclusion(s))
+                  {t('maintenance.withExclusions', { count: scopeTargets.reduce((n, st) => n + (st.disables?.length ?? 0), 0) })}
                 </span>
               )}
             </p>
@@ -464,7 +481,7 @@ export function MaintenanceWindowModal({
               onClick={onClose}
               className="rounded-md px-4 py-2 text-sm font-medium text-text-secondary bg-bg-tertiary hover:bg-bg-hover border border-border transition-colors"
             >
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               onClick={handleSubmit as unknown as React.MouseEventHandler<HTMLButtonElement>}
@@ -472,8 +489,8 @@ export function MaintenanceWindowModal({
               className="rounded-md px-4 py-2 text-sm font-medium text-white bg-accent hover:bg-accent-hover disabled:opacity-50 transition-colors"
             >
               {saving
-                ? (isEdit ? 'Saving…' : `Creating…`)
-                : (isEdit ? 'Save changes' : 'Create')}
+                ? (isEdit ? t('common.saving') : t('maintenance.creating'))
+                : (isEdit ? t('maintenance.saveChanges') : t('common.create'))}
             </button>
           </div>
         </div>
