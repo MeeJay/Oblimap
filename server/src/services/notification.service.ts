@@ -689,7 +689,18 @@ export const notificationService = {
       }
     }
 
-    // 3. Apply system defaults for any still-unresolved fields
+    // 3. Global agent defaults (from app_config agent_global_config)
+    if (global === undefined || down === undefined || up === undefined || alert === undefined || update === undefined) {
+      const { appConfigService } = await import('./appConfig.service');
+      const globalTypes = await appConfigService.getResolvedAgentNotificationTypes();
+      if (global === undefined) global = globalTypes.global;
+      if (down   === undefined) down   = globalTypes.down;
+      if (up     === undefined) up     = globalTypes.up;
+      if (alert  === undefined) alert  = globalTypes.alert;
+      if (update === undefined) update = globalTypes.update;
+    }
+
+    // 4. Hardcoded system defaults for any still-unresolved fields
     return {
       global: global ?? DEFAULT_NOTIFICATION_TYPES.global,
       down:   down   ?? DEFAULT_NOTIFICATION_TYPES.down,

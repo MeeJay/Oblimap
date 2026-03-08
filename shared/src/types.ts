@@ -415,6 +415,33 @@ export interface AppConfig {
   otp_smtp_server_id: number | null;
 }
 
+/**
+ * Global agent defaults stored in app_config as JSON under key "agent_global_config".
+ * These apply to all agents and agent groups unless overridden at the group or device level.
+ * null = use the hardcoded system default.
+ */
+export interface AgentGlobalConfig {
+  /** Default push interval in seconds (null = 60) */
+  checkIntervalSeconds: number | null;
+  /** Default heartbeat monitoring toggle (null = true) */
+  heartbeatMonitoring: boolean | null;
+  /** Default max missed pushes before offline (null = 2) */
+  maxMissedPushes: number | null;
+  /** Default notification types (null fields = use hardcoded DEFAULT_NOTIFICATION_TYPES) */
+  notificationTypes: NotificationTypeConfig | null;
+}
+
+/** Hardcoded fallback for agent global config (bottom of inheritance chain) */
+export const DEFAULT_AGENT_GLOBAL_CONFIG: Required<{
+  checkIntervalSeconds: number;
+  heartbeatMonitoring: boolean;
+  maxMissedPushes: number;
+}> = {
+  checkIntervalSeconds: 60,
+  heartbeatMonitoring: true,
+  maxMissedPushes: 2,
+};
+
 // ============================================
 // Team & Permission types
 // ============================================

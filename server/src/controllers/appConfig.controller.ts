@@ -22,4 +22,26 @@ export const appConfigController = {
       res.json({ success: true });
     } catch (err) { next(err); }
   },
+
+  /** GET /admin/config/agent-global */
+  async getAgentGlobal(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const cfg = await appConfigService.getAgentGlobal();
+      res.json({ success: true, data: cfg });
+    } catch (err) { next(err); }
+  },
+
+  /** PATCH /admin/config/agent-global */
+  async patchAgentGlobal(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { checkIntervalSeconds, heartbeatMonitoring, maxMissedPushes, notificationTypes } = req.body;
+      const patch: Record<string, unknown> = {};
+      if ('checkIntervalSeconds' in req.body) patch.checkIntervalSeconds = checkIntervalSeconds;
+      if ('heartbeatMonitoring' in req.body) patch.heartbeatMonitoring = heartbeatMonitoring;
+      if ('maxMissedPushes' in req.body) patch.maxMissedPushes = maxMissedPushes;
+      if ('notificationTypes' in req.body) patch.notificationTypes = notificationTypes;
+      const updated = await appConfigService.setAgentGlobal(patch);
+      res.json({ success: true, data: updated });
+    } catch (err) { next(err); }
+  },
 };

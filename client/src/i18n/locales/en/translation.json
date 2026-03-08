@@ -44,6 +44,7 @@
     "refresh": "Refresh",
     "version": "Version",
     "inherit": "Inherit",
+    "override": "Override",
     "global": "Global",
     "group": "Group",
     "monitor": "Monitor",
@@ -86,7 +87,9 @@
     "settings": "Settings",
     "profile": "Profile",
     "downloadApp": "Download App",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "pinSidebar": "Pin sidebar",
+    "floatSidebar": "Float sidebar"
   },
 
   "login": {
@@ -519,6 +522,17 @@
     "title": "Global Settings",
     "globalDesc": "These defaults apply to all groups and monitors unless overridden at a lower level.",
     "defaultSettings": "Default Settings",
+    "defaultMonitorSettings": "Default Monitor Settings",
+    "defaultAgentSettings": "Default Agent Settings",
+    "agentDefaultsDesc": "These defaults apply to all agent groups and devices unless overridden at a lower level.",
+    "agent": {
+      "checkInterval": "Default Check Interval",
+      "checkIntervalDesc": "How often agents push metrics (seconds). Overridable per group or device.",
+      "heartbeatMonitoring": "Heartbeat Monitoring",
+      "heartbeatMonitoringDesc": "Alert when an agent stops pushing (goes offline). Overridable per group or device.",
+      "maxMissedPushes": "Max Missed Pushes",
+      "maxMissedPushesDesc": "Consecutive missed pushes before marking an agent as offline. Overridable per group."
+    },
     "smtp": {
       "title": "SMTP Servers",
       "addServer": "Add Server",
@@ -713,7 +727,21 @@
     "keepCurrent": "— Keep current —",
     "noChange": "— No change —",
     "approveAll": "Approve all",
-    "suspendAll": "Suspend all"
+    "suspendAll": "Suspend all",
+    "notifType": {
+      "title": "Notification Types",
+      "desc": "Control which kinds of notifications are sent for agents in this group/device.",
+      "global": "Global",
+      "globalDesc": "Master switch — disabling silences all notifications (channels remain bound)",
+      "down": "Down",
+      "downDesc": "Notify when the agent goes offline or down",
+      "up": "Up",
+      "upDesc": "Notify when the agent recovers",
+      "alert": "Alert",
+      "alertDesc": "Notify when a threshold is breached",
+      "update": "Update",
+      "updateDesc": "Notify when the agent starts a self-update"
+    }
   },
 
   "remediations": {

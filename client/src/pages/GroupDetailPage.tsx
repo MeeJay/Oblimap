@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
-  Pencil, Pause, Play, Trash2, ArrowLeft, FolderOpen, RotateCcw, Bell, Globe,
-  Server, Settings2, Thermometer, X,
+  Pencil, Pause, Play, Trash2, ArrowLeft, FolderOpen, RotateCcw, Globe,
+  Server, Settings2, Thermometer, Bell,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/utils/cn';
@@ -16,7 +16,7 @@ import type {
   AgentThresholds, AgentMetricThreshold, AgentTempThreshold,
   NotificationTypeConfig,
 } from '@obliview/shared';
-import { DEFAULT_AGENT_THRESHOLDS, DEFAULT_NOTIFICATION_TYPES } from '@obliview/shared';
+import { DEFAULT_AGENT_THRESHOLDS } from '@obliview/shared';
 import { MonitorStatusBadge } from '@/components/monitors/MonitorStatusBadge';
 import { HeartbeatChart } from '@/components/monitors/HeartbeatChart';
 import { HeartbeatBar } from '@/components/monitors/HeartbeatBar';
@@ -27,6 +27,7 @@ import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { NotificationBindingsPanel } from '@/components/notifications/NotificationBindingsPanel';
 import { RemediationBindingsPanel } from '@/components/remediation/RemediationBindingsPanel';
 import { MaintenanceWindowList } from '@/components/maintenance/MaintenanceWindowList';
+import { NotificationTypesPanel } from '@/components/agent/NotificationTypesPanel';
 import toast from 'react-hot-toast';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -220,19 +221,6 @@ function AgentGroupThresholdEditor({
 // Agent Group Settings Panel
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Notification type switch rows */
-const NOTIF_TYPE_ROWS: Array<{
-  key: keyof NotificationTypeConfig;
-  label: string;
-  desc: string;
-}> = [
-  { key: 'global', label: 'Global', desc: 'Master switch — disabling stops all notifications (channels remain bound)' },
-  { key: 'down',   label: 'Down',   desc: 'Notify when the agent/monitor goes offline or down' },
-  { key: 'up',     label: 'Up',     desc: 'Notify when the agent/monitor recovers' },
-  { key: 'alert',  label: 'Alert',  desc: 'Notify when a threshold is breached' },
-  { key: 'update', label: 'Update', desc: 'Notify when the agent starts a self-update (off by default)' },
-];
-
 function AgentGroupSettingsPanel({ group, onUpdate }: { group: MonitorGroup; onUpdate: (g: MonitorGroup) => void }) {
   const { t } = useTranslation();
   const cfg = group.agentGroupConfig ?? { pushIntervalSeconds: null, heartbeatMonitoring: null, maxMissedPushes: null, notificationTypes: null };
@@ -242,10 +230,6 @@ function AgentGroupSettingsPanel({ group, onUpdate }: { group: MonitorGroup; onU
   const [heartbeat, setHeartbeat] = useState<boolean | null>(cfg.heartbeatMonitoring);
   const [maxMissed, setMaxMissed] = useState<string>(cfg.maxMissedPushes !== null ? String(cfg.maxMissedPushes) : '');
   const [saving, setSaving] = useState(false);
-
-  // Notification types draft: null = inherit from parent / system defaults
-  const [notifTypes, setNotifTypes] = useState<NotificationTypeConfig | null>(cfg.notificationTypes ?? null);
-  const [savingNotif, setSavingNotif] = useState(false);
 
   const handleSaveConfig = async () => {
     setSaving(true);
@@ -264,38 +248,9 @@ function AgentGroupSettingsPanel({ group, onUpdate }: { group: MonitorGroup; onU
     finally { setSaving(false); }
   };
 
-  const handleSaveNotifTypes = async (override?: NotificationTypeConfig | null) => {
-    const typesToSave = override !== undefined ? override : notifTypes;
-    setSavingNotif(true);
-    try {
-      const updated = await groupsApi.updateAgentGroupConfig(group.id, {
-        agentGroupConfig: {
-          pushIntervalSeconds: cfg.pushIntervalSeconds,
-          heartbeatMonitoring: cfg.heartbeatMonitoring,
-          maxMissedPushes: cfg.maxMissedPushes,
-          notificationTypes: typesToSave,
-        },
-      });
-      onUpdate(updated);
-      toast.success(t('groups.detail.saveSettings'));
-    } catch { toast.error(t('groups.failedUpdate')); }
-    finally { setSavingNotif(false); }
-  };
-
   const handleSaveThresholds = async (thresholds: AgentThresholds) => {
     const updated = await groupsApi.updateAgentGroupConfig(group.id, { agentThresholds: thresholds });
     onUpdate(updated);
-  };
-
-  // When override is activated: start with system defaults
-  const handleEnableNotifOverride = () => {
-    setNotifTypes({
-      global: DEFAULT_NOTIFICATION_TYPES.global,
-      down:   DEFAULT_NOTIFICATION_TYPES.down,
-      up:     DEFAULT_NOTIFICATION_TYPES.up,
-      alert:  DEFAULT_NOTIFICATION_TYPES.alert,
-      update: DEFAULT_NOTIFICATION_TYPES.update,
-    });
   };
 
   return (
@@ -307,7 +262,12 @@ function AgentGroupSettingsPanel({ group, onUpdate }: { group: MonitorGroup; onU
       {/* Push Interval */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <div className="text-sm font-medium text-text-primary">{t('groups.detail.pushInterval')}</div>
+          <div className="text-sm font-medium text-text-primary flex items-center gap-2">
+            {t('groups.detail.pushInterval')}
+            {cfg.pushIntervalSeconds === null && (
+              <span className="text-xs text-text-muted">Default</span>
+            )}
+          </div>
           <div className="text-xs text-text-muted">{t('groups.detail.pushIntervalDesc')}</div>
         </div>
         <div className="flex items-center gap-2">
@@ -322,15 +282,34 @@ function AgentGroupSettingsPanel({ group, onUpdate }: { group: MonitorGroup; onU
       {/* Heartbeat Monitoring */}
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-sm font-medium text-text-primary">{t('groups.detail.heartbeatMonitoring')}</div>
+          <div className="text-sm font-medium text-text-primary flex items-center gap-2">
+            {t('groups.detail.heartbeatMonitoring')}
+            {heartbeat === null && (
+              <span className="text-xs text-text-muted">Default</span>
+            )}
+            {heartbeat !== null && (
+              <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-500">Override</span>
+            )}
+          </div>
           <div className="text-xs text-text-muted">{t('groups.detail.heartbeatMonitoringDesc')}</div>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-text-muted">{heartbeat === null ? t('common.inherit') : heartbeat ? t('common.on') : t('common.off')}</span>
-          <Switch on={heartbeat ?? false} onChange={v => setHeartbeat(v)} />
-          {heartbeat !== null && (
-            <button onClick={() => setHeartbeat(null)} className="text-xs text-text-muted hover:text-text-primary" title={t('common.reset')}>
-              <X size={12} />
+          <Switch on={heartbeat ?? true} onChange={v => setHeartbeat(v)} disabled={heartbeat === null} />
+          {heartbeat === null ? (
+            <button
+              onClick={() => setHeartbeat(true)}
+              className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-text-muted hover:bg-bg-hover hover:text-text-primary transition-colors"
+            >
+              {t('common.override')}
+            </button>
+          ) : (
+            <button
+              onClick={() => setHeartbeat(null)}
+              className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-amber-500 hover:bg-amber-500/10 transition-colors flex items-center gap-1"
+              title={t('common.reset')}
+            >
+              <RotateCcw size={12} />
+              {t('common.reset')}
             </button>
           )}
         </div>
@@ -339,7 +318,12 @@ function AgentGroupSettingsPanel({ group, onUpdate }: { group: MonitorGroup; onU
       {/* Max Missed Pushes */}
       <div className="flex items-center justify-between gap-4">
         <div>
-          <div className="text-sm font-medium text-text-primary">{t('groups.detail.maxMissedPushes')}</div>
+          <div className="text-sm font-medium text-text-primary flex items-center gap-2">
+            {t('groups.detail.maxMissedPushes')}
+            {cfg.maxMissedPushes === null && (
+              <span className="text-xs text-text-muted">Default</span>
+            )}
+          </div>
           <div className="text-xs text-text-muted">{t('groups.detail.maxMissedPushesDesc')}</div>
         </div>
         <div className="flex items-center gap-2">
@@ -357,65 +341,7 @@ function AgentGroupSettingsPanel({ group, onUpdate }: { group: MonitorGroup; onU
         </button>
       </div>
 
-      {/* ── Notification Types ── */}
-      <div className="border-t border-border pt-4">
-        <div className="flex items-center justify-between mb-4">
-          <div className="text-xs font-medium text-text-muted uppercase tracking-wide flex items-center gap-1.5">
-            <Bell size={11} /> Notification Types
-          </div>
-          {notifTypes === null ? (
-            <button
-              onClick={handleEnableNotifOverride}
-              className="px-2.5 py-1 text-xs rounded border border-amber-500/40 text-amber-400 hover:bg-amber-500/10 transition-colors"
-            >
-              Override
-            </button>
-          ) : (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={async () => { setNotifTypes(null); await handleSaveNotifTypes(null); }}
-                className="text-xs text-text-muted hover:text-text-primary transition-colors"
-                title="Reset to inherited"
-              >
-                <X size={12} />
-              </button>
-              <button
-                onClick={() => handleSaveNotifTypes()}
-                disabled={savingNotif}
-                className="px-2.5 py-1 text-xs rounded bg-accent text-white hover:bg-accent/90 disabled:opacity-60 transition-colors"
-              >
-                {savingNotif ? t('common.saving') : t('common.save')}
-              </button>
-            </div>
-          )}
-        </div>
-
-        {notifTypes === null ? (
-          <p className="text-xs text-text-muted italic">
-            Inheriting from parent group or system defaults (Global: on, Down: on, Up: on, Alert: on, Update: off)
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {NOTIF_TYPE_ROWS.map(({ key, label, desc }) => {
-              const val = notifTypes[key] ?? DEFAULT_NOTIFICATION_TYPES[key];
-              return (
-                <div key={key} className="flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium text-text-primary">{label}</div>
-                    <div className="text-xs text-text-muted">{desc}</div>
-                  </div>
-                  <Switch
-                    on={val}
-                    onChange={v => setNotifTypes(prev => ({ ...prev!, [key]: v }))}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Divider */}
+      {/* Thresholds */}
       <div className="border-t border-border pt-4">
         <div className="text-xs font-medium text-text-muted uppercase tracking-wide mb-4 flex items-center gap-1.5">
           <Settings2 size={11} /> {t('groups.detail.thresholds')}
@@ -781,6 +707,23 @@ export function GroupDetailPage() {
             scope="group"
             scopeId={groupId}
             title={t('monitors.sectionNotifications')}
+          />
+        </div>
+      )}
+
+      {/* ── Agent group: Notification Types (standalone section, below notification channels) ── */}
+      {isAdmin() && isAgentGroup && (
+        <div className="mt-6">
+          <NotificationTypesPanel
+            config={group.agentGroupConfig?.notificationTypes ?? null}
+            scope="group"
+            onSave={async (notifTypes: NotificationTypeConfig | null) => {
+              const cfg = group.agentGroupConfig ?? { pushIntervalSeconds: null, heartbeatMonitoring: null, maxMissedPushes: null, notificationTypes: null };
+              const updated = await groupsApi.updateAgentGroupConfig(group.id, {
+                agentGroupConfig: { ...cfg, notificationTypes: notifTypes },
+              });
+              setGroup(updated);
+            }}
           />
         </div>
       )}

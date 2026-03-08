@@ -10,4 +10,8 @@ router.get('/', requireAuth, appConfigController.getAll);
 // PUT is admin only
 router.put('/:key', requireAuth, requireRole('admin'), appConfigController.set);
 
+// Agent global defaults — admin only
+router.get('/agent-global', requireAuth, requireRole('admin'), appConfigController.getAgentGlobal);
+router.patch('/agent-global', requireAuth, requireRole('admin'), appConfigController.patchAgentGlobal);
+
 export default router;

@@ -1,12 +1,14 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { Shield, Server, Plus, Pencil, Trash2, Wifi, Eye, EyeOff } from 'lucide-react';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
+import { NotificationTypesPanel } from '@/components/agent/NotificationTypesPanel';
 import { useAuthStore } from '@/store/authStore';
 import { smtpServerApi, type CreateSmtpServerRequest } from '@/api/smtpServer.api';
 import { appConfigApi } from '@/api/appConfig.api';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
-import type { SmtpServer, AppConfig } from '@obliview/shared';
+import type { SmtpServer, AppConfig, AgentGlobalConfig, NotificationTypeConfig } from '@obliview/shared';
+import { DEFAULT_AGENT_GLOBAL_CONFIG } from '@obliview/shared';
 import toast from 'react-hot-toast';
 import { cn } from '@/utils/cn';
 import { useTranslation } from 'react-i18next';
@@ -51,10 +53,21 @@ export function SettingsPage() {
   const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
   const [configSaving, setConfigSaving] = useState(false);
 
+  // ── Agent Global Config ──
+  const [agentGlobal, setAgentGlobal] = useState<AgentGlobalConfig | null>(null);
+  const [agentSaving, setAgentSaving] = useState(false);
+  const [agentInterval, setAgentInterval] = useState('');
+  const [agentMaxMissed, setAgentMaxMissed] = useState('');
+
   useEffect(() => {
     if (!admin) return;
     smtpServerApi.list().then(setServers).catch(() => {});
     appConfigApi.getConfig().then(setAppConfig).catch(() => {});
+    appConfigApi.getAgentGlobal().then((cfg) => {
+      setAgentGlobal(cfg);
+      setAgentInterval(cfg.checkIntervalSeconds !== null ? String(cfg.checkIntervalSeconds) : '');
+      setAgentMaxMissed(cfg.maxMissedPushes !== null ? String(cfg.maxMissedPushes) : '');
+    }).catch(() => {});
   }, [admin]);
 
   function openCreate() {
@@ -152,6 +165,29 @@ export function SettingsPage() {
     }
   }
 
+  async function saveAgentMainConfig() {
+    if (!agentGlobal) return;
+    setAgentSaving(true);
+    try {
+      const updated = await appConfigApi.patchAgentGlobal({
+        checkIntervalSeconds: agentInterval.trim() ? Number(agentInterval) : null,
+        heartbeatMonitoring: agentGlobal.heartbeatMonitoring,
+        maxMissedPushes: agentMaxMissed.trim() ? Number(agentMaxMissed) : null,
+      });
+      setAgentGlobal(updated);
+      toast.success(t('common.saved'));
+    } catch {
+      toast.error(t('settings.failedUpdate'));
+    } finally {
+      setAgentSaving(false);
+    }
+  }
+
+  async function saveAgentNotifTypes(notifTypes: NotificationTypeConfig | null) {
+    const updated = await appConfigApi.patchAgentGlobal({ notificationTypes: notifTypes });
+    setAgentGlobal(updated);
+  }
+
   return (
     <div className="p-6 max-w-5xl min-w-0 mx-auto space-y-8">
       <div>
@@ -161,10 +197,100 @@ export function SettingsPage() {
         </p>
       </div>
 
-      <SettingsPanel scope="global" scopeId={null} title={t('settings.defaultSettings')} />
+      {/* ── Default Monitor Settings ── */}
+      <SettingsPanel scope="global" scopeId={null} title={t('settings.defaultMonitorSettings')} />
 
       {admin && (
         <>
+          {/* ── Default Agent Settings ── */}
+          <div>
+            <h2 className="text-lg font-semibold text-text-primary mb-4">{t('settings.defaultAgentSettings')}</h2>
+            <div className="rounded-lg border border-border bg-bg-secondary p-5 space-y-6">
+              <p className="text-xs text-text-muted">{t('settings.agentDefaultsDesc')}</p>
+
+              {/* Check Interval */}
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <div className="text-sm font-medium text-text-primary">{t('settings.agent.checkInterval')}</div>
+                  <div className="text-xs text-text-muted">{t('settings.agent.checkIntervalDesc')}</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number" value={agentInterval} min={5} max={86400}
+                    onChange={e => setAgentInterval(e.target.value)}
+                    placeholder={String(DEFAULT_AGENT_GLOBAL_CONFIG.checkIntervalSeconds)}
+                    className="w-24 rounded-lg border border-border bg-bg-tertiary px-2 py-1.5 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent text-right placeholder:text-text-muted"
+                  />
+                  <span className="text-xs text-text-muted">{t('groups.detail.seconds')}</span>
+                </div>
+              </div>
+
+              {/* Heartbeat Monitoring */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-medium text-text-primary">{t('settings.agent.heartbeatMonitoring')}</div>
+                  <div className="text-xs text-text-muted">{t('settings.agent.heartbeatMonitoringDesc')}</div>
+                </div>
+                <button
+                  role="switch"
+                  aria-checked={agentGlobal?.heartbeatMonitoring ?? DEFAULT_AGENT_GLOBAL_CONFIG.heartbeatMonitoring}
+                  disabled={!agentGlobal}
+                  onClick={async () => {
+                    if (!agentGlobal) return;
+                    const updated = await appConfigApi.patchAgentGlobal({
+                      heartbeatMonitoring: !(agentGlobal.heartbeatMonitoring ?? DEFAULT_AGENT_GLOBAL_CONFIG.heartbeatMonitoring),
+                    });
+                    setAgentGlobal(updated);
+                  }}
+                  className={cn(
+                    'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none disabled:opacity-50',
+                    (agentGlobal?.heartbeatMonitoring ?? DEFAULT_AGENT_GLOBAL_CONFIG.heartbeatMonitoring) ? 'bg-accent' : 'bg-bg-tertiary',
+                  )}
+                >
+                  <span className={cn('pointer-events-none inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform',
+                    (agentGlobal?.heartbeatMonitoring ?? DEFAULT_AGENT_GLOBAL_CONFIG.heartbeatMonitoring) ? 'translate-x-4' : 'translate-x-0.5')} />
+                </button>
+              </div>
+
+              {/* Max Missed Pushes */}
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <div className="text-sm font-medium text-text-primary">{t('settings.agent.maxMissedPushes')}</div>
+                  <div className="text-xs text-text-muted">{t('settings.agent.maxMissedPushesDesc')}</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number" value={agentMaxMissed} min={1} max={20}
+                    onChange={e => setAgentMaxMissed(e.target.value)}
+                    placeholder={String(DEFAULT_AGENT_GLOBAL_CONFIG.maxMissedPushes)}
+                    className="w-20 rounded-lg border border-border bg-bg-tertiary px-2 py-1.5 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent text-right placeholder:text-text-muted"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  onClick={saveAgentMainConfig}
+                  disabled={agentSaving || !agentGlobal}
+                  className="px-4 py-2 text-sm rounded-lg bg-accent text-white hover:bg-accent/90 disabled:opacity-60 transition-colors"
+                >
+                  {agentSaving ? t('common.saving') : t('common.save')}
+                </button>
+              </div>
+            </div>
+
+            {/* Notification Types — global scope, always editable */}
+            <div className="mt-4">
+              <NotificationTypesPanel
+                config={agentGlobal?.notificationTypes ?? {
+                  global: null, down: null, up: null, alert: null, update: null,
+                }}
+                scope="global"
+                onSave={saveAgentNotifTypes}
+              />
+            </div>
+          </div>
+
           {/* ── SMTP Servers ── */}
           <div>
             <div className="flex items-center justify-between mb-4">

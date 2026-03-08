@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { AppConfig, ApiResponse } from '@obliview/shared';
+import type { AppConfig, AgentGlobalConfig, ApiResponse } from '@obliview/shared';
 
 export const appConfigApi = {
   async getConfig(): Promise<AppConfig> {
@@ -9,5 +9,15 @@ export const appConfigApi = {
 
   async setConfig(key: keyof AppConfig, value: boolean | number | null): Promise<void> {
     await apiClient.put(`/admin/config/${key}`, { value: String(value ?? '') });
+  },
+
+  async getAgentGlobal(): Promise<AgentGlobalConfig> {
+    const res = await apiClient.get<ApiResponse<AgentGlobalConfig>>('/admin/config/agent-global');
+    return res.data.data!;
+  },
+
+  async patchAgentGlobal(patch: Partial<AgentGlobalConfig>): Promise<AgentGlobalConfig> {
+    const res = await apiClient.patch<ApiResponse<AgentGlobalConfig>>('/admin/config/agent-global', patch);
+    return res.data.data!;
   },
 };
