@@ -30,5 +30,7 @@ router.post('/:id/pause', requireMonitorWrite(), monitorsController.pause);
 
 // Bulk operations (permission checked in controller for each monitor)
 router.patch('/bulk', validate(bulkUpdateSchema), monitorsController.bulkUpdate);
+router.delete('/bulk', monitorsController.bulkDelete);
+router.post('/bulk/pause', monitorsController.bulkPause);
 
 export default router;

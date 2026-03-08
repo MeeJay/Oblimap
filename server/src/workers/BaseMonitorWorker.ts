@@ -52,6 +52,17 @@ export abstract class BaseMonitorWorker {
   protected lastProblemNotifiedAt: number = 0;
   /** Tenant ID for scoped Socket.io room emissions (null until resolved) */
   protected tenantId: number | null = null;
+  /**
+   * True only on the very first processResult() call after start().
+   * Combined with restoredFromDb, suppresses spurious notifications caused
+   * by in-memory state (push timestamps, agent snapshots) being lost on restart.
+   */
+  private isFirstBeat: boolean = true;
+  /**
+   * True when confirmedStatus was loaded from a non-pending DB row,
+   * i.e. this is an existing monitor being (re)started, not a brand-new one.
+   */
+  private restoredFromDb: boolean = false;
 
   constructor(config: MonitorConfig, io: SocketIOServer) {
     this.config = config;
@@ -84,6 +95,9 @@ export abstract class BaseMonitorWorker {
       if (row?.status && row.status !== 'pending') {
         this.previousStatus  = row.status;
         this.confirmedStatus = row.status;
+        // Flag that we have a real prior state — used to suppress the first beat's
+        // spurious notifications when in-memory data (push/agent) is not yet available.
+        this.restoredFromDb  = true;
       }
     } catch {
       // Non-critical — fall through with defaults ('pending')
@@ -145,6 +159,14 @@ export abstract class BaseMonitorWorker {
 
   private async processResult(result: CheckResult): Promise<void> {
     try {
+      // On the very first beat of a restarted existing monitor, suppress all
+      // handleStatusChange calls and confirmedStatus updates.  In-memory state
+      // (agent push snapshots, push-monitor timestamps) is empty right after
+      // server restart, so the first check may return a stale/incorrect status.
+      // We still update the DB status and emit the heartbeat — only notifications
+      // and live alerts are skipped until the second beat.
+      const isStartupBeat = this.isFirstBeat && this.restoredFromDb;
+
       // SSL statuses are deterministic (not transient) — no retries needed
       const isSslStatus = result.status === 'ssl_warning' || result.status === 'ssl_expired';
 
@@ -202,7 +224,7 @@ export abstract class BaseMonitorWorker {
       if (isRetryableStatus) {
         if (this.retryCount > this.config.maxRetries) {
           // Retries exhausted — confirmed problem (DOWN or ALERT)
-          if (this.confirmedStatus !== result.status) {
+          if (this.confirmedStatus !== result.status && !isStartupBeat) {
             await this.handleStatusChange(result.status, result.message, inMaintenance);
             // Do NOT advance confirmedStatus while in maintenance.
             // Keeping the pre-maintenance value ensures that once the window ends,
@@ -218,7 +240,7 @@ export abstract class BaseMonitorWorker {
       } else if (isSslStatus) {
         // SSL statuses fire immediately with no retries
         this.retryCount = 0;
-        if (this.confirmedStatus !== result.status) {
+        if (this.confirmedStatus !== result.status && !isStartupBeat) {
           await this.handleStatusChange(result.status, result.message, inMaintenance);
           if (!inMaintenance) {
             this.confirmedStatus = result.status;
@@ -228,14 +250,17 @@ export abstract class BaseMonitorWorker {
         // Status is UP (or 'inactive') — always update confirmedStatus, even during maintenance.
         // If a down monitor recovers during a maintenance window we want to track that transition
         // so that a subsequent drop after maintenance correctly fires a notification.
-        if (this.confirmedStatus !== result.status && this.confirmedStatus !== 'pending') {
+        if (this.confirmedStatus !== result.status && this.confirmedStatus !== 'pending' && !isStartupBeat) {
           await this.handleStatusChange(result.status, result.message, inMaintenance);
         }
-        this.confirmedStatus = result.status;
+        if (!isStartupBeat) {
+          this.confirmedStatus = result.status;
+        }
         this.retryCount = 0;
       }
 
       this.previousStatus = result.status;
+      this.isFirstBeat = false;
 
       // 3. Update monitor status in DB
       await monitorService.updateStatus(this.config.id, result.status);

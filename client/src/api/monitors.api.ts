@@ -36,6 +36,14 @@ export const monitorsApi = {
     return res.data.data!;
   },
 
+  async bulkDelete(monitorIds: number[]): Promise<void> {
+    await apiClient.delete('/monitors/bulk', { data: { monitorIds } });
+  },
+
+  async bulkPause(monitorIds: number[], pause: boolean): Promise<void> {
+    await apiClient.post('/monitors/bulk/pause', { monitorIds, pause });
+  },
+
   async getHeartbeats(monitorId: number, limit = 100, offset = 0): Promise<Heartbeat[]> {
     const res = await apiClient.get<ApiResponse<Heartbeat[]>>(
       `/monitors/${monitorId}/heartbeats`,

@@ -239,7 +239,14 @@
     "selectedCount_one": "{{count}} monitor selected",
     "selectedCount_other": "{{count}} monitors selected",
     "selectedCountAgent_one": "{{count}} agent selected",
-    "selectedCountAgent_other": "{{count}} agents selected"
+    "selectedCountAgent_other": "{{count}} agents selected",
+    "confirmBulkDelete": "Delete {{count}} monitor(s)? This cannot be undone.",
+    "bulkDeleteSuccess": "{{count}} monitor(s) deleted",
+    "bulkDeleteFailed": "Failed to delete monitors",
+    "bulkPauseSuccess": "{{count}} monitor(s) paused",
+    "bulkPauseFailed": "Failed to pause monitors",
+    "bulkResumeSuccess": "{{count}} monitor(s) resumed",
+    "bulkResumeFailed": "Failed to resume monitors"
   },
 
   "monitors": {

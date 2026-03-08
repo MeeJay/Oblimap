@@ -14,6 +14,7 @@ import { BulkEditModal } from '@/components/monitors/BulkEditModal';
 import { estimateMaxBars } from '@/components/monitors/HeartbeatBar';
 import { Button } from '@/components/common/Button';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
+import toast from 'react-hot-toast';
 
 
 /** Count all monitors inside a group tree node (recursively) */
@@ -166,6 +167,34 @@ export function DashboardPage() {
     setSelectionKind(newSet.size === 0 ? null : kind);
   };
 
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+    setSelectionKind(null);
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = Array.from(selectedIds);
+    if (!confirm(t('dashboard.confirmBulkDelete', { count: ids.length }))) return;
+    try {
+      await monitorsApi.bulkDelete(ids);
+      toast.success(t('dashboard.bulkDeleteSuccess', { count: ids.length }));
+      clearSelection();
+    } catch {
+      toast.error(t('dashboard.bulkDeleteFailed'));
+    }
+  };
+
+  const handleBulkPause = async () => {
+    const ids = Array.from(selectedIds);
+    try {
+      await monitorsApi.bulkPause(ids, true);
+      toast.success(t('dashboard.bulkPauseSuccess', { count: ids.length }));
+      clearSelection();
+    } catch {
+      toast.error(t('dashboard.bulkPauseFailed'));
+    }
+  };
+
   const renderBlock = (block: ColumnBlock) => {
     if (block.type === 'ungrouped') {
       return (
@@ -308,10 +337,10 @@ export function DashboardPage() {
           <Button variant="secondary" size="sm" onClick={() => setBulkEditOpen(true)}>
             {t('dashboard.editSelected')}
           </Button>
-          <Button variant="secondary" size="sm">
+          <Button variant="secondary" size="sm" onClick={handleBulkPause}>
             {t('dashboard.pause')}
           </Button>
-          <Button variant="danger" size="sm">
+          <Button variant="danger" size="sm" onClick={handleBulkDelete}>
             {t('dashboard.bulkDelete')}
           </Button>
         </div>

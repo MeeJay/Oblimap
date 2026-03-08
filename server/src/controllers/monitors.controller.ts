@@ -167,6 +167,68 @@ export const monitorsController = {
     }
   },
 
+  async bulkDelete(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { monitorIds } = req.body as { monitorIds: number[] };
+      if (!Array.isArray(monitorIds) || monitorIds.length === 0) {
+        throw new AppError(400, 'monitorIds array is required');
+      }
+
+      const isAdmin = req.session.role === 'admin';
+      if (!isAdmin) {
+        for (const mid of monitorIds) {
+          const canWrite = await permissionService.canWriteMonitor(req.session.userId!, mid, false);
+          if (!canWrite) throw new AppError(403, `No write permission on monitor ${mid}`);
+        }
+      }
+
+      const wm = MonitorWorkerManager.getInstance();
+      for (const id of monitorIds) {
+        await wm.stopMonitor(id);
+        await monitorService.delete(id);
+        emitMonitorEvent(req, SOCKET_EVENTS.MONITOR_DELETED, { monitorId: id });
+      }
+
+      res.json({ success: true, message: `${monitorIds.length} monitor(s) deleted` });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async bulkPause(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { monitorIds, pause } = req.body as { monitorIds: number[]; pause: boolean };
+      if (!Array.isArray(monitorIds) || monitorIds.length === 0) {
+        throw new AppError(400, 'monitorIds array is required');
+      }
+
+      const isAdmin = req.session.role === 'admin';
+      if (!isAdmin) {
+        for (const mid of monitorIds) {
+          const canWrite = await permissionService.canWriteMonitor(req.session.userId!, mid, false);
+          if (!canWrite) throw new AppError(403, `No write permission on monitor ${mid}`);
+        }
+      }
+
+      const wm = MonitorWorkerManager.getInstance();
+      const newStatus = pause ? 'paused' : 'pending';
+
+      for (const id of monitorIds) {
+        await monitorService.updateStatus(id, newStatus);
+        if (pause) {
+          await wm.stopMonitor(id);
+        } else {
+          await wm.restartMonitor(id);
+        }
+        emitMonitorEvent(req, SOCKET_EVENTS.MONITOR_PAUSED, { monitorId: id, isPaused: pause });
+      }
+
+      res.json({ success: true, message: `${monitorIds.length} monitor(s) ${pause ? 'paused' : 'resumed'}` });
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async bulkUpdate(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { monitorIds, changes } = req.body as BulkUpdateInput;
