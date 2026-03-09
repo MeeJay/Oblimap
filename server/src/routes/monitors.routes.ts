@@ -22,15 +22,15 @@ router.get('/:id', monitorsController.getById);
 router.get('/:id/heartbeats', monitorsController.heartbeats);
 router.get('/:id/stats', monitorsController.stats);
 
+// Bulk operations MUST be defined before /:id routes (otherwise /bulk matches /:id first)
+router.patch('/bulk', validate(bulkUpdateSchema), monitorsController.bulkUpdate);
+router.delete('/bulk', monitorsController.bulkDelete);
+router.post('/bulk/pause', monitorsController.bulkPause);
+
 // Write routes (permission-based: admin OR team RW)
 router.post('/', requireCanCreate(), validate(createMonitorSchema), monitorsController.create);
 router.put('/:id', requireMonitorWrite(), validate(updateMonitorSchema), monitorsController.update);
 router.delete('/:id', requireMonitorWrite(), monitorsController.delete);
 router.post('/:id/pause', requireMonitorWrite(), monitorsController.pause);
-
-// Bulk operations (permission checked in controller for each monitor)
-router.patch('/bulk', validate(bulkUpdateSchema), monitorsController.bulkUpdate);
-router.delete('/bulk', monitorsController.bulkDelete);
-router.post('/bulk/pause', monitorsController.bulkPause);
 
 export default router;
