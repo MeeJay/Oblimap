@@ -94,7 +94,7 @@ func setupConfig(urlArg, keyArg string) *Config {
 		cfg = &Config{
 			ServerURL:            strings.TrimRight(urlArg, "/"),
 			APIKey:               keyArg,
-			DeviceUUID:           generateUUID(),
+			DeviceUUID:           resolveDeviceUUID(""),
 			CheckIntervalSeconds: 60,
 			AgentVersion:         agentVersion,
 		}
@@ -113,11 +113,11 @@ func setupConfig(urlArg, keyArg string) *Config {
 		cfg.APIKey = keyArg
 	}
 
-	if cfg.DeviceUUID == "" {
-		cfg.DeviceUUID = generateUUID()
-		_ = saveConfig(cfg)
-		log.Printf("Generated device UUID: %s", cfg.DeviceUUID)
-	}
+	// Always resolve UUID from hardware — this ensures the UUID is stable across
+	// reinstalls and matches the machine UUID used by Obliguard on the same host.
+	// If the hardware UUID changes or is unavailable, fall back to the stored value
+	// (or generate a new random one as last resort).
+	cfg.DeviceUUID = resolveDeviceUUID(cfg.DeviceUUID)
 	if cfg.CheckIntervalSeconds == 0 {
 		cfg.CheckIntervalSeconds = 60
 	}
