@@ -358,12 +358,10 @@ export function GroupManagePage() {
             {form.kind === 'monitor' && (
               <>
                 <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     id="is-general"
                     checked={form.isGeneral}
-                    onChange={(e) => setForm({ ...form, isGeneral: e.target.checked })}
-                    className="h-4 w-4 rounded border-border bg-bg-tertiary text-accent focus:ring-accent"
+                    onCheckedChange={(v) => setForm({ ...form, isGeneral: v })}
                   />
                   <label htmlFor="is-general" className="text-sm text-text-secondary">
                     {t('groups.form.isGeneral')}
@@ -371,12 +369,10 @@ export function GroupManagePage() {
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       id="group-notifications"
                       checked={form.groupNotifications}
-                      onChange={(e) => setForm({ ...form, groupNotifications: e.target.checked })}
-                      className="h-4 w-4 rounded border-border bg-bg-tertiary text-accent focus:ring-accent"
+                      onCheckedChange={(v) => setForm({ ...form, groupNotifications: v })}
                     />
                     <label htmlFor="group-notifications" className="text-sm text-text-secondary">
                       {t('groups.form.groupNotifications')}

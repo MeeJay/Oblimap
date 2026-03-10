@@ -7,6 +7,7 @@ import { smtpServerApi, type CreateSmtpServerRequest } from '@/api/smtpServer.ap
 import { appConfigApi } from '@/api/appConfig.api';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
+import { Checkbox } from '@/components/ui/Checkbox';
 import type { SmtpServer, AppConfig, AgentGlobalConfig, NotificationTypeConfig } from '@obliview/shared';
 import { DEFAULT_AGENT_GLOBAL_CONFIG } from '@obliview/shared';
 import toast from 'react-hot-toast';
@@ -469,11 +470,9 @@ export function SettingsPage() {
                 />
               </div>
               <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer select-none">
-                <input
-                  type="checkbox"
+                <Checkbox
                   checked={smtpForm.secure}
-                  onChange={(e) => setSmtpForm((f) => ({ ...f, secure: e.target.checked }))}
-                  className="rounded border-border"
+                  onCheckedChange={(v) => setSmtpForm((f) => ({ ...f, secure: v }))}
                 />
                 {t('settings.smtp.tlsLabel')}
               </label>

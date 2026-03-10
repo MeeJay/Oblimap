@@ -10,6 +10,7 @@ import { useGroupStore } from '@/store/groupStore';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import { GroupPicker } from '@/components/common/GroupPicker';
+import { Checkbox } from '@/components/ui/Checkbox';
 import toast from 'react-hot-toast';
 
 export function MonitorEditPage() {
@@ -283,12 +284,10 @@ export function MonitorEditPage() {
             {(form.url || '').startsWith('https') && (
               <>
                 <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     id="ignore-ssl"
                     checked={form.ignoreSsl || false}
-                    onChange={(e) => updateField('ignoreSsl', e.target.checked)}
-                    className="h-4 w-4 rounded border-border bg-bg-tertiary text-accent focus:ring-accent"
+                    onCheckedChange={(v) => updateField('ignoreSsl', v)}
                   />
                   <label htmlFor="ignore-ssl" className="text-sm text-text-secondary">
                     {t('monitors.form.ignoreSsl')}
@@ -515,12 +514,10 @@ export function MonitorEditPage() {
             />
             {form.browserKeyword && (
               <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
+                <Checkbox
                   id="browser-keyword-absent"
                   checked={form.browserKeywordIsPresent === false}
-                  onChange={(e) => updateField('browserKeywordIsPresent', e.target.checked ? false : true)}
-                  className="h-4 w-4 rounded border-border bg-bg-tertiary text-accent focus:ring-accent"
+                  onCheckedChange={(v) => updateField('browserKeywordIsPresent', v ? false : true)}
                 />
                 <label htmlFor="browser-keyword-absent" className="text-sm text-text-secondary">
                   {t('monitors.form.browserKeywordInverted')}
@@ -636,12 +633,10 @@ export function MonitorEditPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <input
-              type="checkbox"
+            <Checkbox
               id="upside-down"
               checked={form.upsideDown || false}
-              onChange={(e) => updateField('upsideDown', e.target.checked)}
-              className="h-4 w-4 rounded border-border bg-bg-tertiary text-accent focus:ring-accent"
+              onCheckedChange={(v) => updateField('upsideDown', v)}
             />
             <label htmlFor="upside-down" className="text-sm text-text-secondary">
               {t('monitors.form.upsideDown')}

@@ -22,6 +22,7 @@ import { notificationsApi } from '@/api/notifications.api';
 import { smtpServerApi } from '@/api/smtpServer.api';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
+import { Checkbox } from '@/components/ui/Checkbox';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { useTenantStore } from '@/store/tenantStore';
@@ -357,14 +358,10 @@ export function NotificationsPage() {
               if (field.type === 'boolean') {
                 return (
                   <div key={field.key} className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       id={`cfg-${field.key}`}
                       checked={Boolean(formConfig[field.key])}
-                      onChange={(e) =>
-                        setFormConfig({ ...formConfig, [field.key]: e.target.checked })
-                      }
-                      className="h-4 w-4 rounded border-border bg-bg-tertiary text-accent focus:ring-accent"
+                      onCheckedChange={(v) => setFormConfig({ ...formConfig, [field.key]: v })}
                     />
                     <label htmlFor={`cfg-${field.key}`} className="text-sm text-text-secondary">
                       {field.label}
