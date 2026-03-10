@@ -8,21 +8,14 @@ import (
 	"strings"
 )
 
-// readMachineUUID returns the SMBIOS UUID of this Linux machine.
-// Tries /sys/class/dmi/id/product_uuid first (requires root on some distros),
-// then falls back to /etc/machine-id (world-readable, always present on
-// systemd-based systems).
+// readMachineUUID returns a stable unique ID for this Linux machine.
+// Tries /etc/machine-id first (unique per OS instance, survives VM clones
+// that regenerate it on first boot), then falls back to the SMBIOS product
+// UUID (requires root on some distros, identical across cloned VMs).
 // Returns "" if no stable ID can be found.
 func readMachineUUID() string {
-	// Primary: SMBIOS product UUID (identical to what Windows reads via BIOS)
-	if b, err := os.ReadFile("/sys/class/dmi/id/product_uuid"); err == nil {
-		if uuid := normaliseUUID(strings.TrimSpace(string(b))); uuid != "" {
-			return uuid
-		}
-	}
-
-	// Fallback: systemd machine-id (32 hex chars, no dashes)
-	// Format it as a standard UUID so both sides look the same.
+	// Primary: systemd machine-id (32 hex chars, no dashes).
+	// Unique per OS instance — safe across cloned VMs.
 	if b, err := os.ReadFile("/etc/machine-id"); err == nil {
 		id := strings.TrimSpace(string(b))
 		if len(id) == 32 {
@@ -31,6 +24,13 @@ func readMachineUUID() string {
 			if u := normaliseUUID(uuid); u != "" {
 				return u
 			}
+		}
+	}
+
+	// Fallback: SMBIOS product UUID (may require root, identical on cloned VMs).
+	if b, err := os.ReadFile("/sys/class/dmi/id/product_uuid"); err == nil {
+		if uuid := normaliseUUID(strings.TrimSpace(string(b))); uuid != "" {
+			return uuid
 		}
 	}
 
