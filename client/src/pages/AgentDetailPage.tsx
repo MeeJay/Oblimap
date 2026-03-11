@@ -14,6 +14,7 @@ import { AgentDisplayConfigModal } from '../components/agent/AgentDisplayConfigM
 import { NotificationTypesPanel } from '../components/agent/NotificationTypesPanel';
 import { agentApi } from '../api/agent.api';
 import { appConfigApi } from '../api/appConfig.api';
+import { ssoApi } from '../api/sso.api';
 import { monitorsApi } from '../api/monitors.api';
 import type { AgentMetrics, AgentPushSnapshot } from '../types/agent';
 import { getSocket } from '../socket/socketClient';
@@ -2630,17 +2631,36 @@ export function AgentDetailPage() {
               </button>
             )}
             {obliguardUrl && (
-              <a
-                href={obliguardUrl}
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
+                onClick={() => {
+                  // Try SSO switch; fall back to direct link if SSO not enabled
+                  ssoApi.generateSwitchToken()
+                    .then((token) => {
+                      const from = window.location.origin;
+                      try {
+                        const url = new URL(obliguardUrl);
+                        const redirectPath = url.pathname;
+                        const obliguardBase = url.origin;
+                        window.open(
+                          `${obliguardBase}/auth/foreign?token=${encodeURIComponent(token)}&from=${encodeURIComponent(from)}&source=obliview&redirect=${encodeURIComponent(redirectPath)}`,
+                          '_blank', 'noopener,noreferrer',
+                        );
+                      } catch {
+                        window.open(obliguardUrl, '_blank', 'noopener,noreferrer');
+                      }
+                    })
+                    .catch(() => {
+                      window.open(obliguardUrl, '_blank', 'noopener,noreferrer');
+                    });
+                }}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all
                   text-[#a5b4fc] bg-[#1e1b4b]/50 border-[#4338ca]/60
                   hover:text-white hover:bg-[#1e1b4b]/80 hover:border-[#6366f1]"
               >
                 <ArrowLeftRight size={13} />
                 Obliguard
-              </a>
+              </button>
             )}
             <button onClick={() => void loadData()}
               className="p-2 rounded-lg text-text-muted hover:text-text-primary hover:bg-bg-hover transition-colors" title="Refresh">

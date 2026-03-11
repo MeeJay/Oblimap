@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   DndContext,
@@ -38,6 +38,7 @@ import { useUiStore } from '@/store/uiStore';
 import { GroupTree } from '@/components/groups/GroupTree';
 import { agentApi } from '@/api/agent.api';
 import { appConfigApi } from '@/api/appConfig.api';
+import { ssoApi } from '@/api/sso.api';
 import { getSocket } from '@/socket/socketClient';
 import type { AgentDevice, MonitorStatus } from '@obliview/shared';
 import { SOCKET_EVENTS } from '@obliview/shared';
@@ -203,6 +204,7 @@ export function Sidebar() {
   // to be populated in the store — not always reliable).
   const [deviceStatuses, setDeviceStatuses] = useState<Map<number, string>>(new Map());
   const [obliguardUrl, setObliguardUrl] = useState<string | null>(null);
+  const [, startSsoTransition] = useTransition();
 
   const [search, setSearch] = useState('');
 
@@ -430,17 +432,32 @@ export function Sidebar() {
         </Link>
         <div className="flex items-center gap-1">
           {obliguardUrl && (
-            <a
-              href={obliguardUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={() => {
+                startSsoTransition(() => {
+                  ssoApi.generateSwitchToken()
+                    .then((token) => {
+                      const from = window.location.origin;
+                      window.open(
+                        `${obliguardUrl}/auth/foreign?token=${encodeURIComponent(token)}&from=${encodeURIComponent(from)}&source=obliview`,
+                        '_blank',
+                        'noopener,noreferrer',
+                      );
+                    })
+                    .catch(() => {
+                      // SSO not enabled or error — fall back to direct link
+                      window.open(obliguardUrl, '_blank', 'noopener,noreferrer');
+                    });
+                });
+              }}
               className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold border transition-all
                 text-[#a5b4fc] bg-[#1e1b4b]/50 border-[#4338ca]/60
                 hover:text-white hover:bg-[#1e1b4b]/80 hover:border-[#6366f1]"
             >
               <ArrowLeftRight size={12} />
               Obliguard
-            </a>
+            </button>
           )}
           <button
             onClick={toggleSidebarFloating}

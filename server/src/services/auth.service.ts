@@ -6,7 +6,7 @@ import { logger } from '../utils/logger';
 interface UserRow {
   id: number;
   username: string;
-  password_hash: string;
+  password_hash: string | null;
   display_name: string | null;
   role: string;
   is_active: boolean;
@@ -18,9 +18,12 @@ interface UserRow {
   enrollment_version?: number;
   totp_enabled?: boolean;
   email_otp_enabled?: boolean;
+  foreign_source?: string | null;
+  foreign_id?: number | null;
+  foreign_source_url?: string | null;
 }
 
-function rowToUser(row: UserRow): User {
+export function rowToUser(row: UserRow): User {
   return {
     id: row.id,
     username: row.username,
@@ -35,6 +38,10 @@ function rowToUser(row: UserRow): User {
     enrollmentVersion: row.enrollment_version ?? 0,
     totpEnabled: row.totp_enabled ?? false,
     emailOtpEnabled: row.email_otp_enabled ?? false,
+    foreignSource: row.foreign_source ?? null,
+    foreignId: row.foreign_id ?? null,
+    foreignSourceUrl: row.foreign_source_url ?? null,
+    hasPassword: row.password_hash !== null && row.password_hash !== '',
   };
 }
 
@@ -45,6 +52,8 @@ export const authService = {
       .first();
 
     if (!row) return null;
+    // Foreign users with no local password cannot login with password
+    if (!row.password_hash) return null;
 
     const valid = await comparePassword(password, row.password_hash);
     if (!valid) return null;
@@ -76,6 +85,60 @@ export const authService = {
       .returning('*');
 
     return rowToUser(row);
+  },
+
+  /**
+   * Find or create a foreign SSO user.
+   * Returns the user + whether this is their first ever login.
+   */
+  async findOrCreateForeignUser(
+    foreignSource: string,
+    foreignId: number,
+    foreignSourceUrl: string,
+    info: { username: string; email?: string | null },
+  ): Promise<{ user: User; isFirstLogin: boolean }> {
+    // Try to find existing foreign user
+    const existing = await db<UserRow>('users')
+      .where({ foreign_source: foreignSource, foreign_id: foreignId })
+      .first();
+
+    if (existing) {
+      // Sync username/email from source (they may have changed)
+      await db('users').where({ id: existing.id }).update({
+        username: info.username,
+        email: info.email ?? existing.email,
+        foreign_source_url: foreignSourceUrl,
+        updated_at: new Date(),
+      });
+      const updated = await db<UserRow>('users').where({ id: existing.id }).first() as UserRow;
+      return { user: rowToUser(updated), isFirstLogin: false };
+    }
+
+    // Resolve username collision
+    let username = info.username;
+    const collision = await db('users').where({ username }).first();
+    if (collision) {
+      username = `${username}_${foreignSource}`;
+    }
+
+    // Create new foreign user (no password, enrollment pending)
+    const [row] = await db<UserRow>('users')
+      .insert({
+        username,
+        password_hash: null,
+        display_name: info.username,
+        role: 'user',
+        is_active: true,
+        email: info.email ?? null,
+        preferred_language: 'en',
+        enrollment_version: 0,
+        foreign_source: foreignSource,
+        foreign_id: foreignId,
+        foreign_source_url: foreignSourceUrl,
+      })
+      .returning('*');
+
+    return { user: rowToUser(row), isFirstLogin: true };
   },
 
   async ensureDefaultAdmin(username: string, password: string): Promise<void> {

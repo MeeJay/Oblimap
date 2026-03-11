@@ -458,6 +458,32 @@ export function SettingsPage() {
                   </Button>
                 </div>
               </form>
+
+              {/* ── Enable foreign SSO ── */}
+              <div className="border-t border-border mt-2 pt-4 flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <ArrowLeftRight size={15} className="text-text-muted mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-text-primary">Enable cross-app SSO</p>
+                    <p className="text-xs text-text-muted mt-0.5">
+                      Allow users to switch seamlessly between Obliview and Obliguard without re-authenticating.
+                      Foreign users from Obliguard will be created automatically with no permissions (admin assigns manually).
+                    </p>
+                  </div>
+                </div>
+                <button
+                  role="switch"
+                  aria-checked={appConfig?.enable_foreign_sso ?? false}
+                  disabled={configSaving || !appConfig || !obliguardForm.url}
+                  onClick={() => setConfigKey('enable_foreign_sso', !appConfig?.enable_foreign_sso)}
+                  className={cn(
+                    'relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus-visible:outline-none disabled:opacity-50',
+                    appConfig?.enable_foreign_sso ? 'bg-primary' : 'bg-bg-tertiary',
+                  )}
+                >
+                  <span className={cn('pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform', appConfig?.enable_foreign_sso ? 'translate-x-4' : 'translate-x-0')} />
+                </button>
+              </div>
             </div>
           </div>
 

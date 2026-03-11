@@ -38,6 +38,12 @@ export interface User {
   enrollmentVersion: number;
   totpEnabled?: boolean;
   emailOtpEnabled?: boolean;
+  /** SSO foreign user fields — null for local users */
+  foreignSource?: string | null;
+  foreignId?: number | null;
+  foreignSourceUrl?: string | null;
+  /** True when user has no local password (SSO-only account) */
+  hasPassword?: boolean;
 }
 
 export interface UserWithPassword extends User {
@@ -415,6 +421,8 @@ export interface AppConfig {
   otp_smtp_server_id: number | null;
   /** Obliguard server URL — null when not configured. API key is never exposed via getAll(). */
   obliguard_url: string | null;
+  /** Whether cross-app SSO (foreign user login) is enabled. */
+  enable_foreign_sso: boolean;
 }
 
 /** Obliguard integration config — stored as JSON under key "obliguard_config" in app_config. */
