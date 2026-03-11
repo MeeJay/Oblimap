@@ -434,10 +434,12 @@ export function Sidebar() {
               href={obliguardUrl}
               target="_blank"
               rel="noopener noreferrer"
-              title="Switch to Obliguard"
-              className="p-1.5 rounded transition-colors text-text-muted hover:text-text-primary hover:bg-bg-hover"
+              className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold border transition-all
+                text-[#a5b4fc] bg-[#1e1b4b]/50 border-[#4338ca]/60
+                hover:text-white hover:bg-[#1e1b4b]/80 hover:border-[#6366f1]"
             >
-              <ArrowLeftRight size={15} />
+              <ArrowLeftRight size={12} />
+              Obliguard
             </a>
           )}
           <button
