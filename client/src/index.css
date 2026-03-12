@@ -60,7 +60,7 @@
   --c-text-secondary:        120 153 184;
   --c-text-muted:            74 106 136;
 
-  --c-status-up:             0 255 136;
+  --c-status-up:             0 195 95;
   --c-status-up-bg:          0 26 16;
   --c-status-down:           255 56 96;
   --c-status-down-bg:        42 0 16;
@@ -178,7 +178,7 @@
 /* ── Card status borders + glows — driven by [data-status] attribute ────────── */
 /* "up" = clean green border only — no outer glow (most cards are up, avoid fog effect) */
 [data-theme="neon"] [data-status="up"] {
-  border-color: rgb(0 255 136 / 0.5) !important;
+  border-color: rgb(0 195 95 / 0.45) !important;
 }
 /* Problem states: tight neon glow so they stand out clearly */
 [data-theme="neon"] [data-status="down"] {
@@ -204,9 +204,7 @@
 }
 
 /* ── Left-border status glow on monitor cards (list view) ───────────────────── */
-[data-theme="neon"] .border-l-status-up {
-  box-shadow: -4px 0 14px rgb(var(--c-status-up) / 0.55);
-}
+/* border-l-status-up: no outer glow — the green left border itself is sufficient */
 [data-theme="neon"] .border-l-status-down {
   box-shadow: -4px 0 14px rgb(var(--c-status-down) / 0.55);
 }

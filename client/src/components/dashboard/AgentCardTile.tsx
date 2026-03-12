@@ -31,10 +31,13 @@ interface AgentSnapshot {
 }
 
 function parseAgentSnapshot(heartbeats: Heartbeat[]): AgentSnapshot | null {
-  const last = heartbeats[heartbeats.length - 1];
-  if (!last?.value) return null;
-  try { return JSON.parse(last.value) as AgentSnapshot; }
-  catch { return null; }
+  // Scan backwards — synthetic offline-detection heartbeats have no value field
+  for (let i = heartbeats.length - 1; i >= 0; i--) {
+    if (!heartbeats[i]?.value) continue;
+    try { return JSON.parse(heartbeats[i].value!) as AgentSnapshot; }
+    catch { continue; }
+  }
+  return null;
 }
 
 function fmtBps(bps: number): string {
