@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import type { Monitor, Heartbeat } from '@obliview/shared';
+import type { Monitor, Heartbeat, AgentThresholds } from '@obliview/shared';
 import { cn } from '@/utils/cn';
 
 interface AgentCardTileProps {
@@ -7,67 +7,128 @@ interface AgentCardTileProps {
   heartbeats: Heartbeat[];
 }
 
+interface GpuInfo {
+  model?: string;
+  utilizationPct?: number;
+  vramUsedMb?: number;
+  vramTotalMb?: number;
+  tempCelsius?: number;
+  engines?: Array<{ label: string; pct: number }>;
+}
+
+/** Shape of the JSON stored in heartbeat.value for agent monitors */
 interface AgentSnapshot {
   cpu?: number;
   memory?: number;
   disks?: Array<{ mount: string; percent: number }>;
-  temps?: Record<string, number>;
+  netIn?: number;   // bytes/sec (top-level, stored by agent.service)
+  netOut?: number;  // bytes/sec
+  loadAvg?: number;
+  _full?: {         // raw AgentMetrics.metrics object
+    gpus?: GpuInfo[];
+    temps?: Array<{ label?: string; celsius?: number }> | Record<string, number>;
+  };
 }
 
-/** Parse the latest heartbeat value as agent metrics */
 function parseAgentSnapshot(heartbeats: Heartbeat[]): AgentSnapshot | null {
   const last = heartbeats[heartbeats.length - 1];
   if (!last?.value) return null;
-  try {
-    return JSON.parse(last.value) as AgentSnapshot;
-  } catch { return null; }
+  try { return JSON.parse(last.value) as AgentSnapshot; }
+  catch { return null; }
 }
 
-/** A colored horizontal progress bar */
-function MetricBar({ label, value, unit = '%', color }: {
-  label: string;
-  value: number | undefined;
-  unit?: string;
-  color: string;
-}) {
-  const pct = value !== undefined ? Math.min(100, Math.max(0, value)) : 0;
-  const valueColor =
-    pct >= 90 ? 'text-status-down'
-    : pct >= 75 ? 'text-status-pending'
-    : 'text-text-secondary';
+function fmtBps(bps: number): string {
+  if (bps >= 1_048_576) return `${(bps / 1_048_576).toFixed(1)} MB/s`;
+  if (bps >= 1_024)     return `${(bps / 1_024).toFixed(0)} KB/s`;
+  return `${bps.toFixed(0)} B/s`;
+}
 
+function fmtMb(mb: number): string {
+  return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${Math.round(mb)} MB`;
+}
+
+/** Extract primary CPU temp from _full.temps (array or record form) */
+function getPrimaryTemp(
+  temps: Array<{ label?: string; celsius?: number }> | Record<string, number> | undefined,
+): number | undefined {
+  if (!temps) return undefined;
+  if (Array.isArray(temps)) {
+    const found = temps.find((t) => /cpu|package|core/i.test(String(t.label ?? ''))) ?? temps[0];
+    return found?.celsius;
+  }
+  const keys = Object.keys(temps);
+  const key = keys.find((k) => /cpu|package|core/i.test(k)) ?? keys[0];
+  return key ? (temps as Record<string, number>)[key] : undefined;
+}
+
+/** Bar color based on value vs threshold */
+function metricBarColor(value: number, threshold: number | undefined, baseColor: string): string {
+  if (!threshold) return baseColor;
+  if (value >= threshold)        return 'bg-status-down';
+  if (value >= threshold * 0.85) return 'bg-status-pending';
+  return baseColor;
+}
+
+/** Value text color based on value vs threshold */
+function metricTextColor(value: number, threshold: number | undefined): string {
+  if (!threshold) return 'text-text-secondary';
+  if (value >= threshold)        return 'text-status-down';
+  if (value >= threshold * 0.85) return 'text-status-pending';
+  return 'text-text-secondary';
+}
+
+/** Standard metric bar row */
+function MetricRow({
+  label, barPct, barColor, valueStr, valueColor = 'text-text-secondary',
+}: {
+  label: string; barPct: number; barColor: string;
+  valueStr: string; valueColor?: string;
+}) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-xs text-text-muted w-10 shrink-0">{label}</span>
-      <div className="flex-1 h-2 rounded-full bg-bg-tertiary overflow-hidden">
+      <span className="text-xs text-text-muted w-8 shrink-0">{label}</span>
+      <div className="flex-1 h-1.5 rounded-full bg-bg-tertiary overflow-hidden">
         <div
-          className={cn('h-full rounded-full transition-all', color)}
-          style={{ width: `${pct}%` }}
+          className={cn('h-full rounded-full transition-all', barColor)}
+          style={{ width: `${Math.min(100, Math.max(0, barPct))}%` }}
         />
       </div>
-      <span className={cn('text-xs font-mono w-10 text-right shrink-0', valueColor)}>
-        {value !== undefined ? `${value.toFixed(0)}${unit}` : '—'}
+      <span className={cn('text-xs font-mono w-16 text-right shrink-0', valueColor)}>
+        {valueStr}
       </span>
     </div>
   );
 }
 
-/** Find primary CPU temperature from temps map */
-function getPrimaryTemp(temps: Record<string, number> | undefined): number | undefined {
-  if (!temps) return undefined;
-  // Prefer keys containing 'cpu' or 'package'
-  const keys = Object.keys(temps);
-  const cpuKey = keys.find((k) => /cpu|package|core/i.test(k)) ?? keys[0];
-  return cpuKey ? temps[cpuKey] : undefined;
+/** Compact network row (thinner bar, ↓/↑ label) */
+function NetRow({
+  label, barPct, barColor, valueStr, valueColor = 'text-text-secondary',
+}: {
+  label: string; barPct: number; barColor: string;
+  valueStr: string; valueColor?: string;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-text-muted w-3 shrink-0 text-center">{label}</span>
+      <div className="flex-1 h-1 rounded-full bg-bg-tertiary overflow-hidden">
+        <div
+          className={cn('h-full rounded-full transition-all', barColor)}
+          style={{ width: `${Math.min(100, Math.max(0, barPct))}%` }}
+        />
+      </div>
+      <span className={cn('text-xs font-mono w-16 text-right shrink-0', valueColor)}>
+        {valueStr}
+      </span>
+    </div>
+  );
 }
 
-/** Status indicator dot */
 function StatusDot({ status }: { status: string }) {
   const isOnline = status === 'up';
-  const isAlert = status === 'alert';
+  const isAlert  = status === 'alert';
   return (
     <span className={cn(
-      'inline-flex items-center gap-1 text-[11px] font-medium',
+      'inline-flex items-center gap-1 text-[11px] font-medium shrink-0',
       isOnline ? 'text-status-up' : isAlert ? 'text-orange-500' : 'text-status-down',
     )}>
       <span className={cn(
@@ -79,26 +140,58 @@ function StatusDot({ status }: { status: string }) {
   );
 }
 
+// 100 Mbps reference for displaying net bar when no threshold configured
+const NET_REF = 12_500_000;
+
 export function AgentCardTile({ monitor, heartbeats }: AgentCardTileProps) {
-  const snapshot = parseAgentSnapshot(heartbeats);
+  const snapshot   = parseAgentSnapshot(heartbeats);
   const deviceName = monitor.agentDeviceName ?? monitor.name;
-  const linkTo = monitor.agentDeviceId
+  const linkTo     = monitor.agentDeviceId
     ? `/agents/${monitor.agentDeviceId}`
     : `/monitor/${monitor.id}`;
 
-  const cpuTemp = getPrimaryTemp(snapshot?.temps);
+  // ── Thresholds ─────────────────────────────────────────────────────────────
+  const thr = monitor.agentThresholds as AgentThresholds | null | undefined;
+  const cpuThr  = thr?.cpu?.enabled  !== false ? (thr?.cpu?.threshold  ?? 90) : undefined;
+  const memThr  = thr?.memory?.enabled !== false ? (thr?.memory?.threshold  ?? 90) : undefined;
+  const diskThr = thr?.disk?.enabled !== false ? (thr?.disk?.threshold ?? 90) : undefined;
+  const netInThr  = thr?.netIn?.enabled  ? thr.netIn.threshold  : undefined;
+  const netOutThr = thr?.netOut?.enabled ? thr.netOut.threshold : undefined;
+
+  // ── GPU ────────────────────────────────────────────────────────────────────
+  const gpu        = snapshot?._full?.gpus?.[0];
+  const gpuUtil    = gpu?.utilizationPct;
+  const gpuVramPct = (gpu?.vramTotalMb && gpu.vramTotalMb > 0)
+    ? ((gpu.vramUsedMb ?? 0) / gpu.vramTotalMb) * 100
+    : undefined;
+
+  // ── Network ────────────────────────────────────────────────────────────────
+  const netIn  = snapshot?.netIn;
+  const netOut = snapshot?.netOut;
+  const hasNet = netIn !== undefined || netOut !== undefined;
+
+  // ── Disk + Temp ────────────────────────────────────────────────────────────
   const primaryDisk = snapshot?.disks?.[0];
+  const cpuTemp     = getPrimaryTemp(snapshot?._full?.temps);
+  const gpuTempFallback = (cpuTemp === undefined && gpu?.tempCelsius !== undefined)
+    ? gpu.tempCelsius : undefined;
+
+  // ── Alert message ──────────────────────────────────────────────────────────
+  const lastHb = heartbeats[heartbeats.length - 1];
+  const alertMsg = (monitor.status === 'alert' || monitor.status === 'down') &&
+    lastHb?.message && lastHb.message !== 'All metrics OK'
+      ? lastHb.message : null;
 
   return (
     <Link
       to={linkTo}
       data-status={monitor.status}
       className={cn(
-        'flex flex-col rounded-lg border border-border bg-bg-secondary p-3.5 gap-3',
+        'flex flex-col rounded-lg border border-border bg-bg-secondary p-3.5 gap-2.5',
         'hover:bg-bg-hover hover:border-border-light transition-colors',
       )}
     >
-      {/* Header: name + status */}
+      {/* Header */}
       <div className="flex items-start justify-between gap-1 min-w-0">
         <div className="min-w-0">
           <div className="truncate text-sm font-medium text-text-primary leading-tight">
@@ -111,43 +204,106 @@ export function AgentCardTile({ monitor, heartbeats }: AgentCardTileProps) {
         <StatusDot status={monitor.status} />
       </div>
 
-      {/* Metric bars */}
-      <div className="flex flex-col gap-2">
-        <MetricBar
-          label="CPU"
-          value={snapshot?.cpu}
-          color="bg-accent"
-        />
-        <MetricBar
-          label="RAM"
-          value={snapshot?.memory}
-          color="bg-purple-500"
-        />
-        {cpuTemp !== undefined ? (
-          <MetricBar
-            label="Temp"
-            value={cpuTemp}
-            unit="°C"
-            color={cpuTemp >= 85 ? 'bg-status-down' : cpuTemp >= 70 ? 'bg-status-pending' : 'bg-amber-500'}
+      {/* Core metrics: CPU / RAM / GPU / VRAM / Disk / Temp */}
+      <div className="flex flex-col gap-1.5">
+        {snapshot?.cpu !== undefined && (
+          <MetricRow
+            label="CPU"
+            barPct={snapshot.cpu}
+            barColor={metricBarColor(snapshot.cpu, cpuThr, 'bg-accent')}
+            valueStr={`${snapshot.cpu.toFixed(0)}%`}
+            valueColor={metricTextColor(snapshot.cpu, cpuThr)}
           />
-        ) : primaryDisk ? (
-          <MetricBar
+        )}
+        {snapshot?.memory !== undefined && (
+          <MetricRow
+            label="RAM"
+            barPct={snapshot.memory}
+            barColor={metricBarColor(snapshot.memory, memThr, 'bg-purple-500')}
+            valueStr={`${snapshot.memory.toFixed(0)}%`}
+            valueColor={metricTextColor(snapshot.memory, memThr)}
+          />
+        )}
+
+        {gpuUtil !== undefined && (
+          <MetricRow
+            label="GPU"
+            barPct={gpuUtil}
+            barColor={metricBarColor(gpuUtil, 90, 'bg-pink-500')}
+            valueStr={`${gpuUtil.toFixed(0)}%`}
+            valueColor={metricTextColor(gpuUtil, 90)}
+          />
+        )}
+        {gpuVramPct !== undefined && gpu?.vramTotalMb && (
+          <MetricRow
+            label="VRAM"
+            barPct={gpuVramPct}
+            barColor={metricBarColor(gpuVramPct, 90, 'bg-pink-400')}
+            valueStr={fmtMb(gpu.vramUsedMb ?? 0)}
+            valueColor={metricTextColor(gpuVramPct, 90)}
+          />
+        )}
+
+        {primaryDisk && (
+          <MetricRow
             label="Disk"
-            value={primaryDisk.percent}
-            color="bg-emerald-500"
+            barPct={primaryDisk.percent}
+            barColor={metricBarColor(primaryDisk.percent, diskThr, 'bg-emerald-500')}
+            valueStr={`${primaryDisk.percent.toFixed(0)}%`}
+            valueColor={metricTextColor(primaryDisk.percent, diskThr)}
           />
-        ) : null}
+        )}
+
+        {(cpuTemp !== undefined || gpuTempFallback !== undefined) && (() => {
+          const temp  = cpuTemp ?? gpuTempFallback!;
+          const label = cpuTemp !== undefined ? 'Temp' : 'GPU°';
+          return (
+            <MetricRow
+              label={label}
+              barPct={(temp / 120) * 100}
+              barColor={temp >= 90 ? 'bg-status-down' : temp >= 75 ? 'bg-status-pending' : 'bg-amber-500'}
+              valueStr={`${temp.toFixed(0)}°C`}
+              valueColor={temp >= 90 ? 'text-status-down' : temp >= 75 ? 'text-status-pending' : 'text-text-secondary'}
+            />
+          );
+        })()}
       </div>
 
-      {/* Footer: last alert or uptime hint */}
-      {(monitor.status === 'alert' || monitor.status === 'down') &&
-        heartbeats[heartbeats.length - 1]?.message &&
-        heartbeats[heartbeats.length - 1]?.message !== 'All metrics OK' && (
+      {/* Network IN / OUT */}
+      {hasNet && (
+        <div className="flex flex-col gap-1 pt-1.5 border-t border-border/40">
+          {netIn !== undefined && (
+            <NetRow
+              label="↓"
+              barPct={netInThr
+                ? Math.min(100, (netIn / netInThr) * 100)
+                : Math.min(100, (netIn / NET_REF) * 100)}
+              barColor={metricBarColor(netIn, netInThr, 'bg-teal-500')}
+              valueStr={fmtBps(netIn)}
+              valueColor={metricTextColor(netIn, netInThr)}
+            />
+          )}
+          {netOut !== undefined && (
+            <NetRow
+              label="↑"
+              barPct={netOutThr
+                ? Math.min(100, (netOut / netOutThr) * 100)
+                : Math.min(100, (netOut / NET_REF) * 100)}
+              barColor={metricBarColor(netOut, netOutThr, 'bg-cyan-400')}
+              valueStr={fmtBps(netOut)}
+              valueColor={metricTextColor(netOut, netOutThr)}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Alert message */}
+      {alertMsg && (
         <div className={cn(
           'text-[11px] truncate leading-tight',
           monitor.status === 'alert' ? 'text-orange-400' : 'text-status-down',
         )}>
-          {heartbeats[heartbeats.length - 1]?.message}
+          {alertMsg}
         </div>
       )}
     </Link>

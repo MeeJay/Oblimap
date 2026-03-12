@@ -517,6 +517,7 @@ export const agentService = {
         agent_device_id: deviceId,
         agent_thresholds: JSON.stringify(thresholds),
         created_by: approvedBy,
+        tenant_id: device.tenantId,
       });
     } catch (error) {
       logger.error(error, `Failed to create agent monitor for device ${deviceId}`);

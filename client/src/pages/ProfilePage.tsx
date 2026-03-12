@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { User, Save, KeyRound, Bell, CheckCircle2, AlertTriangle, QrCode, Mail, ArrowLeftRight, Palette } from 'lucide-react';
 import { profileApi } from '@/api/profile.api';
 import { ThemePicker } from '@/components/ThemePicker';
-import { applyTheme, type AppTheme } from '@/utils/theme';
+import { applyTheme, loadSavedTheme, type AppTheme } from '@/utils/theme';
 import { appConfigApi } from '@/api/appConfig.api';
 import { twoFactorApi, type TwoFactorStatus } from '@/api/twoFactor.api';
 import { useAuthStore } from '@/store/authStore';
@@ -30,8 +30,8 @@ export function ProfilePage() {
 
   const [savingPrefs, setSavingPrefs] = useState(false);
 
-  // Theme state
-  const [preferredTheme, setPreferredTheme] = useState<AppTheme>('modern');
+  // Theme state — initialise from localStorage so the picker shows the active theme immediately
+  const [preferredTheme, setPreferredTheme] = useState<AppTheme>(loadSavedTheme);
   const [savingTheme, setSavingTheme] = useState(false);
 
   // 2FA state
