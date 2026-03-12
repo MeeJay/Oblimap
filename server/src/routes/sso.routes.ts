@@ -97,8 +97,9 @@ router.post('/generate-token', requireAuth, async (req: Request, res: Response, 
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/validate-token', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    if (!await requireSsoEnabled(res)) return;
-    if (!await requireSsoBearer(req, res)) return;
+    console.log('[sso validate-token] incoming request from', req.ip, '— auth:', req.headers.authorization ? 'present' : 'MISSING');
+    if (!await requireSsoEnabled(res)) { console.log('[sso validate-token] SSO not enabled'); return; }
+    if (!await requireSsoBearer(req, res)) { console.log('[sso validate-token] Bearer auth failed'); return; }
 
     const { token } = req.query as { token?: string };
     if (!token) { res.status(400).json({ success: false, error: 'token is required' }); return; }
@@ -116,14 +117,17 @@ router.get('/validate-token', async (req: Request, res: Response, next: NextFunc
     const user = await authService.getUserById(row.user_id);
     if (!user || !user.isActive) { res.status(404).json({ success: false, error: 'User not found' }); return; }
 
-    // Use { user: { ... } } format — symmetric with Obliguard's validate-token response format.
+    // Use { success, data: { user } } format — matches what Obliguard's exchange expects.
     res.json({
-      user: {
-        id: user.id,
-        username: user.username,
-        displayName: user.displayName ?? null,
-        email: user.email ?? null,
-        role: user.role,
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          username: user.username,
+          displayName: user.displayName ?? null,
+          email: user.email ?? null,
+          role: user.role,
+        },
       },
     });
   } catch (err) {
@@ -202,11 +206,12 @@ router.post('/exchange', async (req: Request, res: Response, next: NextFunction)
     }
 
     const body = await fetchRes.json() as {
-      user?: { id: number; username: string; displayName?: string | null; email?: string | null; role: string };
+      success: boolean;
+      data?: { user: { id: number; username: string; displayName?: string | null; email?: string | null; role: string } };
     };
-    if (!body.user) throw new AppError(401, 'Invalid SSO response');
+    if (!body.success || !body.data?.user) throw new AppError(401, 'Invalid SSO response');
 
-    const { id: foreignId, username, email, role: _role } = body.user;
+    const { id: foreignId, username, email, role: _role } = body.data.user;
 
     // Find or create the local foreign user
     const { user, isFirstLogin } = await authService.findOrCreateForeignUser(
