@@ -119,8 +119,7 @@ function DraggableDeviceItem({
       <Link
         to={`/agents/${device.id}`}
         className={cn(
-          'flex items-center gap-2 rounded-md py-1 text-sm transition-colors',
-          indent ? '' : 'px-2',
+          'flex items-center gap-2 rounded-md py-1 px-2 text-sm transition-colors',
           isActive
             ? 'bg-bg-active text-text-primary'
             : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary',

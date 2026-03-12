@@ -847,7 +847,7 @@ export const agentService = {
     }
 
     // Store heartbeat — include full metrics for DB reconstruction on server restart
-    await heartbeatService.create({
+    const heartbeat = await heartbeatService.create({
       monitorId: monitor.id,
       status: overallStatus,
       message,
@@ -872,6 +872,11 @@ export const agentService = {
 
     // Notify the frontend monitor store so the sidebar badge updates in real-time
     if (_io) {
+      // Push the real metrics heartbeat to the dashboard cards immediately
+      _io.to('role:admin').emit(SOCKET_EVENTS.MONITOR_HEARTBEAT, {
+        monitorId: monitor.id,
+        heartbeat,
+      });
       _io.to('role:admin').emit(SOCKET_EVENTS.MONITOR_STATUS_CHANGE, {
         monitorId: monitor.id,
         newStatus: overallStatus,
