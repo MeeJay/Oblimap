@@ -6,7 +6,7 @@ const isCompiled = __filename.endsWith('.js');
 
 const config: Knex.Config = {
   client: 'pg',
-  connection: process.env.DATABASE_URL || 'postgres://obliview:changeme@localhost:5432/obliview',
+  connection: process.env.DATABASE_URL || 'postgres://oblimap:changeme@localhost:5432/oblimap',
   searchPath: ['public'],
   migrations: {
     directory: isCompiled

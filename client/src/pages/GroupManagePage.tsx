@@ -12,7 +12,7 @@ import {
   type DragStartEvent,
   type DragEndEvent,
 } from '@dnd-kit/core';
-import type { MonitorGroup, GroupTreeNode } from '@obliview/shared';
+import type { MonitorGroup, GroupTreeNode } from '@oblimap/shared';
 import { groupsApi } from '@/api/groups.api';
 import { useGroupStore } from '@/store/groupStore';
 import { Button } from '@/components/common/Button';
@@ -120,9 +120,9 @@ export function GroupManagePage() {
       name: group.name,
       description: group.description || '',
       parentId: group.parentId,
-      isGeneral: group.isGeneral,
-      groupNotifications: group.groupNotifications,
-      kind: group.kind,
+      isGeneral: group.isGeneral ?? false,
+      groupNotifications: group.groupNotifications ?? false,
+      kind: group.kind ?? 'monitor',
     });
     setShowForm(true);
   };

@@ -223,7 +223,7 @@ export function ImportExportPage() {
       const url = URL.createObjectURL(res.data as Blob);
       const a   = document.createElement('a');
       a.href     = url;
-      a.download = `obliview-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.download = `oblimap-export-${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
       toast.success(t('importExport.exported'));
@@ -252,7 +252,7 @@ export function ImportExportPage() {
         setImportSections(new Set(available));
         setImportData(json);
       } catch {
-        toast.error('Invalid export file — expected Obliview JSON export');
+        toast.error('Invalid export file — expected Oblimap JSON export');
         setImportFile(null);
         setImportData(null);
         setAvailableSections([]);
@@ -348,8 +348,8 @@ export function ImportExportPage() {
           {t('importExport.description')}
         </p>
         <a
-          href="/obliview-import-example.json"
-          download="obliview-import-example.json"
+          href="/oblimap-import-example.json"
+          download="oblimap-import-example.json"
           className="mt-2 inline-flex items-center gap-1.5 text-xs text-accent hover:underline"
         >
           <ExternalLink size={11} />

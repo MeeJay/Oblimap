@@ -1,6 +1,35 @@
 import { db } from '../db';
-import type { AppConfig, AgentGlobalConfig, NotificationTypeConfig, ObliguardConfig } from '@obliview/shared';
-import { DEFAULT_NOTIFICATION_TYPES } from '@obliview/shared';
+import type { AppConfig } from '@oblimap/shared';
+
+// Local types for agent config (agent system not in shared for IPAM)
+interface AgentGlobalConfig {
+  checkIntervalSeconds: number | null;
+  heartbeatMonitoring: boolean | null;
+  maxMissedPushes: number | null;
+  notificationTypes: NotificationTypeConfig | null;
+}
+
+interface NotificationTypeConfig {
+  global: boolean;
+  down: boolean;
+  up: boolean;
+  alert: boolean;
+  update: boolean;
+}
+
+interface ObliguardConfig {
+  url?: string;
+  apiKey?: string;
+  ssoSecret?: string;
+}
+
+const DEFAULT_NOTIFICATION_TYPES: NotificationTypeConfig = {
+  global: true,
+  down: true,
+  up: true,
+  alert: true,
+  update: true,
+};
 
 const AGENT_GLOBAL_CONFIG_KEY = 'agent_global_config';
 const OBLIGUARD_CONFIG_KEY = 'obliguard_config';
@@ -35,7 +64,7 @@ export const appConfigService = {
       allow_2fa: map['allow_2fa'] === 'true',
       force_2fa: map['force_2fa'] === 'true',
       otp_smtp_server_id: map['otp_smtp_server_id'] ? parseInt(map['otp_smtp_server_id'], 10) : null,
-      obliguard_url,
+      obliguardUrl: obliguard_url,
       enable_foreign_sso: map['enable_foreign_sso'] === 'true',
     };
   },

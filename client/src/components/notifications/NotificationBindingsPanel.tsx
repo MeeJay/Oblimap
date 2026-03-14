@@ -2,14 +2,14 @@ import { useEffect, useState, useCallback } from 'react';
 import { Bell, BellOff, ArrowDown, Check, Ban } from 'lucide-react';
 import { notificationsApi } from '@/api/notifications.api';
 import { cn } from '@/utils/cn';
-import type { NotificationChannel, OverrideMode } from '@obliview/shared';
+import type { NotificationChannel, OverrideMode } from '@oblimap/shared';
 import toast from 'react-hot-toast';
 
 interface ResolvedBinding {
   channelId: number;
   channelName: string;
   channelType: string;
-  source: 'global' | 'group' | 'monitor' | 'agent';
+  source: 'global' | 'group' | 'site' | 'monitor' | 'agent';
   sourceId: number | null;
   sourceName: string;
   isDirect: boolean;
@@ -17,7 +17,7 @@ interface ResolvedBinding {
 }
 
 interface NotificationBindingsPanelProps {
-  scope: 'group' | 'monitor' | 'agent';
+  scope: 'group' | 'site' | 'agent';
   scopeId: number;
   title?: string;
 }

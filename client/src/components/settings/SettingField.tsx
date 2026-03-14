@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { RotateCcw } from 'lucide-react';
-import type { SettingValue, SettingsScope } from '@obliview/shared';
-import type { SettingsKey, SettingDefinition } from '@obliview/shared';
+import type { SettingValue, SettingsScope } from '@oblimap/shared';
+import type { SettingsKey, SettingDefinition } from '@oblimap/shared';
 import { InheritanceBadge } from './InheritanceBadge';
 
 interface SettingFieldProps {
@@ -23,7 +23,7 @@ export function SettingField({
 }: SettingFieldProps) {
   const hasOverride = overrideValue !== undefined;
   const [isOverriding, setIsOverriding] = useState(hasOverride);
-  const [localValue, setLocalValue] = useState<number>(overrideValue ?? inheritedValue.value);
+  const [localValue, setLocalValue] = useState<number>(overrideValue ?? (inheritedValue.value as number) ?? 0);
   const [saving, setSaving] = useState(false);
 
   const handleToggleOverride = async () => {
@@ -33,14 +33,14 @@ export function SettingField({
       try {
         await onReset(definition.key);
         setIsOverriding(false);
-        setLocalValue(inheritedValue.value);
+        setLocalValue((inheritedValue.value as number) ?? 0);
       } finally {
         setSaving(false);
       }
     } else {
       // Start overriding
       setIsOverriding(true);
-      setLocalValue(inheritedValue.value);
+      setLocalValue((inheritedValue.value as number) ?? 0);
     }
   };
 
@@ -82,7 +82,7 @@ export function SettingField({
       <div className="flex items-center gap-2">
         <input
           type="number"
-          value={isOverriding ? localValue : inheritedValue.value}
+          value={isOverriding ? localValue : ((inheritedValue.value as number) ?? 0)}
           onChange={(e) => setLocalValue(parseInt(e.target.value, 10) || 0)}
           onBlur={handleBlur}
           onKeyDown={(e) => {

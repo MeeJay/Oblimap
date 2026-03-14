@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Settings2, Pencil, Check } from 'lucide-react';
-import type { AgentDisplayConfig } from '@obliview/shared';
+import type { AgentDisplayConfig } from '@oblimap/shared';
 import { prettifySensorLabel } from '../../utils/sensorLabels';
 
 type Section = 'cpu' | 'ram' | 'gpu' | 'drives' | 'network' | 'temps';
@@ -80,13 +80,13 @@ function CpuTab({
 
   const toggleCore = (coreIdx: number, visible: boolean) => {
     const next = visible
-      ? draft.cpu.hiddenCores.filter(c => c !== coreIdx)
+      ? draft.cpu.hiddenCores.filter((c: any) => c !== coreIdx)
       : [...draft.cpu.hiddenCores, coreIdx];
     onChange({ ...draft, cpu: { ...draft.cpu, hiddenCores: next } });
   };
   const toggleHiddenChart = (chartId: string, visible: boolean) => {
     const next = visible
-      ? draft.cpu.hiddenCharts.filter(c => c !== chartId)
+      ? draft.cpu.hiddenCharts.filter((c: any) => c !== chartId)
       : [...draft.cpu.hiddenCharts, chartId];
     onChange({ ...draft, cpu: { ...draft.cpu, hiddenCharts: next } });
   };
@@ -156,7 +156,7 @@ function RamTab({ draft, onChange }: { draft: AgentDisplayConfig; onChange: (d: 
   ];
   const toggleHiddenChart = (chartId: string, visible: boolean) => {
     const next = visible
-      ? draft.ram.hiddenCharts.filter(c => c !== chartId)
+      ? draft.ram.hiddenCharts.filter((c: any) => c !== chartId)
       : [...draft.ram.hiddenCharts, chartId];
     onChange({ ...draft, ram: { ...draft.ram, hiddenCharts: next } });
   };
@@ -195,13 +195,13 @@ function GpuTab({
   ];
   const toggleRow = (rowLabel: string, visible: boolean) => {
     const next = visible
-      ? draft.gpu.hiddenRows.filter(r => r !== rowLabel)
+      ? draft.gpu.hiddenRows.filter((r: any) => r !== rowLabel)
       : [...draft.gpu.hiddenRows, rowLabel];
     onChange({ ...draft, gpu: { ...draft.gpu, hiddenRows: next } });
   };
   const toggleHiddenChart = (chartId: string, visible: boolean) => {
     const next = visible
-      ? draft.gpu.hiddenCharts.filter(c => c !== chartId)
+      ? draft.gpu.hiddenCharts.filter((c: any) => c !== chartId)
       : [...draft.gpu.hiddenCharts, chartId];
     onChange({ ...draft, gpu: { ...draft.gpu, hiddenCharts: next } });
   };
@@ -242,7 +242,7 @@ function DrivesTab({
 
   const toggleMount = (mount: string, visible: boolean) => {
     const next = visible
-      ? draft.drives.hiddenMounts.filter(m => m !== mount)
+      ? draft.drives.hiddenMounts.filter((m: any) => m !== mount)
       : [...draft.drives.hiddenMounts, mount];
     onChange({ ...draft, drives: { ...draft.drives, hiddenMounts: next } });
   };
@@ -341,7 +341,7 @@ function NetworkTab({
 
   const toggleIface = (name: string, visible: boolean) => {
     const next = visible
-      ? draft.network.hiddenInterfaces.filter(i => i !== name)
+      ? draft.network.hiddenInterfaces.filter((i: any) => i !== name)
       : [...draft.network.hiddenInterfaces, name];
     onChange({ ...draft, network: { ...draft.network, hiddenInterfaces: next } });
   };
@@ -444,7 +444,7 @@ function TempsTab({
 
   const toggleTemp = (label: string, visible: boolean) => {
     const next = visible
-      ? draft.temps.hiddenLabels.filter(l => l !== label)
+      ? draft.temps.hiddenLabels.filter((l: any) => l !== label)
       : [...draft.temps.hiddenLabels, label];
     onChange({ ...draft, temps: { ...draft.temps, hiddenLabels: next } });
   };

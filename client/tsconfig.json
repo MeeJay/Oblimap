@@ -19,7 +19,7 @@
     "resolveJsonModule": true,
     "paths": {
       "@/*": ["./src/*"],
-      "@obliview/shared": ["../shared/src"]
+      "@oblimap/shared": ["../shared/src"]
     }
   },
   "include": ["src"],

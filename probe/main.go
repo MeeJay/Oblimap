@@ -1,0 +1,149 @@
+package main
+
+import (
+	"encoding/json"
+	"flag"
+	"fmt"
+	"log"
+	"os"
+	"path/filepath"
+	"runtime"
+	"time"
+)
+
+// ProbeVersion is the current version of the probe binary.
+// This is overridden at build time: -ldflags "-X main.ProbeVersion=1.0.0"
+var ProbeVersion = "1.0.0"
+
+// Config holds the probe configuration persisted to disk.
+type Config struct {
+	ServerURL           string `json:"serverUrl"`
+	APIKey              string `json:"apiKey"`
+	DeviceUUID          string `json:"deviceUuid"`
+	ScanIntervalSeconds int    `json:"scanIntervalSeconds"`
+	BackoffUntil        int64  `json:"backoffUntil"` // unix ms
+}
+
+const defaultScanInterval = 300
+
+var (
+	configPath string
+	cfg        Config
+)
+
+func configDir() string {
+	switch runtime.GOOS {
+	case "windows":
+		d := os.Getenv("ProgramData")
+		if d == "" {
+			d = `C:\ProgramData`
+		}
+		return filepath.Join(d, "OblimapProbe")
+	default:
+		return "/etc/oblimap-probe"
+	}
+}
+
+func loadConfig() {
+	configPath = filepath.Join(configDir(), "config.json")
+	data, err := os.ReadFile(configPath)
+	if err == nil {
+		if err2 := json.Unmarshal(data, &cfg); err2 != nil {
+			log.Printf("WARN: could not parse config: %v", err2)
+		}
+	}
+	if cfg.ScanIntervalSeconds == 0 {
+		cfg.ScanIntervalSeconds = defaultScanInterval
+	}
+}
+
+func saveConfig() {
+	if err := os.MkdirAll(configDir(), 0750); err != nil {
+		log.Printf("WARN: could not create config dir: %v", err)
+		return
+	}
+	data, _ := json.MarshalIndent(cfg, "", "  ")
+	if err := os.WriteFile(configPath, data, 0640); err != nil {
+		log.Printf("WARN: could not save config: %v", err)
+	}
+}
+
+func mainLoop() {
+	// Resolve device UUID
+	if cfg.DeviceUUID == "" {
+		cfg.DeviceUUID = resolveUUID()
+		saveConfig()
+	}
+	log.Printf("Oblimap Probe %s starting (UUID: %s)", ProbeVersion, cfg.DeviceUUID)
+
+	for {
+		// Backoff
+		if cfg.BackoffUntil > 0 && time.Now().UnixMilli() < cfg.BackoffUntil {
+			wait := time.Until(time.UnixMilli(cfg.BackoffUntil))
+			log.Printf("Backing off for %v", wait.Round(time.Second))
+			time.Sleep(wait)
+		}
+
+		interval := doPush()
+
+		if interval < 30 {
+			interval = defaultScanInterval
+		}
+		log.Printf("Next scan in %ds", interval)
+		time.Sleep(time.Duration(interval) * time.Second)
+	}
+}
+
+func main() {
+	var (
+		serverURL = flag.String("server", "", "Oblimap server URL (e.g. https://oblimap.example.com)")
+		apiKey    = flag.String("key", "", "API key (from Oblimap admin → Probes → API Keys)")
+		install   = flag.Bool("install", false, "Install as system service")
+		uninstall = flag.Bool("uninstall", false, "Uninstall system service")
+		version   = flag.Bool("version", false, "Print version and exit")
+	)
+	flag.Parse()
+
+	if *version {
+		fmt.Printf("Oblimap Probe v%s (%s/%s)\n", ProbeVersion, runtime.GOOS, runtime.GOARCH)
+		return
+	}
+
+	loadConfig()
+
+	if *serverURL != "" {
+		cfg.ServerURL = *serverURL
+		saveConfig()
+	}
+	if *apiKey != "" {
+		cfg.APIKey = *apiKey
+		saveConfig()
+	}
+
+	if cfg.ServerURL == "" || cfg.APIKey == "" {
+		fmt.Fprintf(os.Stderr, "Error: --server and --key are required on first run.\n")
+		fmt.Fprintf(os.Stderr, "Example: oblimap-probe --server https://oblimap.example.com --key <your-api-key>\n")
+		os.Exit(1)
+	}
+
+	if *install {
+		if err := serviceInstall(); err != nil {
+			fmt.Fprintf(os.Stderr, "Install error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Service installed and started.")
+		return
+	}
+
+	if *uninstall {
+		if err := serviceUninstall(); err != nil {
+			fmt.Fprintf(os.Stderr, "Uninstall error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println("Service uninstalled.")
+		return
+	}
+
+	// Run as service if launched by SCM, else run interactively
+	runAsService(mainLoop)
+}

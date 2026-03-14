@@ -155,7 +155,7 @@ export function AppLayout() {
       {/* Live alert toasts */}
       <LiveAlerts />
 
-      {/* Global Add Agent modal (triggered from sidebar / dashboard) */}
+      {/* Global Add Probe modal (triggered from sidebar / dashboard) */}
       <GlobalAddAgentModal />
     </div>
   );

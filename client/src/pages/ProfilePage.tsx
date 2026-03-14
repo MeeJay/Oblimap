@@ -59,7 +59,7 @@ export function ProfilePage() {
       }
     });
     appConfigApi.getConfig().then((cfg) => {
-      setAllow2fa(cfg.allow_2fa);
+      setAllow2fa(cfg.allow_2fa ?? false);
     }).catch(() => {});
     twoFactorApi.getStatus().then(setTfaStatus).catch(() => {});
   }, []);

@@ -1,5 +1,5 @@
 import { db } from '../db';
-import type { UserTeam, TeamPermission } from '@obliview/shared';
+import type { UserTeam, TeamPermission } from '@oblimap/shared';
 
 interface TeamRow {
   id: number;

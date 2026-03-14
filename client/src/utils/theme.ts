@@ -1,4 +1,4 @@
-import type { AppTheme } from '@obliview/shared';
+import type { AppTheme } from '@oblimap/shared';
 
 export { type AppTheme };
 

@@ -165,7 +165,7 @@
 
     "language": {
       "title": "Choose your language",
-      "subtitle": "Select the language for the Obliview interface."
+      "subtitle": "Select the language for the Oblimap interface."
     },
 
     "profile": {
@@ -909,7 +909,7 @@
     "exported": "Export downloaded",
     "failedExport": "Export failed",
     "importTitle": "Import",
-    "importDesc": "Upload an Obliview export file.",
+    "importDesc": "Upload an Oblimap export file.",
     "dropzone": "Click or drag & drop an export file (.json)",
     "dropzoneActive": "Drop the file here",
     "sectionsFound": "{{count}} section(s) found",
@@ -933,8 +933,8 @@
   },
 
   "download": {
-    "title": "Obliview Desktop",
-    "description": "A lightweight native wrapper for your Obliview instance.\nGet system-level sound notifications and a distraction-free monitoring experience.",
+    "title": "Oblimap Desktop",
+    "description": "A lightweight native wrapper for your Oblimap instance.\nGet system-level sound notifications and a distraction-free monitoring experience.",
     "downloadFolder": "Download folder: ",
     "downloadFolderPlaceholder": "Will ask on first download",
     "changeFolder": "Change",
@@ -949,13 +949,13 @@
     "dmgSubIntel": "Intel (x86_64)",
     "zip": "Zip Archive (.zip)",
     "buildFromSource": "Build from source",
-    "buildFromSourceDesc": "The desktop app lives in the desktop-app/ directory of the Obliview repository.",
+    "buildFromSourceDesc": "The desktop app lives in the desktop-app/ directory of the Oblimap repository.",
     "howItWorks": "How it works",
-    "step1": "On first launch, enter your Obliview server URL. It is saved locally.",
-    "step2": "The app opens your Obliview in a native window — no browser tabs, no address bar.",
+    "step1": "On first launch, enter your Oblimap server URL. It is saved locally.",
+    "step2": "The app opens your Oblimap in a native window — no browser tabs, no address bar.",
     "step3": "Sound notifications play when a probe goes down/up or an agent threshold is breached/cleared.",
     "step4": "Click the ⚙ gear icon (bottom-right corner) to change the server URL at any time.",
-    "step5": "No rebuild is needed after Obliview updates — the app always loads the latest web UI.",
+    "step5": "No rebuild is needed after Oblimap updates — the app always loads the latest web UI.",
     "features": {
       "soundAlerts": "Sound alerts for probe down / recovery",
       "agentAlerts": "Agent threshold notifications",

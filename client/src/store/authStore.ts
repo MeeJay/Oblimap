@@ -1,10 +1,11 @@
 import { create } from 'zustand';
-import type { User, UserPermissions, PermissionLevel } from '@obliview/shared';
+import type { User, UserPermissions, PermissionLevel } from '@oblimap/shared';
 import { authApi, type LoginResult } from '../api/auth.api';
 import { connectSocket, disconnectSocket } from '../socket/socketClient';
 import { useLiveAlertsStore } from './liveAlertsStore';
 import { setLanguage } from '../i18n';
 import { useTenantStore } from './tenantStore';
+import { useGroupStore } from './groupStore';
 import { applyTheme } from '../utils/theme';
 
 function syncPreferencesToStore(user: User) {
@@ -74,6 +75,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           if (currentTenantId != null) {
             useTenantStore.setState({ currentTenantId });
           }
+          // Reload group collapsed state for this user+tenant context
+          useGroupStore.getState().reinitForTenant(fullUser.id, currentTenantId ?? null);
         })
         .catch(() => { /* non-critical — permissions will load on next checkSession */ });
       return result;
@@ -114,6 +117,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (currentTenantId != null) {
         useTenantStore.setState({ currentTenantId });
       }
+      // Reload group collapsed state for this user+tenant context
+      useGroupStore.getState().reinitForTenant(user.id, currentTenantId ?? null);
     } catch {
       set({ user: null, permissions: null, requires2faSetup: false, isInitialized: true });
     }
@@ -144,12 +149,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!permissions) return false;
 
     // Check direct monitor permission
-    const monitorPerm = permissions.permissions[`monitor:${monitorId}`];
+    const monitorPerm = permissions.permissions?.[`monitor:${monitorId}`];
     if (monitorPerm === 'rw') return true;
 
     // Check group permission
     if (groupId !== null) {
-      const groupPerm = permissions.permissions[`group:${groupId}`];
+      const groupPerm = permissions.permissions?.[`group:${groupId}`];
       if (groupPerm === 'rw') return true;
     }
 
@@ -161,7 +166,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!user) return false;
     if (user.role === 'admin') return true;
     if (!permissions) return false;
-    return permissions.permissions[`group:${groupId}`] === 'rw';
+    return permissions.permissions?.[`group:${groupId}`] === 'rw';
   },
 
   getMonitorPermission: (monitorId: number, groupId: number | null) => {
@@ -170,8 +175,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (user.role === 'admin') return 'rw';
     if (!permissions) return null;
 
-    const monitorPerm = permissions.permissions[`monitor:${monitorId}`];
-    const groupPerm = groupId !== null ? permissions.permissions[`group:${groupId}`] : null;
+    const monitorPerm = permissions.permissions?.[`monitor:${monitorId}`];
+    const groupPerm = groupId !== null ? permissions.permissions?.[`group:${groupId}`] : null;
 
     if (monitorPerm === 'rw' || groupPerm === 'rw') return 'rw';
     if (monitorPerm === 'ro' || groupPerm === 'ro') return 'ro';
@@ -183,6 +188,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!user) return null;
     if (user.role === 'admin') return 'rw';
     if (!permissions) return null;
-    return permissions.permissions[`group:${groupId}`] ?? null;
+    return permissions.permissions?.[`group:${groupId}`] ?? null;
   },
 }));

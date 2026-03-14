@@ -1,6 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
 import { groupService } from '../services/group.service';
-import { heartbeatService } from '../services/heartbeat.service';
 import { permissionService } from '../services/permission.service';
 import { teamService } from '../services/team.service';
 import { groupNotificationService } from '../services/groupNotification.service';
@@ -188,78 +187,22 @@ export const groupsController = {
 
   async stats(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const since = new Date();
-      since.setHours(since.getHours() - 24);
-
-      const rawStats = await heartbeatService.getRawStatsPerGroup(since);
-
-      const { db: database } = await import('../db');
-      const closureRows = await database('group_closure')
-        .select('ancestor_id', 'descendant_id');
-
-      const descendantsMap = new Map<number, number[]>();
-      for (const row of closureRows) {
-        if (!descendantsMap.has(row.ancestor_id)) {
-          descendantsMap.set(row.ancestor_id, []);
-        }
-        descendantsMap.get(row.ancestor_id)!.push(row.descendant_id);
-      }
-
-      const isAdmin = req.session.role === 'admin';
-      const visibleIds = await permissionService.getVisibleGroupIds(req.session.userId!, isAdmin);
-
+      // Heartbeat stats not available in IPAM mode — return empty per-group records
       const allGroups = await groupService.getAll(req.tenantId);
       const result: Record<number, { uptimePct: number; total: number; up: number }> = {};
-
       for (const group of allGroups) {
-        // Skip if not visible
-        if (visibleIds !== 'all' && !visibleIds.includes(group.id)) continue;
-
-        const descendants = descendantsMap.get(group.id) || [group.id];
-        let total = 0;
-        let up = 0;
-
-        for (const descId of descendants) {
-          const stats = rawStats.get(descId);
-          if (stats) {
-            total += stats.total;
-            up += stats.up;
-          }
-        }
-
-        result[group.id] = {
-          total,
-          up,
-          uptimePct: total > 0 ? Math.round((up / total) * 10000) / 100 : 100,
-        };
+        result[group.id] = { total: 0, up: 0, uptimePct: 100 };
       }
-
       res.json({ success: true, data: result });
     } catch (err) {
       next(err);
     }
   },
 
-  async clearHeartbeats(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async clearHeartbeats(_req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const groupId = parseInt(req.params.id, 10);
-      const group = await groupService.getById(groupId);
-      if (!group) throw new AppError(404, 'Group not found');
-
-      const { db: database } = await import('../db');
-      const closureRows = await database('group_closure')
-        .where({ ancestor_id: groupId })
-        .select('descendant_id');
-      const groupIds = closureRows.map((r: any) => r.descendant_id);
-
-      const monitorRows = await database('monitors')
-        .whereIn('group_id', groupIds)
-        .select('id');
-      const monitorIds = monitorRows.map((r: any) => r.id);
-
-      const deleted = await heartbeatService.clearForMonitors(monitorIds);
-
-      res.json({ success: true, data: { deleted, monitorCount: monitorIds.length } });
+      // No heartbeats in IPAM mode
+      res.json({ success: true, data: { deleted: 0, monitorCount: 0 } });
     } catch (err) {
       next(err);
     }
@@ -289,39 +232,8 @@ export const groupsController = {
       const groupId = parseInt(req.params.id, 10);
       const group = await groupService.getById(groupId);
       if (!group) throw new AppError(404, 'Group not found');
-
-      // Check read permission
-      const isAdmin = req.session.role === 'admin';
-      if (!isAdmin) {
-        const canRead = await permissionService.canReadGroup(req.session.userId!, groupId, false);
-        if (!canRead) throw new AppError(403, 'Access denied');
-      }
-
-      const { db: database } = await import('../db');
-      const descendants = req.query.descendants === 'true';
-
-      let rows;
-      if (descendants) {
-        const descendantIds = await groupService.getDescendantIds(groupId);
-        rows = await database('monitors')
-          .whereIn('group_id', descendantIds)
-          .orderBy('name');
-      } else {
-        rows = await database('monitors')
-          .where({ group_id: groupId })
-          .orderBy('name');
-      }
-
-      // For non-admin users, further filter to only visible monitors
-      if (!isAdmin) {
-        const visibleMonitorIds = await permissionService.getVisibleMonitorIds(req.session.userId!, false);
-        if (visibleMonitorIds !== 'all') {
-          const visibleSet = new Set(visibleMonitorIds);
-          rows = rows.filter((r: any) => visibleSet.has(r.id));
-        }
-      }
-
-      res.json({ success: true, data: rows });
+      // Monitors not used in IPAM mode — return empty list
+      res.json({ success: true, data: [] });
     } catch (err) {
       next(err);
     }
@@ -330,29 +242,10 @@ export const groupsController = {
   async heartbeats(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const groupId = parseInt(req.params.id, 10);
-      const period = (req.query.period as string) || '24h';
-
       const group = await groupService.getById(groupId);
       if (!group) throw new AppError(404, 'Group not found');
-
-      const isAdmin = req.session.role === 'admin';
-      if (!isAdmin) {
-        const canRead = await permissionService.canReadGroup(req.session.userId!, groupId, false);
-        if (!canRead) throw new AppError(403, 'Access denied');
-      }
-
-      const since = new Date();
-      switch (period) {
-        case '1h': since.setHours(since.getHours() - 1); break;
-        case '24h': since.setHours(since.getHours() - 24); break;
-        case '7d': since.setDate(since.getDate() - 7); break;
-        case '30d': since.setDate(since.getDate() - 30); break;
-        case '365d': since.setDate(since.getDate() - 365); break;
-        default: since.setHours(since.getHours() - 24);
-      }
-
-      const heartbeats = await heartbeatService.getByGroupSince(groupId, since);
-      res.json({ success: true, data: heartbeats });
+      // No heartbeats in IPAM mode
+      res.json({ success: true, data: [] });
     } catch (err) {
       next(err);
     }
@@ -361,29 +254,10 @@ export const groupsController = {
   async groupDetailStats(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const groupId = parseInt(req.params.id, 10);
-      const period = (req.query.period as string) || '24h';
-
       const group = await groupService.getById(groupId);
       if (!group) throw new AppError(404, 'Group not found');
-
-      const isAdmin = req.session.role === 'admin';
-      if (!isAdmin) {
-        const canRead = await permissionService.canReadGroup(req.session.userId!, groupId, false);
-        if (!canRead) throw new AppError(403, 'Access denied');
-      }
-
-      const since = new Date();
-      switch (period) {
-        case '1h': since.setHours(since.getHours() - 1); break;
-        case '24h': since.setHours(since.getHours() - 24); break;
-        case '7d': since.setDate(since.getDate() - 7); break;
-        case '30d': since.setDate(since.getDate() - 30); break;
-        case '365d': since.setDate(since.getDate() - 365); break;
-        default: since.setHours(since.getHours() - 24);
-      }
-
-      const stats = await heartbeatService.getGroupStats(groupId, since);
-      res.json({ success: true, data: stats });
+      // No heartbeat stats in IPAM mode
+      res.json({ success: true, data: { uptimePct: 100, total: 0, up: 0 } });
     } catch (err) {
       next(err);
     }

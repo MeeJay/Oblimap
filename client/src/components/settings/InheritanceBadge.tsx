@@ -1,4 +1,4 @@
-import type { SettingValue } from '@obliview/shared';
+import type { SettingValue } from '@oblimap/shared';
 
 interface InheritanceBadgeProps {
   setting: SettingValue;

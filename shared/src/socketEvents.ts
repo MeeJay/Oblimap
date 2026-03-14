@@ -1,51 +1,41 @@
-// Server → Client events
-export const SOCKET_EVENTS = {
-  // Connection
-  INITIAL_DATA: 'initialData',
+// Socket.io event names for Oblimap
 
-  // Monitor events
-  MONITOR_HEARTBEAT: 'monitor:heartbeat',
-  MONITOR_STATUS_CHANGE: 'monitor:statusChange',
-  MONITOR_CREATED: 'monitor:created',
-  MONITOR_UPDATED: 'monitor:updated',
-  MONITOR_DELETED: 'monitor:deleted',
-  MONITOR_PAUSED: 'monitor:paused',
+export const SOCKET_EVENTS = {
+  // Probe events
+  PROBE_PUSH: 'PROBE_PUSH',                          // probe sent new scan data
+  PROBE_STATUS_CHANGED: 'PROBE_STATUS_CHANGED',       // probe went online/offline
+  PROBE_APPROVED: 'PROBE_APPROVED',                   // probe was approved
+  PROBE_DEVICE_UPDATED: 'PROBE_DEVICE_UPDATED',
+  PROBE_DEVICE_DELETED: 'PROBE_DEVICE_DELETED',
+
+  // Site events
+  SITE_UPDATED: 'SITE_UPDATED',                       // site config changed
+  SITE_DELETED: 'SITE_DELETED',
+
+  // Item events
+  ITEM_STATUS_CHANGED: 'ITEM_STATUS_CHANGED',         // device went online/offline
+  NEW_DEVICE_DISCOVERED: 'NEW_DEVICE_DISCOVERED',     // new device found on network
+  DEVICE_IP_CHANGED: 'DEVICE_IP_CHANGED',             // MAC moved to new IP
+  IP_CONFLICT_DETECTED: 'IP_CONFLICT_DETECTED',       // IP instability alert
 
   // Group events
-  GROUP_CREATED: 'group:created',
-  GROUP_UPDATED: 'group:updated',
-  GROUP_DELETED: 'group:deleted',
-  GROUP_MOVED: 'group:moved',
+  GROUP_CREATED: 'GROUP_CREATED',
+  GROUP_UPDATED: 'GROUP_UPDATED',
+  GROUP_DELETED: 'GROUP_DELETED',
+  GROUP_MOVED: 'GROUP_MOVED',
+
+  // Agent compat aliases
+  AGENT_STATUS_CHANGED: 'PROBE_STATUS_CHANGED',
+  AGENT_DEVICE_UPDATED: 'PROBE_DEVICE_UPDATED',
+  AGENT_DEVICE_DELETED: 'PROBE_DEVICE_DELETED',
 
   // Notification events
-  NOTIFICATION_SENT: 'notification:sent',
+  NOTIFICATION_NEW: 'NOTIFICATION_NEW',               // new live alert
+  NOTIFICATION_READ: 'NOTIFICATION_READ',
 
-  // Settings events
-  SETTINGS_UPDATED: 'settings:updated',
-
-  // Incident events
-  INCIDENT_CREATED: 'incident:created',
-  INCIDENT_RESOLVED: 'incident:resolved',
-
-  // Agent device events
-  AGENT_DEVICE_UPDATED: 'agent:deviceUpdated',
-  /** Real-time UP/ALERT/DOWN/INACTIVE status from agent push or offline watchdog */
-  AGENT_STATUS_CHANGED: 'agent:statusChanged',
-  /** Emitted when a device is auto-deleted (e.g. after successful uninstall command) */
-  AGENT_DEVICE_DELETED: 'agent:deviceDeleted',
-
-  // Maintenance events
-  /** Emitted when a maintenance window is created, updated, or deleted */
-  MAINTENANCE_CHANGED: 'maintenance:changed',
-
-  // Live alert / notification events
-  /** Emitted to tenant:{tenantId}:notifications when a new DB-backed alert is created */
-  NOTIFICATION_NEW: 'notification:new',
+  // System events
+  CONNECT: 'connect',
+  DISCONNECT: 'disconnect',
 } as const;
 
-// Client → Server events
-export const CLIENT_EVENTS = {
-  MONITOR_SUBSCRIBE: 'monitor:subscribe',
-  MONITOR_UNSUBSCRIBE: 'monitor:unsubscribe',
-  MONITOR_REQUEST_HISTORY: 'monitor:requestHistory',
-} as const;
+export type SocketEvent = typeof SOCKET_EVENTS[keyof typeof SOCKET_EVENTS];

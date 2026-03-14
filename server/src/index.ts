@@ -6,10 +6,7 @@ import { db } from './db';
 import { config } from './config';
 import { logger } from './utils/logger';
 import { authService } from './services/auth.service';
-import { MonitorWorkerManager } from './workers/MonitorWorkerManager';
-import { heartbeatService } from './services/heartbeat.service';
-import { setAgentServiceIO, agentService } from './services/agent.service';
-import { maintenanceService } from './services/maintenance.service';
+import { setProbeServiceIO, probeService } from './services/probe.service';
 import { setLiveAlertIO } from './services/liveAlert.service';
 
 async function main() {
@@ -36,58 +33,33 @@ async function main() {
   // Store io instance for later use
   app.set('io', io);
 
-  // Provide io to agent service for real-time push events
-  setAgentServiceIO(io);
+  // Provide io to probe service for real-time push events
+  setProbeServiceIO(io);
   // Provide io to live alert service for real-time notification delivery
   setLiveAlertIO(io);
 
-  // Start maintenance background jobs (cleanup + transition notifications)
-  maintenanceService.startJobs();
-
-  // 6. Start monitor workers
-  const workerManager = MonitorWorkerManager.getInstance(io);
-  await workerManager.startAll();
-
-  // 7. Listen
+  // 6. Listen
   server.listen(config.port, () => {
-    logger.info(`Obliview server listening on port ${config.port}`);
+    logger.info(`Oblimap server listening on port ${config.port}`);
     logger.info(`Environment: ${config.nodeEnv}`);
-    logger.info(`Active monitors: ${workerManager.getRunningCount()}`);
   });
 
-  // 8. Heartbeat retention job — purge heartbeats older than 90 days every 6 hours
-  const RETENTION_DAYS = 90;
-  const RETENTION_INTERVAL_MS = 6 * 60 * 60 * 1000;
-  const retentionTimer = setInterval(async () => {
+  // 7. Probe cleanup job — auto-delete probes whose uninstall command was delivered
+  //    more than 10 minutes ago
+  const PROBE_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+  const probeCleanupTimer = setInterval(async () => {
     try {
-      const deleted = await heartbeatService.purgeOlderThan(RETENTION_DAYS);
-      if (deleted > 0) {
-        logger.info(`Retention: purged ${deleted} heartbeats older than ${RETENTION_DAYS} days`);
-      }
+      await probeService.cleanupUninstalledProbes();
+      await probeService.cleanupStuckUpdating();
     } catch (err) {
-      logger.error(err, 'Retention job failed');
+      logger.error(err, 'Probe cleanup job failed');
     }
-  }, RETENTION_INTERVAL_MS);
+  }, PROBE_CLEANUP_INTERVAL_MS);
 
-  // 9. Agent cleanup job — auto-delete devices whose uninstall command was delivered
-  //    more than 10 minutes ago (they've had enough time to uninstall and stop pushing).
-  const AGENT_CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes
-  const agentCleanupTimer = setInterval(async () => {
-    try {
-      await agentService.cleanupUninstalledDevices();
-      await agentService.cleanupStuckUpdating();
-    } catch (err) {
-      logger.error(err, 'Agent cleanup job failed');
-    }
-  }, AGENT_CLEANUP_INTERVAL_MS);
-
-  // 10. Graceful shutdown
+  // 8. Graceful shutdown
   const shutdown = async (signal: string) => {
     logger.info(`Received ${signal}, shutting down...`);
-    clearInterval(retentionTimer);
-    clearInterval(agentCleanupTimer);
-    maintenanceService.stopJobs();
-    await workerManager.stopAll();
+    clearInterval(probeCleanupTimer);
     server.close();
     await db.destroy();
     process.exit(0);
@@ -98,6 +70,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  logger.fatal(err, 'Failed to start server');
+  logger.fatal(err, 'Failed to start Oblimap server');
   process.exit(1);
 });

@@ -4,7 +4,7 @@ import { X, Download } from 'lucide-react';
 import apiClient from '@/api/client';
 
 // ── Types injected by the Go overlay ─────────────────────────────────────────
-type ObliviewWindow = Window & {
+type OblimapWindow = Window & {
   __obliview_is_native_app?: boolean;
   __obliview_app_version?: string;
 };
@@ -34,7 +34,7 @@ export function DesktopUpdateBanner() {
   const [latestVersion, setLatestVersion] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(false);
 
-  const ow = typeof window !== 'undefined' ? (window as ObliviewWindow) : null;
+  const ow = typeof window !== 'undefined' ? (window as OblimapWindow) : null;
   const isNative = !!ow?.__obliview_is_native_app;
   // Old builds (before version injection was added) won't have this property.
   // Treat them as "0.0.0" so any server version triggers the banner.

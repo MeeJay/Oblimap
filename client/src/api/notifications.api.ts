@@ -7,7 +7,7 @@ import type {
   CreateNotificationChannelRequest,
   UpdateNotificationChannelRequest,
   OverrideMode,
-} from '@obliview/shared';
+} from '@oblimap/shared';
 
 export const notificationsApi = {
   // Plugins
@@ -79,13 +79,13 @@ export const notificationsApi = {
   },
 
   async getResolvedBindings(
-    scope: 'group' | 'monitor' | 'agent',
+    scope: 'group' | 'site' | 'monitor' | 'agent',
     scopeId: number,
   ): Promise<{
     channelId: number;
     channelName: string;
     channelType: string;
-    source: 'global' | 'group' | 'monitor' | 'agent';
+    source: 'global' | 'group' | 'site' | 'monitor' | 'agent';
     sourceId: number | null;
     sourceName: string;
     isDirect: boolean;

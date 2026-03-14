@@ -20,8 +20,8 @@ import {
   Settings2,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { SOCKET_EVENTS } from '@obliview/shared';
-import type { AgentApiKey, AgentDevice, MonitorGroup } from '@obliview/shared';
+import { SOCKET_EVENTS } from '@oblimap/shared';
+import type { AgentApiKey, AgentDevice, MonitorGroup } from '@oblimap/shared';
 import { agentApi } from '@/api/agent.api';
 import { groupsApi } from '@/api/groups.api';
 import { getSocket } from '@/socket/socketClient';
@@ -226,8 +226,8 @@ function EditAgentModal({
 }) {
   const [name, setName] = useState(device.name ?? '');
   const [groupId, setGroupId] = useState<number | null>(device.groupId ?? null);
-  const [heartbeatMonitoring, setHeartbeatMonitoring] = useState(device.heartbeatMonitoring);
-  const [overrideGroupSettings, setOverrideGroupSettings] = useState(device.overrideGroupSettings);
+  const [heartbeatMonitoring, setHeartbeatMonitoring] = useState(device.heartbeatMonitoring ?? false);
+  const [overrideGroupSettings, setOverrideGroupSettings] = useState(device.overrideGroupSettings ?? false);
   const [suspended, setSuspended] = useState(device.status === 'suspended');
   const [saving, setSaving] = useState(false);
 
@@ -369,10 +369,10 @@ function BulkEditAgentModal({
 
   const [groupSelection, setGroupSelection] = useState<GroupSelection>('keep');
   const [heartbeatMonitoring, setHeartbeatMonitoring] = useState<boolean | null>(
-    allSameHeartbeat ? devices[0].heartbeatMonitoring : null,
+    allSameHeartbeat ? (devices[0].heartbeatMonitoring ?? null) : null,
   );
   const [overrideGroupSettings, setOverrideGroupSettings] = useState<boolean | null>(
-    allSameOverride ? devices[0].overrideGroupSettings : null,
+    allSameOverride ? (devices[0].overrideGroupSettings ?? null) : null,
   );
   const [statusAction, setStatusAction] = useState<'no-change' | 'approved' | 'suspended'>('no-change');
   const [saving, setSaving] = useState(false);
@@ -481,7 +481,7 @@ export function AdminAgentPage() {
   const [devices, setDevices] = useState<AgentDevice[]>([]);
   const [groups, setGroups] = useState<MonitorGroup[]>([]);
 
-  const { openAddAgentModal } = useUiStore();
+  const { openAddProbeModal: openAddAgentModal } = useUiStore();
   const [showCreateKey, setShowCreateKey] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
   const [saving, setSaving] = useState(false);

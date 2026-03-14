@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { SETTINGS_KEYS } from '@obliview/shared';
+import { SETTINGS_KEYS } from '@oblimap/shared';
 
 const settingsKeyValues = Object.values(SETTINGS_KEYS) as [string, ...string[]];
 

@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { settingsService } from '../services/settings.service';
-import type { SettingsScope } from '@obliview/shared';
-import type { SettingsKey } from '@obliview/shared';
+import type { SettingsScope } from '@oblimap/shared';
+import type { SettingsKey } from '@oblimap/shared';
 import { AppError } from '../middleware/errorHandler';
 import type { SetSettingInput, SetSettingsBulkInput, DeleteSettingInput } from '../validators/settings.schema';
 

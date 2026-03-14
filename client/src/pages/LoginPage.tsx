@@ -85,8 +85,8 @@ export function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-bg-primary p-4">
       <div className="w-full max-w-sm space-y-8 relative">
         <div className="text-center">
-          <img src="/logo.webp" alt="Obliview" className="mx-auto h-16 w-16 mb-3" />
-          <h1 className="text-3xl font-bold text-text-primary">Obliview</h1>
+          <img src="/logo.webp" alt="Oblimap" className="mx-auto h-16 w-16 mb-3" />
+          <h1 className="text-3xl font-bold text-text-primary">Oblimap</h1>
           <p className="mt-2 text-sm text-text-secondary">{t('login.title')}</p>
         </div>
 

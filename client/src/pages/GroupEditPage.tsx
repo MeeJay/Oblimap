@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, type FormEvent } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, ChevronUp, ChevronDown, FolderTree, Server } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { MonitorGroup, GroupTreeNode } from '@obliview/shared';
+import type { MonitorGroup, GroupTreeNode } from '@oblimap/shared';
 import { groupsApi } from '@/api/groups.api';
 import { useGroupStore } from '@/store/groupStore';
 import { useAuthStore } from '@/store/authStore';
@@ -82,8 +82,8 @@ export function GroupEditPage() {
           setForm({
             name: g.name,
             description: g.description ?? '',
-            isGeneral: g.isGeneral,
-            groupNotifications: g.groupNotifications,
+            isGeneral: g.isGeneral ?? false,
+            groupNotifications: g.groupNotifications ?? false,
           });
         })
         .catch(() => toast.error(t('groups.failedUpdate')))
@@ -282,7 +282,7 @@ export function GroupEditPage() {
               tree={tree}
               placeholder={t('groups.form.parentNone')}
               excludeId={groupId}
-              kindFilter={group.kind}
+              kindFilter={group.kind ?? undefined}
             />
             {pendingParentId !== undefined && (
               <div className="flex items-center gap-2 mt-2">

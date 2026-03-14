@@ -7,7 +7,7 @@ import type {
   UpdateTeamRequest,
   SetTeamMembersRequest,
   SetTeamPermissionsRequest,
-} from '@obliview/shared';
+} from '@oblimap/shared';
 
 interface TeamDetail extends UserTeam {
   memberIds: number[];

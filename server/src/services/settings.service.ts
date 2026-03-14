@@ -1,7 +1,7 @@
 import { db } from '../db';
-import type { SettingsScope, ResolvedSettings, SettingValue } from '@obliview/shared';
-import type { SettingsKey } from '@obliview/shared';
-import { SETTINGS_KEYS, HARDCODED_DEFAULTS, SETTINGS_DEFINITIONS } from '@obliview/shared';
+import type { SettingsScope, ResolvedSettings, SettingValue } from '@oblimap/shared';
+import type { SettingsKey } from '@oblimap/shared';
+import { SETTINGS_KEYS, HARDCODED_DEFAULTS, SETTINGS_DEFINITIONS } from '@oblimap/shared';
 
 interface SettingsRow {
   id: number;
@@ -35,20 +35,13 @@ export const settingsService = {
 
   async set(scope: SettingsScope, scopeId: number | null, key: SettingsKey, value: number): Promise<void> {
     // Validate key
-    const def = SETTINGS_DEFINITIONS.find((d) => d.key === key);
+    const def = SETTINGS_DEFINITIONS.find((d: typeof SETTINGS_DEFINITIONS[0]) => d.key === key);
     if (!def) throw new Error(`Unknown setting key: ${key}`);
-    if (value < def.min || value > def.max) {
+    if (def.min !== undefined && value < def.min) {
       throw new Error(`Value for ${key} must be between ${def.min} and ${def.max}`);
     }
-
-    // Admin policy: enforce MIN_CHECK_INTERVAL / MIN_RETRY_INTERVAL env vars
-    const minCheckInterval = Math.max(1, parseInt(process.env.MIN_CHECK_INTERVAL ?? '10', 10));
-    if (key === SETTINGS_KEYS.CHECK_INTERVAL && value < minCheckInterval) {
-      throw new Error(`Check interval must be at least ${minCheckInterval}s (admin policy)`);
-    }
-    const minRetryInterval = Math.max(1, parseInt(process.env.MIN_RETRY_INTERVAL ?? '5', 10));
-    if (key === SETTINGS_KEYS.RETRY_INTERVAL && value < minRetryInterval) {
-      throw new Error(`Retry interval must be at least ${minRetryInterval}s (admin policy)`);
+    if (def.max !== undefined && value > def.max) {
+      throw new Error(`Value for ${key} must be between ${def.min} and ${def.max}`);
     }
 
     await db('settings')
@@ -87,7 +80,7 @@ export const settingsService = {
   async resolveForMonitor(monitorId: number, groupId: number | null): Promise<ResolvedSettings> {
     // 1. Start with hardcoded defaults
     const resolved: ResolvedSettings = {} as ResolvedSettings;
-    const allKeys = Object.values(SETTINGS_KEYS);
+    const allKeys = SETTINGS_KEYS;
 
     for (const key of allKeys) {
       resolved[key] = {
@@ -101,9 +94,9 @@ export const settingsService = {
     // 2. Apply global overrides
     const globalOverrides = await this.getByScope('global', null);
     for (const key of allKeys) {
-      if (globalOverrides[key] !== undefined) {
+      if (globalOverrides[key as string] !== undefined) {
         resolved[key] = {
-          value: globalOverrides[key],
+          value: globalOverrides[key as string],
           source: 'global',
           sourceId: null,
           sourceName: 'Global',
@@ -123,9 +116,9 @@ export const settingsService = {
       for (const ancestor of ancestorRows) {
         const groupOverrides = await this.getByScope('group', ancestor.id);
         for (const key of allKeys) {
-          if (groupOverrides[key] !== undefined) {
+          if (groupOverrides[key as string] !== undefined) {
             resolved[key] = {
-              value: groupOverrides[key],
+              value: groupOverrides[key as string],
               source: 'group',
               sourceId: ancestor.id,
               sourceName: ancestor.name,
@@ -138,9 +131,9 @@ export const settingsService = {
     // 4. Apply monitor-level overrides
     const monitorOverrides = await this.getByScope('monitor', monitorId);
     for (const key of allKeys) {
-      if (monitorOverrides[key] !== undefined) {
+      if (monitorOverrides[key as string] !== undefined) {
         resolved[key] = {
-          value: monitorOverrides[key],
+          value: monitorOverrides[key as string],
           source: 'monitor',
           sourceId: monitorId,
           sourceName: 'This monitor',
@@ -157,7 +150,7 @@ export const settingsService = {
    * Does NOT include the group's own overrides as resolved — returns them separately.
    */
   async resolveForGroup(groupId: number): Promise<{ resolved: ResolvedSettings; overrides: Record<string, number> }> {
-    const allKeys = Object.values(SETTINGS_KEYS);
+    const allKeys = SETTINGS_KEYS;
 
     // 1. Start with hardcoded defaults
     const resolved: ResolvedSettings = {} as ResolvedSettings;
@@ -173,9 +166,9 @@ export const settingsService = {
     // 2. Global
     const globalOverrides = await this.getByScope('global', null);
     for (const key of allKeys) {
-      if (globalOverrides[key] !== undefined) {
+      if (globalOverrides[key as string] !== undefined) {
         resolved[key] = {
-          value: globalOverrides[key],
+          value: globalOverrides[key as string],
           source: 'global',
           sourceId: null,
           sourceName: 'Global',
@@ -194,9 +187,9 @@ export const settingsService = {
     for (const ancestor of ancestorRows) {
       const groupOvr = await this.getByScope('group', ancestor.id);
       for (const key of allKeys) {
-        if (groupOvr[key] !== undefined) {
+        if (groupOvr[key as string] !== undefined) {
           resolved[key] = {
-            value: groupOvr[key],
+            value: groupOvr[key as string],
             source: 'group',
             sourceId: ancestor.id,
             sourceName: ancestor.name,
@@ -215,7 +208,7 @@ export const settingsService = {
    * Resolve for global scope (just hardcoded defaults + global overrides)
    */
   async resolveGlobal(): Promise<{ resolved: ResolvedSettings; overrides: Record<string, number> }> {
-    const allKeys = Object.values(SETTINGS_KEYS);
+    const allKeys = SETTINGS_KEYS;
     const resolved: ResolvedSettings = {} as ResolvedSettings;
 
     for (const key of allKeys) {

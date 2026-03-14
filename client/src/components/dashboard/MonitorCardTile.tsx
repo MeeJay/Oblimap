@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
-import type { Monitor, Heartbeat } from '@obliview/shared';
-import { MONITOR_TYPE_LABELS } from '@obliview/shared';
+import type { Monitor, Heartbeat } from '@oblimap/shared';
+import { MONITOR_TYPE_LABELS } from '@oblimap/shared';
 import { MonitorStatusBadge } from '@/components/monitors/MonitorStatusBadge';
 import { MiniSparkline } from '@/components/monitors/MiniSparkline';
 import { cn } from '@/utils/cn';
@@ -32,10 +32,12 @@ function statusBorderClass(status: string): string {
 
 /** Monitor host/URL display string */
 function hostLabel(monitor: Monitor): string | null {
-  if (monitor.url) {
-    try { return new URL(monitor.url).hostname; } catch { return monitor.url; }
+  const url = monitor.url as string | null | undefined;
+  const hostname = monitor.hostname as string | null | undefined;
+  if (url) {
+    try { return new URL(url).hostname; } catch { return url; }
   }
-  if (monitor.hostname) return monitor.hostname;
+  if (hostname) return hostname;
   return null;
 }
 
@@ -65,7 +67,7 @@ export function MonitorCardTile({ monitor, heartbeats }: MonitorCardTileProps) {
     >
       {/* Top: status + name */}
       <div className="flex items-start gap-2 min-w-0">
-        <MonitorStatusBadge status={monitor.status} size="sm" inMaintenance={monitor.inMaintenance} />
+        <MonitorStatusBadge status={monitor.status} size="sm" inMaintenance={monitor.inMaintenance as boolean | undefined} />
         <div className="flex-1 min-w-0">
           <div className="truncate text-sm font-semibold text-text-primary leading-tight">
             {monitor.name}

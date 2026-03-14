@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { SmtpServer, ApiResponse } from '@obliview/shared';
+import type { SmtpServer, ApiResponse } from '@oblimap/shared';
 
 export interface CreateSmtpServerRequest {
   name: string;

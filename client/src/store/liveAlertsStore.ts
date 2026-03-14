@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { LiveAlertData } from '@obliview/shared';
+import type { LiveAlertData } from '@oblimap/shared';
 
 export type AlertSeverity = 'down' | 'up' | 'warning' | 'info';
 

@@ -1,6 +1,6 @@
 import { db } from '../db';
 import nodemailer from 'nodemailer';
-import type { SmtpServer } from '@obliview/shared';
+import type { SmtpServer } from '@oblimap/shared';
 
 interface SmtpServerRow {
   id: number;

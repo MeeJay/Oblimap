@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { ApiResponse } from '@obliview/shared';
+import type { ApiResponse } from '@oblimap/shared';
 
 export interface TwoFactorStatus {
   totpEnabled: boolean;

@@ -183,13 +183,13 @@ export function ForeignAuthPage() {
             <h1 className="text-lg font-semibold text-text-primary">Link your accounts</h1>
             <p className="text-sm text-text-muted">
               An account <span className="font-medium text-text-secondary">{linkUsername}</span> already
-              exists on Obliview. Enter your Obliview password to link it to your {sourceName} identity.
+              exists on Oblimap. Enter your Oblimap password to link it to your {sourceName} identity.
             </p>
           </div>
           <div className="space-y-3">
             <div className="relative">
               <Input
-                label={`Obliview password for "${linkUsername}"`}
+                label={`Oblimap password for "${linkUsername}"`}
                 type={showPw ? 'text' : 'password'}
                 value={linkPassword}
                 onChange={(e) => setLinkPassword(e.target.value)}
@@ -313,7 +313,7 @@ export function ForeignAuthPage() {
           <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[#1e1b4b]/60 border border-[#4338ca]/60">
             <ArrowLeftRight size={22} className="text-[#a5b4fc]" />
           </div>
-          <h1 className="text-lg font-semibold text-text-primary">Welcome to Obliview!</h1>
+          <h1 className="text-lg font-semibold text-text-primary">Welcome to Oblimap!</h1>
           <p className="text-sm text-text-muted">
             You signed in via <span className="font-medium text-text-secondary">{sourceName}</span>.
             Set a local password to also log in directly — or skip for now.

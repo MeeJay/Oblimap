@@ -9,7 +9,7 @@ import type {
   Monitor,
   AgentThresholds,
   AgentGroupConfig,
-} from '@obliview/shared';
+} from '@oblimap/shared';
 
 export const groupsApi = {
   async list(): Promise<MonitorGroup[]> {

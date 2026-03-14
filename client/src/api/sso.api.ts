@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { User, ApiResponse } from '@obliview/shared';
+import type { User, ApiResponse } from '@oblimap/shared';
 
 export const ssoApi = {
   /**

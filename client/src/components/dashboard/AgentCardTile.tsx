@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import type { Monitor, Heartbeat, AgentThresholds } from '@obliview/shared';
+import type { Monitor, Heartbeat, AgentThresholds } from '@oblimap/shared';
 import { cn } from '@/utils/cn';
 
 interface AgentCardTileProps {
@@ -148,9 +148,9 @@ const NET_REF = 12_500_000;
 
 export function AgentCardTile({ monitor, heartbeats }: AgentCardTileProps) {
   const snapshot   = parseAgentSnapshot(heartbeats);
-  const deviceName = monitor.agentDeviceName ?? monitor.name;
+  const deviceName = (monitor.agentDeviceName as string | null | undefined) ?? monitor.name;
   const linkTo     = monitor.agentDeviceId
-    ? `/agents/${monitor.agentDeviceId}`
+    ? `/agents/${monitor.agentDeviceId as number}`
     : `/monitor/${monitor.id}`;
 
   // ── Thresholds ─────────────────────────────────────────────────────────────
@@ -183,7 +183,7 @@ export function AgentCardTile({ monitor, heartbeats }: AgentCardTileProps) {
   const lastHb = heartbeats[heartbeats.length - 1];
   const alertMsg = (monitor.status === 'alert' || monitor.status === 'down') &&
     lastHb?.message && lastHb.message !== 'All metrics OK'
-      ? lastHb.message : null;
+      ? (lastHb.message as string) : null;
 
   return (
     <Link

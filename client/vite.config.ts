@@ -15,18 +15,18 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '@obliview/shared': path.resolve(__dirname, '../shared/src'),
+      '@oblimap/shared': path.resolve(__dirname, '../shared/src'),
     },
   },
   server: {
-    port: 5173,
+    port: 5174,
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:3002',
         changeOrigin: true,
       },
       '/socket.io': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:3002',
         ws: true,
       },
     },

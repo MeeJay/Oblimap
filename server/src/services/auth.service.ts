@@ -7,7 +7,7 @@ export class AccountLinkRequiredError extends Error {
     super('account_link_required');
   }
 }
-import type { User, UserPreferences } from '@obliview/shared';
+import type { User, UserPreferences } from '@oblimap/shared';
 import { logger } from '../utils/logger';
 
 interface UserRow {

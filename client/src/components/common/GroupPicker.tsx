@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { ChevronRight, ChevronDown, Folder, Search, X } from 'lucide-react';
-import type { GroupTreeNode } from '@obliview/shared';
+import type { GroupTreeNode } from '@oblimap/shared';
 import { cn } from '@/utils/cn';
 
 interface GroupPickerProps {

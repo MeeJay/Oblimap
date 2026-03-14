@@ -8,8 +8,8 @@ import { appConfigApi } from '@/api/appConfig.api';
 import { Button } from '@/components/common/Button';
 import { Input } from '@/components/common/Input';
 import { Checkbox } from '@/components/ui/Checkbox';
-import type { SmtpServer, AppConfig, AgentGlobalConfig, NotificationTypeConfig, ObliguardConfig } from '@obliview/shared';
-import { DEFAULT_AGENT_GLOBAL_CONFIG } from '@obliview/shared';
+import type { SmtpServer, AppConfig, AgentGlobalConfig, NotificationTypeConfig, ObliguardConfig } from '@oblimap/shared';
+import { DEFAULT_AGENT_GLOBAL_CONFIG } from '@oblimap/shared';
 import toast from 'react-hot-toast';
 import { cn } from '@/utils/cn';
 import { useTranslation } from 'react-i18next';
@@ -100,9 +100,9 @@ export function SettingsPage() {
       host: server.host,
       port: String(server.port),
       secure: server.secure,
-      username: server.username,
+      username: server.username ?? '',
       password: '',
-      fromAddress: server.fromAddress,
+      fromAddress: server.fromAddress ?? '',
     });
     setShowPassword(false);
     setSmtpMode('edit');
@@ -247,7 +247,7 @@ export function SettingsPage() {
                 </div>
                 <button
                   role="switch"
-                  aria-checked={agentGlobal?.heartbeatMonitoring ?? DEFAULT_AGENT_GLOBAL_CONFIG.heartbeatMonitoring}
+                  aria-checked={!!(agentGlobal?.heartbeatMonitoring ?? DEFAULT_AGENT_GLOBAL_CONFIG.heartbeatMonitoring)}
                   disabled={!agentGlobal}
                   onClick={async () => {
                     if (!agentGlobal) return;
@@ -287,9 +287,7 @@ export function SettingsPage() {
             {/* Notification Types — global scope, always editable */}
             <div className="mt-4">
               <NotificationTypesPanel
-                config={agentGlobal?.notificationTypes ?? {
-                  global: null, down: null, up: null, alert: null, update: null,
-                }}
+                config={(agentGlobal?.notificationTypes ?? null) as NotificationTypeConfig | null}
                 scope="global"
                 onSave={saveAgentNotifTypes}
               />
@@ -371,7 +369,7 @@ export function SettingsPage() {
             </div>
             <div className="rounded-lg border border-border bg-bg-secondary p-5 space-y-4">
               <p className="text-sm text-text-muted">
-                Link Obliview to an Obliguard instance so agents can be cross-referenced between the two apps.
+                Link Oblimap to an Obliguard instance so agents can be cross-referenced between the two apps.
                 Both apps share the same secret key — generate it here, then paste it into Obliguard's settings.
               </p>
 
@@ -396,9 +394,9 @@ export function SettingsPage() {
                     <input
                       type={showObliguardKey ? 'text' : 'password'}
                       placeholder="Generate or paste a secret"
-                      value={obliguardForm.apiKey}
+                      value={obliguardForm.apiKey ?? ''}
                       onChange={(e) => setObliguardForm((f) => ({ ...f, apiKey: e.target.value }))}
-                      onBlur={() => { if (obliguardForm.apiKey.trim()) void handleObliguardSubmit(); }}
+                      onBlur={() => { if ((obliguardForm.apiKey ?? '').trim()) void handleObliguardSubmit(); }}
                       className="w-full rounded-lg border border-border bg-bg-primary px-3 py-2 pr-8 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-accent/30"
                     />
                     <button
@@ -422,7 +420,7 @@ export function SettingsPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        void navigator.clipboard.writeText(obliguardForm.apiKey);
+                        void navigator.clipboard.writeText(obliguardForm.apiKey ?? '');
                         toast.success('API key copied');
                       }}
                       title="Copy to clipboard"
@@ -433,7 +431,7 @@ export function SettingsPage() {
                   )}
                 </div>
                 <p className="mt-1.5 text-xs text-text-muted">
-                  Use the same secret in Obliguard → Settings → Obliview Integration.
+                  Use the same secret in Obliguard → Settings → Oblimap Integration.
                 </p>
               </div>
 
@@ -444,7 +442,7 @@ export function SettingsPage() {
                   <div>
                     <p className="text-sm font-medium text-text-primary">Enable cross-app SSO</p>
                     <p className="text-xs text-text-muted mt-0.5">
-                      Allow users to switch seamlessly between Obliview and Obliguard without re-authenticating.
+                      Allow users to switch seamlessly between Oblimap and Obliguard without re-authenticating.
                       Foreign users from Obliguard will be created automatically with no permissions (admin assigns manually).
                     </p>
                   </div>

@@ -3,11 +3,10 @@ import type { Knex } from 'knex';
 import { randomUUID } from 'crypto';
 import { db } from '../db';
 import { AppError } from '../middleware/errorHandler';
-import { MonitorWorkerManager } from '../workers/MonitorWorkerManager';
+
 
 type ExportSection =
   | 'monitorGroups'
-  | 'monitors'
   | 'settings'
   | 'notificationChannels'
   | 'agentGroups'
@@ -113,7 +112,7 @@ export const importExportController = {
           'UUIDs are automatically assigned to all records on first export.',
         ].join(' '),
         sections: all
-          ? (['monitorGroups', 'monitors', 'settings', 'notificationChannels', 'agentGroups', 'teams', 'remediationActions', 'remediationBindings'] as ExportSection[])
+          ? (['monitorGroups', 'settings', 'notificationChannels', 'agentGroups', 'teams', 'remediationActions', 'remediationBindings'] as ExportSection[])
           : (requested as ExportSection[]),
       };
 
@@ -150,64 +149,6 @@ export const importExportController = {
           sortOrder:          g.sort_order,
           isGeneral:          g.is_general,
           groupNotifications: g.group_notifications,
-        }));
-      }
-
-      // ── Monitors (exclude agent-type monitors) ───────────────────────────────
-      if (want('monitors')) {
-        const monitors = await db('monitors').where({ tenant_id: tenantId }).whereNot({ type: 'agent' }).orderBy('id');
-        const guMap    = await getGroupUuidMap();
-
-        payload.monitors = monitors.map((m: any) => ({
-          uuid:                       m.uuid,
-          name:                       m.name,
-          description:                m.description,
-          type:                       m.type,
-          groupUuid:                  m.group_id != null ? (guMap.get(m.group_id) ?? null) : null,
-          isActive:                   m.is_active,
-          intervalSeconds:            m.interval_seconds,
-          retryIntervalSeconds:       m.retry_interval_seconds,
-          maxRetries:                 m.max_retries,
-          timeoutMs:                  m.timeout_ms,
-          upsideDown:                 m.upside_down,
-          url:                        m.url,
-          method:                     m.method,
-          headers:                    m.headers,
-          body:                       m.body,
-          expectedStatusCodes:        m.expected_status_codes,
-          keyword:                    m.keyword,
-          keywordIsPresent:           m.keyword_is_present,
-          ignoreSsl:                  m.ignore_ssl,
-          jsonPath:                   m.json_path,
-          jsonExpectedValue:          m.json_expected_value,
-          hostname:                   m.hostname,
-          port:                       m.port,
-          dnsRecordType:              m.dns_record_type,
-          dnsResolver:                m.dns_resolver,
-          dnsExpectedValue:           m.dns_expected_value,
-          sslWarnDays:                m.ssl_warn_days,
-          smtpHost:                   m.smtp_host,
-          smtpPort:                   m.smtp_port,
-          dockerHost:                 m.docker_host,
-          dockerContainerName:        m.docker_container_name,
-          gameType:                   m.game_type,
-          gameHost:                   m.game_host,
-          gamePort:                   m.game_port,
-          pushToken:                  m.push_token,
-          pushMaxIntervalSec:         m.push_max_interval_sec,
-          scriptCommand:              m.script_command,
-          scriptExpectedExit:         m.script_expected_exit,
-          browserUrl:                 m.browser_url,
-          browserKeyword:             m.browser_keyword,
-          browserKeywordIsPresent:    m.browser_keyword_is_present,
-          browserWaitForSelector:     m.browser_wait_for_selector,
-          browserScreenshotOnFailure: m.browser_screenshot_on_failure,
-          valueWatcherUrl:            m.value_watcher_url,
-          valueWatcherJsonPath:       m.value_watcher_json_path,
-          valueWatcherOperator:       m.value_watcher_operator,
-          valueWatcherThreshold:      m.value_watcher_threshold,
-          valueWatcherThresholdMax:   m.value_watcher_threshold_max,
-          valueWatcherHeaders:        m.value_watcher_headers,
         }));
       }
 
@@ -403,9 +344,6 @@ export const importExportController = {
       type SectionResult = { created: number; updated: number; skipped: number };
       const results: Record<string, SectionResult> = {};
 
-      // Track monitor IDs touched by this import so we can start/restart their workers after commit
-      const importedMonitorIds = new Set<number>();
-
       await db.transaction(async (trx) => {
 
         // ── Pre-populate UUID → DB id maps (scoped to current tenant) ─────────
@@ -578,100 +516,6 @@ export const importExportController = {
             }
           }
           results.monitorGroups = { created, updated, skipped };
-        }
-
-        // ── Monitors ─────────────────────────────────────────────────────────
-        if (want('monitors') && Array.isArray(data.monitors)) {
-          let created = 0, updated = 0, skipped = 0;
-
-          for (const m of data.monitors as Record<string, unknown>[]) {
-            if (!m.name || !m.type) { skipped++; continue; }
-
-            const decision = resolveConflict(m.uuid as string | undefined, monitorIdByUuid, foreignMonitorUuids);
-            const groupId  = resolveGroup(m.groupUuid as string | null | undefined);
-
-            if (decision.action === 'skip') { skipped++; continue; }
-
-            // Resolve push_token conflict: null it out if another monitor owns this token
-            let pushToken: string | null = (m.pushToken as string | null) ?? null;
-            if (pushToken) {
-              const conflict = await trx('monitors')
-                .where({ push_token: pushToken })
-                .whereNot({ uuid: decision.uuid })
-                .first();
-              if (conflict) pushToken = null;
-            }
-
-            const row: Record<string, unknown> = {
-              name:                       m.name,
-              description:                (m.description as string | null) ?? null,
-              type:                       m.type,
-              group_id:                   groupId,
-              is_active:                  (m.isActive as boolean) ?? true,
-              status:                     'pending',
-              interval_seconds:           (m.intervalSeconds as number | null) ?? null,
-              retry_interval_seconds:     (m.retryIntervalSeconds as number | null) ?? null,
-              max_retries:                (m.maxRetries as number | null) ?? null,
-              timeout_ms:                 (m.timeoutMs as number | null) ?? null,
-              upside_down:                (m.upsideDown as boolean) ?? false,
-              url:                        (m.url as string | null) ?? null,
-              method:                     (m.method as string | null) ?? null,
-              headers:                    m.headers ? JSON.stringify(m.headers) : null,
-              body:                       (m.body as string | null) ?? null,
-              expected_status_codes:      (m.expectedStatusCodes as number[] | null) ?? null,
-              keyword:                    (m.keyword as string | null) ?? null,
-              keyword_is_present:         (m.keywordIsPresent as boolean | null) ?? null,
-              ignore_ssl:                 (m.ignoreSsl as boolean) ?? false,
-              json_path:                  (m.jsonPath as string | null) ?? null,
-              json_expected_value:        (m.jsonExpectedValue as string | null) ?? null,
-              hostname:                   (m.hostname as string | null) ?? null,
-              port:                       (m.port as number | null) ?? null,
-              dns_record_type:            (m.dnsRecordType as string | null) ?? null,
-              dns_resolver:               (m.dnsResolver as string | null) ?? null,
-              dns_expected_value:         (m.dnsExpectedValue as string | null) ?? null,
-              ssl_warn_days:              (m.sslWarnDays as number | null) ?? null,
-              smtp_host:                  (m.smtpHost as string | null) ?? null,
-              smtp_port:                  (m.smtpPort as number | null) ?? null,
-              docker_host:                (m.dockerHost as string | null) ?? null,
-              docker_container_name:      (m.dockerContainerName as string | null) ?? null,
-              game_type:                  (m.gameType as string | null) ?? null,
-              game_host:                  (m.gameHost as string | null) ?? null,
-              game_port:                  (m.gamePort as number | null) ?? null,
-              push_token:                 pushToken,
-              push_max_interval_sec:      (m.pushMaxIntervalSec as number | null) ?? null,
-              script_command:             (m.scriptCommand as string | null) ?? null,
-              script_expected_exit:       (m.scriptExpectedExit as number | null) ?? null,
-              browser_url:                (m.browserUrl as string | null) ?? null,
-              browser_keyword:            (m.browserKeyword as string | null) ?? null,
-              browser_keyword_is_present: (m.browserKeywordIsPresent as boolean | null) ?? null,
-              browser_wait_for_selector:  (m.browserWaitForSelector as string | null) ?? null,
-              browser_screenshot_on_failure: (m.browserScreenshotOnFailure as boolean) ?? false,
-              value_watcher_url:          (m.valueWatcherUrl as string | null) ?? null,
-              value_watcher_json_path:    (m.valueWatcherJsonPath as string | null) ?? null,
-              value_watcher_operator:     (m.valueWatcherOperator as string | null) ?? null,
-              value_watcher_threshold:    (m.valueWatcherThreshold as number | null) ?? null,
-              value_watcher_threshold_max:(m.valueWatcherThresholdMax as number | null) ?? null,
-              value_watcher_headers:      m.valueWatcherHeaders ? JSON.stringify(m.valueWatcherHeaders) : null,
-              tenant_id:                  tenantId,
-              updated_at:                 new Date(),
-            };
-
-            if (decision.action === 'update') {
-              await trx('monitors').where({ uuid: decision.uuid, tenant_id: tenantId }).update(row);
-              // Resolve existing DB id to restart the worker after commit
-              const existingId = decision.existingId ?? monitorIdByUuid.get(decision.uuid);
-              if (existingId) importedMonitorIds.add(existingId);
-              updated++;
-            } else {
-              const [inserted] = await trx('monitors').insert({ ...row, uuid: decision.uuid }).returning('id');
-              // Map original UUID to new DB id so settings/bindings can resolve it
-              if (m.uuid) monitorIdByUuid.set(m.uuid as string, inserted.id);
-              monitorIdByUuid.set(decision.uuid, inserted.id);
-              importedMonitorIds.add(inserted.id);
-              created++;
-            }
-          }
-          results.monitors = { created, updated, skipped };
         }
 
         // ── Settings ─────────────────────────────────────────────────────────
@@ -1004,13 +848,6 @@ export const importExportController = {
         }
 
       }); // end transaction
-
-      // Start/restart workers for all imported monitors (fire-and-don't-block response)
-      if (importedMonitorIds.size > 0) {
-        MonitorWorkerManager.getInstance()
-          .restartMonitors([...importedMonitorIds])
-          .catch((err) => console.error('[Import] Failed to restart monitor workers:', err));
-      }
 
       res.json({ success: true, data: results });
     } catch (err) {

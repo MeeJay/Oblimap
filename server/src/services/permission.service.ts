@@ -1,5 +1,5 @@
 import { db } from '../db';
-import type { PermissionLevel, UserPermissions } from '@obliview/shared';
+import type { PermissionLevel, UserPermissions } from '@oblimap/shared';
 
 export const permissionService = {
   /**

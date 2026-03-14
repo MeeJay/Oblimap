@@ -1,6 +1,23 @@
 import { db } from '../db';
-import type { NotificationChannel, NotificationBinding, NotificationTypeConfig, OverrideMode } from '@obliview/shared';
-import { DEFAULT_NOTIFICATION_TYPES } from '@obliview/shared';
+import type { NotificationChannel, NotificationBinding, NotificationOverrideMode } from '@oblimap/shared';
+
+type OverrideMode = NotificationOverrideMode;
+
+interface NotificationTypeConfig {
+  global?: boolean | null;
+  down?: boolean | null;
+  up?: boolean | null;
+  alert?: boolean | null;
+  update?: boolean | null;
+}
+
+const DEFAULT_NOTIFICATION_TYPES = {
+  global: true,
+  down: true,
+  up: true,
+  alert: true,
+  update: true,
+};
 import type { NotificationPayload } from '../notifications/types';
 import { getPlugin } from '../notifications/registry';
 import { smtpServerService } from './smtpServer.service';

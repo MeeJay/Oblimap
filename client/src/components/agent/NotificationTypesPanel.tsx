@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { RotateCcw, Bell } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/utils/cn';
-import type { NotificationTypeConfig } from '@obliview/shared';
-import { DEFAULT_NOTIFICATION_TYPES } from '@obliview/shared';
+import type { NotificationTypeConfig } from '@oblimap/shared';
+import { DEFAULT_NOTIFICATION_TYPES } from '@oblimap/shared';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Toggle switch helper
@@ -99,9 +99,9 @@ export function NotificationTypesPanel({
   const effectiveValue = (key: keyof NotificationTypeConfig): boolean => {
     if (isGlobal) {
       // At global scope, config has all fields populated
-      return (config?.[key] as boolean | null) ?? DEFAULT_NOTIFICATION_TYPES[key];
+      return (config?.[key] as boolean | null) ?? DEFAULT_NOTIFICATION_TYPES[key] ?? false;
     }
-    return draft?.[key] ?? DEFAULT_NOTIFICATION_TYPES[key];
+    return draft?.[key] ?? DEFAULT_NOTIFICATION_TYPES[key] ?? false;
   };
 
   const doSave = async (newDraft: NotificationTypeConfig | null, key: keyof NotificationTypeConfig) => {
@@ -141,11 +141,11 @@ export function NotificationTypesPanel({
     if (isGlobal) {
       // At global scope, operate directly on config with all fields always set
       const base: NotificationTypeConfig = config ?? {
-        global: DEFAULT_NOTIFICATION_TYPES.global,
-        down: DEFAULT_NOTIFICATION_TYPES.down,
-        up: DEFAULT_NOTIFICATION_TYPES.up,
-        alert: DEFAULT_NOTIFICATION_TYPES.alert,
-        update: DEFAULT_NOTIFICATION_TYPES.update,
+        global: DEFAULT_NOTIFICATION_TYPES.global ?? null,
+        down: DEFAULT_NOTIFICATION_TYPES.down ?? null,
+        up: DEFAULT_NOTIFICATION_TYPES.up ?? null,
+        alert: DEFAULT_NOTIFICATION_TYPES.alert ?? null,
+        update: DEFAULT_NOTIFICATION_TYPES.update ?? null,
       };
       const newDraft: NotificationTypeConfig = { ...base, [key]: value };
       await doSave(newDraft, key);

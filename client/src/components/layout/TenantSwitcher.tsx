@@ -3,7 +3,6 @@ import { ChevronDown, Building2, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useTenantStore } from '@/store/tenantStore';
 import { useGroupStore } from '@/store/groupStore';
-import { useMonitorStore } from '@/store/monitorStore';
 import { disconnectSocket, connectSocket } from '@/socket/socketClient';
 import { useAuthStore } from '@/store/authStore';
 import { cn } from '@/utils/cn';
@@ -49,11 +48,8 @@ export function TenantSwitcher() {
     try {
       await setCurrentTenant(tenantId);
 
-      // Reload all tenant-scoped data in parallel
-      await Promise.all([
-        useMonitorStore.getState().fetchMonitors(),
-        useGroupStore.getState().fetchTree(),
-      ]);
+      // Reload all tenant-scoped data
+      await useGroupStore.getState().fetchTree();
 
       // Reconnect socket with new tenantId
       if (user) {

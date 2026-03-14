@@ -1,20 +1,9 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ChevronRight, Folder, FolderOpen } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
-import type { GroupTreeNode } from '@obliview/shared';
+import type { GroupTreeNode } from '@oblimap/shared';
 import { cn } from '@/utils/cn';
-import { useMonitorStore } from '@/store/monitorStore';
 import { useGroupStore } from '@/store/groupStore';
-import { DraggableMonitor } from './GroupTree';
-
-/** Collect all group IDs in a subtree (including self) */
-function collectGroupIds(node: GroupTreeNode): number[] {
-  const ids = [node.id];
-  for (const child of node.children) {
-    ids.push(...collectGroupIds(child));
-  }
-  return ids;
-}
 
 interface GroupNodeProps {
   node: GroupTreeNode;
@@ -28,65 +17,26 @@ interface GroupNodeProps {
 export function GroupNode({ node, depth = 0, selectedGroupId, onSelectGroup, dndEnabled = false, searchQuery = '' }: GroupNodeProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { getMonitorsByGroup, getMonitorSummary, getRecentHeartbeats } = useMonitorStore();
   const { getGroupStats, isGroupExpanded, toggleGroupExpanded } = useGroupStore();
   const expanded = isGroupExpanded(node.id);
 
-  const allMonitors = getMonitorsByGroup(node.id);
-
-  // When a search is active, filter monitors and child groups to matching ones only
   const isSearching = searchQuery.length > 0;
 
   const hasMatchingInSubtree = (n: GroupTreeNode): boolean => {
-    if (getMonitorsByGroup(n.id).some(m => m.name.toLowerCase().includes(searchQuery.toLowerCase()))) return true;
+    if (n.name.toLowerCase().includes(searchQuery.toLowerCase())) return true;
     return n.children.some(hasMatchingInSubtree);
   };
-
-  const monitors = isSearching
-    ? allMonitors.filter(m => m.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    : allMonitors;
 
   const visibleChildren = isSearching
     ? node.children.filter(hasMatchingInSubtree)
     : node.children;
 
-  // Force-expand when searching so matched monitors are visible
   const effectiveExpanded = isSearching ? true : expanded;
 
-  const hasContent = node.children.length > 0 || allMonitors.length > 0;
+  const hasContent = node.children.length > 0;
   const isSelected = selectedGroupId === node.id;
   const stats = getGroupStats(node.id);
 
-  // Check if this group (including all descendant groups) contains ONLY value_watcher monitors
-  const allGroupIds = collectGroupIds(node);
-  const allMonitorsInTree = allGroupIds.flatMap((gid) => getMonitorsByGroup(gid));
-  const isValueWatcherOnly = allMonitorsInTree.length > 0 && allMonitorsInTree.every((m) => m.type === 'value_watcher');
-
-  // If value_watcher only, compute total from latest heartbeat values
-  let valueTotal: number | null = null;
-  if (isValueWatcherOnly) {
-    let sum = 0;
-    let hasAny = false;
-    for (const m of allMonitorsInTree) {
-      const hbs = getRecentHeartbeats(m.id);
-      const latest = hbs.length > 0 ? hbs[hbs.length - 1] : null;
-      if (latest?.value != null) {
-        const n = Number(latest.value);
-        if (!isNaN(n)) {
-          sum += n;
-          hasAny = true;
-        }
-      }
-    }
-    if (hasAny) valueTotal = sum;
-  }
-
-  const PROBLEM_STATUSES = new Set(['down', 'alert', 'ssl_expired', 'ssl_warning']);
-  const upCount = monitors.filter((m) => m.status === 'up').length;
-  const downCount = monitors.filter((m) => PROBLEM_STATUSES.has(m.status)).length;
-  const totalCount = monitors.length;
-
-  // Make this group a drop target
   const { setNodeRef, isOver } = useDroppable({
     id: `drop-group-${node.id}`,
     data: { groupId: node.id },
@@ -101,7 +51,6 @@ export function GroupNode({ node, depth = 0, selectedGroupId, onSelectGroup, dnd
         isOver && 'bg-accent/10 ring-1 ring-accent/30',
       )}
     >
-      {/* Group header — split click zones */}
       {(() => {
         const isActive = location.pathname === `/group/${node.id}`;
         return (
@@ -151,36 +100,18 @@ export function GroupNode({ node, depth = 0, selectedGroupId, onSelectGroup, dnd
             >
               <span className="truncate flex-1 text-left">{node.name}</span>
 
-              {/* Value total for value_watcher-only groups, otherwise uptime % */}
-              {isValueWatcherOnly && valueTotal !== null ? (
-                <span className="shrink-0 inline-flex items-center rounded-full bg-accent/10 px-1.5 py-0.5 text-[10px] font-semibold text-accent">
-                  {valueTotal.toLocaleString()}
-                </span>
-              ) : (
-                stats && stats.total > 0 && (
-                  <span
-                    className={cn(
-                      'shrink-0 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
-                      stats.uptimePct >= 99
-                        ? 'bg-status-up-bg text-status-up'
-                        : stats.uptimePct >= 95
-                          ? 'bg-yellow-500/10 text-yellow-500'
-                          : 'bg-status-down-bg text-status-down',
-                    )}
-                  >
-                    {stats.uptimePct}%
-                  </span>
-                )
-              )}
-
-              {totalCount > 0 && (
-                <span className="shrink-0 text-xs text-text-muted">
-                  {downCount > 0 ? (
-                    <span className="text-status-down">{downCount}</span>
-                  ) : (
-                    <span className="text-status-up">{upCount}</span>
+              {stats && stats.total > 0 && (
+                <span
+                  className={cn(
+                    'shrink-0 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
+                    stats.uptimePct >= 99
+                      ? 'bg-status-up-bg text-status-up'
+                      : stats.uptimePct >= 95
+                        ? 'bg-yellow-500/10 text-yellow-500'
+                        : 'bg-status-down-bg text-status-down',
                   )}
-                  /{totalCount}
+                >
+                  {stats.uptimePct}%
                 </span>
               )}
             </button>
@@ -188,10 +119,9 @@ export function GroupNode({ node, depth = 0, selectedGroupId, onSelectGroup, dnd
         );
       })()}
 
-      {/* Children and monitors */}
+      {/* Children */}
       {effectiveExpanded && (
         <div>
-          {/* Child groups */}
           {visibleChildren.map((child) => (
             <GroupNode
               key={child.id}
@@ -201,19 +131,6 @@ export function GroupNode({ node, depth = 0, selectedGroupId, onSelectGroup, dnd
               onSelectGroup={onSelectGroup}
               dndEnabled={dndEnabled}
               searchQuery={searchQuery}
-            />
-          ))}
-
-          {/* Monitors in this group */}
-          {monitors.map((monitor) => (
-            <DraggableMonitor
-              key={monitor.id}
-              monitor={monitor}
-              depth={depth + 1}
-              dndEnabled={dndEnabled}
-              navigate={navigate}
-              location={location}
-              getMonitorSummary={getMonitorSummary}
             />
           ))}
         </div>

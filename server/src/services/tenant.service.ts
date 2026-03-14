@@ -1,5 +1,5 @@
 import { db } from '../db';
-import type { Tenant, TenantWithRole } from '@obliview/shared';
+import type { Tenant, TenantWithRole } from '@oblimap/shared';
 
 interface TenantRow {
   id: number;

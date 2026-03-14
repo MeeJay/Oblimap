@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { User, UserPreferences } from '@obliview/shared';
+import type { User, UserPreferences } from '@oblimap/shared';
 
 export const profileApi = {
   async get(): Promise<User> {

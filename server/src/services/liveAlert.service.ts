@@ -1,6 +1,6 @@
 import type { Server as SocketIOServer } from 'socket.io';
 import { db } from '../db';
-import { SOCKET_EVENTS } from '@obliview/shared';
+import { SOCKET_EVENTS } from '@oblimap/shared';
 
 let _io: SocketIOServer | null = null;
 

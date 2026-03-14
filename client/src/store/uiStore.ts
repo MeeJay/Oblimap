@@ -1,36 +1,23 @@
 import { create } from 'zustand';
 
-export type DashboardLayout = 'list' | 'cards';
-
 interface UiState {
   sidebarOpen: boolean;
   sidebarWidth: number;
   sidebarFloating: boolean;
-  addAgentModalOpen: boolean;
-  dashboardLayout: DashboardLayout;
+  addProbeModalOpen: boolean;
 
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
   setSidebarWidth: (width: number) => void;
   toggleSidebarFloating: () => void;
-  openAddAgentModal: () => void;
-  closeAddAgentModal: () => void;
-  setDashboardLayout: (layout: DashboardLayout) => void;
+  openAddProbeModal: () => void;
+  closeAddProbeModal: () => void;
 }
 
 const MIN_SIDEBAR_WIDTH = 220;
 const MAX_SIDEBAR_WIDTH = 600;
 const STORAGE_KEY_WIDTH    = 'ov-sidebar-width';
 const STORAGE_KEY_FLOATING = 'ov-sidebar-floating';
-const STORAGE_KEY_DASH_LAYOUT = 'ov-dashboard-layout';
-
-function loadSavedDashLayout(): DashboardLayout {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY_DASH_LAYOUT);
-    if (saved === 'cards' || saved === 'list') return saved;
-  } catch { /* ignore */ }
-  return 'list';
-}
 
 function loadSavedWidth(): number {
   try {
@@ -57,17 +44,12 @@ export const useUiStore = create<UiState>((set) => ({
   sidebarOpen: true,
   sidebarWidth: loadSavedWidth(),
   sidebarFloating: loadSavedFloating(),
-  addAgentModalOpen: false,
-  dashboardLayout: loadSavedDashLayout(),
+  addProbeModalOpen: false,
 
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
-  openAddAgentModal: () => set({ addAgentModalOpen: true }),
-  closeAddAgentModal: () => set({ addAgentModalOpen: false }),
-  setDashboardLayout: (layout) => {
-    try { localStorage.setItem(STORAGE_KEY_DASH_LAYOUT, layout); } catch { /* ignore */ }
-    set({ dashboardLayout: layout });
-  },
+  openAddProbeModal: () => set({ addProbeModalOpen: true }),
+  closeAddProbeModal: () => set({ addProbeModalOpen: false }),
   toggleSidebarFloating: () => set((s) => {
     const next = !s.sidebarFloating;
     try { localStorage.setItem(STORAGE_KEY_FLOATING, String(next)); } catch { /* ignore */ }

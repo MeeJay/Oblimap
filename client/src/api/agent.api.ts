@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { AgentApiKey, AgentDevice, AgentDisplayConfig, AgentThresholds, ApiResponse, NotificationTypeConfig } from '@obliview/shared';
+import type { AgentApiKey, AgentDevice, AgentDisplayConfig, AgentThresholds, ApiResponse, NotificationTypeConfig } from '@oblimap/shared';
 import type { AgentPushSnapshot } from '../types/agent';
 
 export const agentApi = {

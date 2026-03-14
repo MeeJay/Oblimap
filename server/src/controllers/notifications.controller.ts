@@ -1,6 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
 import { notificationService } from '../services/notification.service';
-import { monitorService } from '../services/monitor.service';
 import { getPluginMetas } from '../notifications/registry';
 import { AppError } from '../middleware/errorHandler';
 import type {
@@ -186,12 +185,13 @@ export const notificationsController = {
         return;
       }
 
-      // For monitor scope, we need the monitor's groupId for resolution
+      // For monitor scope, look up groupId directly from the DB
       let groupId: number | null = null;
       if (scope === 'monitor') {
-        const monitor = await monitorService.getById(scopeId);
+        const { db } = await import('../db');
+        const monitor = await db('monitors').where({ id: scopeId }).select('group_id').first() as { group_id: number | null } | undefined;
         if (!monitor) throw new AppError(404, 'Monitor not found');
-        groupId = monitor.groupId;
+        groupId = monitor.group_id;
       }
 
       const resolved = await notificationService.resolveBindingsWithSources(scope, scopeId, groupId);

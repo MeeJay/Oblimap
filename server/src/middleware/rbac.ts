@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import type { UserRole } from '@obliview/shared';
+import type { UserRole } from '@oblimap/shared';
 import { AppError } from './errorHandler';
 import { permissionService } from '../services/permission.service';
 

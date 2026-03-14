@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { User, UserPermissions, ApiResponse, LoginRequest } from '@obliview/shared';
+import type { User, UserPermissions, ApiResponse, LoginRequest } from '@oblimap/shared';
 
 export type LoginResult =
   | { user: User; requires2fa?: never }

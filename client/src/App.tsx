@@ -10,21 +10,19 @@ import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { ForeignAuthPage } from '@/pages/ForeignAuthPage';
 import { DashboardPage } from '@/pages/DashboardPage';
-import { MonitorDetailPage } from '@/pages/MonitorDetailPage';
-import { MonitorEditPage } from '@/pages/MonitorEditPage';
+import { SitesPage } from '@/pages/SitesPage';
 import { GroupManagePage } from '@/pages/GroupManagePage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { NotificationsPage } from '@/pages/NotificationsPage';
 import { AdminUsersPage } from '@/pages/AdminUsersPage';
 import { AdminAgentPage } from '@/pages/AdminAgentPage';
-import { AgentDetailPage } from '@/pages/AgentDetailPage';
+import { AdminProbePage } from '@/pages/AdminProbePage';
+import { ProbeDetailPage } from '@/pages/ProbeDetailPage';
 import { ProfilePage } from '@/pages/ProfilePage';
 import { GroupDetailPage } from '@/pages/GroupDetailPage';
 import { GroupEditPage } from '@/pages/GroupEditPage';
 import { DownloadPage } from '@/pages/DownloadPage';
 import { ImportExportPage } from '@/pages/ImportExportPage';
-import { AdminRemediationsPage } from '@/pages/AdminRemediationsPage';
-import { AdminMaintenancePage } from '@/pages/AdminMaintenancePage';
 import { AdminTenantsPage } from '@/pages/AdminTenantsPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import '@/i18n';
@@ -51,11 +49,9 @@ export default function App() {
           <Route path="/enroll" element={<EnrollmentPage />} />
           <Route element={<AppLayout />}>
             <Route path="/" element={<DashboardPage />} />
+            <Route path="/sites" element={<SitesPage />} />
             <Route path="/download" element={<DownloadPage />} />
             <Route path="/profile" element={<ProfilePage />} />
-            <Route path="/monitor/:id" element={<MonitorDetailPage />} />
-            <Route path="/monitor/new" element={<MonitorEditPage />} />
-            <Route path="/monitor/:id/edit" element={<MonitorEditPage />} />
             <Route path="/group/:id" element={<GroupDetailPage />} />
             <Route path="/group/:id/edit" element={<GroupEditPage />} />
 
@@ -65,11 +61,10 @@ export default function App() {
               <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/admin/users" element={<AdminUsersPage />} />
               <Route path="/admin/agents" element={<AdminAgentPage />} />
+              <Route path="/admin/probes" element={<AdminProbePage />} />
               <Route path="/admin/import-export" element={<ImportExportPage />} />
-              <Route path="/admin/remediations" element={<AdminRemediationsPage />} />
-              <Route path="/admin/maintenance" element={<AdminMaintenancePage />} />
               <Route path="/admin/tenants" element={<AdminTenantsPage />} />
-              <Route path="/agents/:deviceId" element={<AgentDetailPage />} />
+              <Route path="/admin/probes/:id" element={<ProbeDetailPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
           </Route>

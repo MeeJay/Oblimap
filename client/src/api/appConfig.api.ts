@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { AppConfig, AgentGlobalConfig, ObliguardConfig, ApiResponse } from '@obliview/shared';
+import type { AppConfig, AgentGlobalConfig, ObliguardConfig, ApiResponse } from '@oblimap/shared';
 
 export const appConfigApi = {
   async getConfig(): Promise<AppConfig> {
