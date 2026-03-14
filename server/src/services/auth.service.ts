@@ -121,13 +121,14 @@ export const authService = {
       return { user: rowToUser(updated), isFirstLogin: false };
     }
 
-    // If the username belongs to an existing LOCAL account, require password linking instead of
-    // silently creating a suffixed duplicate. Throws AccountLinkRequiredError to the caller.
-    const localCollision = await db('users')
+    // If the username belongs to ANY existing account (local or foreign from another source),
+    // require password linking instead of silently creating a suffixed duplicate.
+    // Note: .whereNull('foreign_source') was intentionally removed — a user already linked to
+    // a different SSO source also needs the linking flow, not a duplicate account insert.
+    const anyCollision = await db('users')
       .where({ username: info.username })
-      .whereNull('foreign_source')
       .first();
-    if (localCollision) throw new AccountLinkRequiredError(info.username);
+    if (anyCollision) throw new AccountLinkRequiredError(info.username);
 
     // Create new foreign user (no password, enrollment pending)
     const [row] = await db<UserRow>('users')
