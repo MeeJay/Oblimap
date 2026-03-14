@@ -60,8 +60,8 @@ export function Header() {
         {/* Tenant switcher — hidden when single-tenant (tenants.length <= 1) */}
         <TenantSwitcher />
 
-        {/* Cross-app switch buttons — shown in header only when sidebar is floating */}
-        {sidebarFloating && obliguardUrl && (
+        {/* Cross-app switch buttons — always shown when integration URL is configured */}
+        {obliguardUrl && (
           <button
             type="button"
             onClick={() => {
@@ -82,7 +82,7 @@ export function Header() {
             Obliguard
           </button>
         )}
-        {sidebarFloating && obliviewUrl && (
+        {obliviewUrl && (
           <button
             type="button"
             onClick={() => {
@@ -103,7 +103,7 @@ export function Header() {
             Obliview
           </button>
         )}
-        {sidebarFloating && oblianceUrl && (
+        {oblianceUrl && (
           <button
             type="button"
             onClick={() => {
