@@ -343,7 +343,18 @@ router.post('/complete-link', async (req: Request, res: Response, next: NextFunc
       return;
     }
 
-    // No 2FA — complete the link immediately
+    // No 2FA — complete the link immediately.
+    // Insert into sso_foreign_users (multi-source table) so subsequent SSO from this source
+    // is found via the lookup table without overwriting any other linked source.
+    await db('sso_foreign_users')
+      .insert({
+        foreign_source: linkRow.foreign_source,
+        foreign_user_id: linkRow.foreign_id,
+        local_user_id: localUser.id,
+      })
+      .onConflict(['foreign_source', 'foreign_user_id'])
+      .merge({ local_user_id: localUser.id });
+    // Also keep users.foreign_source/foreign_id in sync (for profile display)
     await db('users').where({ id: localUser.id }).update({
       foreign_source: linkRow.foreign_source,
       foreign_id: linkRow.foreign_id,
@@ -420,7 +431,16 @@ router.post('/verify-link-2fa', async (req: Request, res: Response, next: NextFu
     }
     if (!valid) throw new AppError(401, 'Invalid code');
 
-    // Complete the link
+    // Complete the link — record in sso_foreign_users (multi-source, non-overwriting)
+    await db('sso_foreign_users')
+      .insert({
+        foreign_source: linkRow.foreign_source,
+        foreign_user_id: linkRow.foreign_id,
+        local_user_id: localUser.id,
+      })
+      .onConflict(['foreign_source', 'foreign_user_id'])
+      .merge({ local_user_id: localUser.id });
+    // Also keep users.foreign_source/foreign_id in sync (for profile display)
     await db('users').where({ id: localUser.id }).update({
       foreign_source: linkRow.foreign_source,
       foreign_id: linkRow.foreign_id,

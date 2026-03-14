@@ -96,6 +96,7 @@ export const authService = {
 
   /**
    * Find or create a foreign SSO user.
+   * Uses the sso_foreign_users table to support multiple linked sources per user.
    * Returns the user + whether this is their first ever login.
    */
   async findOrCreateForeignUser(
@@ -104,27 +105,28 @@ export const authService = {
     foreignSourceUrl: string,
     info: { username: string; email?: string | null },
   ): Promise<{ user: User; isFirstLogin: boolean }> {
-    // Try to find existing foreign user
-    const existing = await db<UserRow>('users')
-      .where({ foreign_source: foreignSource, foreign_id: foreignId })
-      .first();
+    // Look up via sso_foreign_users — supports multiple sources per user without overwriting
+    const link = await db('sso_foreign_users')
+      .where({ foreign_source: foreignSource, foreign_user_id: foreignId })
+      .first() as { local_user_id: number } | undefined;
 
-    if (existing) {
-      // Sync username/email from source (they may have changed)
-      await db('users').where({ id: existing.id }).update({
-        username: info.username,
-        email: info.email ?? existing.email,
-        foreign_source_url: foreignSourceUrl,
-        updated_at: new Date(),
-      });
-      const updated = await db<UserRow>('users').where({ id: existing.id }).first() as UserRow;
-      return { user: rowToUser(updated), isFirstLogin: false };
+    if (link) {
+      const existing = await db<UserRow>('users').where({ id: link.local_user_id }).first();
+      if (existing) {
+        // Sync username/email from source (they may have changed)
+        await db('users').where({ id: existing.id }).update({
+          username: info.username,
+          email: info.email ?? existing.email,
+          foreign_source_url: foreignSourceUrl,
+          updated_at: new Date(),
+        });
+        const updated = await db<UserRow>('users').where({ id: existing.id }).first() as UserRow;
+        return { user: rowToUser(updated), isFirstLogin: false };
+      }
     }
 
-    // If the username belongs to ANY existing account (local or foreign from another source),
-    // require password linking instead of silently creating a suffixed duplicate.
-    // Note: .whereNull('foreign_source') was intentionally removed — a user already linked to
-    // a different SSO source also needs the linking flow, not a duplicate account insert.
+    // If the username belongs to ANY existing account (local or already linked to another source),
+    // require password confirmation to link them together.
     const anyCollision = await db('users')
       .where({ username: info.username })
       .first();
@@ -146,6 +148,13 @@ export const authService = {
         foreign_source_url: foreignSourceUrl,
       })
       .returning('*');
+
+    // Record the link in sso_foreign_users for future lookups
+    await db('sso_foreign_users').insert({
+      foreign_source: foreignSource,
+      foreign_user_id: foreignId,
+      local_user_id: row.id,
+    });
 
     return { user: rowToUser(row), isFirstLogin: true };
   },
