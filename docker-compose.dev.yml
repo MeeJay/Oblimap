@@ -17,7 +17,7 @@ services:
     environment:
       NODE_ENV: development
       PORT: 3002
-      DATABASE_URL: postgres://oblimap:changeme@postgres:5432/oblimap
+      DATABASE_URL: postgres://oblimap:${DB_PASSWORD:-changeme}@postgres:5432/oblimap
       SESSION_SECRET: dev-secret
       CLIENT_ORIGIN: http://localhost:5174
       DEFAULT_ADMIN_USERNAME: admin
