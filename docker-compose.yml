@@ -3,8 +3,8 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: obliview
-      POSTGRES_USER: obliview
+      POSTGRES_DB: oblimap
+      POSTGRES_USER: oblimap
       POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -13,33 +13,31 @@ services:
     #ports:
     #  - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U obliview"]
+      test: ["CMD-SHELL", "pg_isready -U oblimap"]
       interval: 5s
       timeout: 5s
       retries: 10
       start_period: 60s
 
   server:
-    image: meejay/obliview-server:${OBLIVIEW_VERSION:-latest}
+    image: meejay/oblimap-server:${OBLIMAP_VERSION:-latest}
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       NODE_ENV: production
-      PORT: 3001
-      DATABASE_URL: postgres://obliview:${DB_PASSWORD:-changeme}@postgres:5432/obliview
+      PORT: 3002
+      DATABASE_URL: postgres://oblimap:${DB_PASSWORD:-changeme}@postgres:5432/oblimap
       SESSION_SECRET: ${SESSION_SECRET:-change-this-in-production}
       CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost}
       DEFAULT_ADMIN_USERNAME: ${DEFAULT_ADMIN_USERNAME:-admin}
       DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-admin123}
     volumes:
-      # Persistent custom directory: scripts, SSH keys, etc.
-      # SSH keys: chmod 700 custom/.ssh && chmod 600 custom/.ssh/id_*
       - ${CUSTOM_DIR:-./custom}:/custom
 
   client:
-    image: meejay/obliview-client:${OBLIVIEW_VERSION:-latest}
+    image: meejay/oblimap-client:${OBLIMAP_VERSION:-latest}
     restart: unless-stopped
     depends_on:
       server:
@@ -49,7 +47,7 @@ services:
 
   # ─── Watchtower (optional) ────────────────────────────────────────────────
   # Automatically pulls & restarts containers when a new image is pushed.
-  # Works per image tag: set OBLIVIEW_VERSION=latest/dev/stable etc.
+  # Works per image tag: set OBLIMAP_VERSION=latest/dev/stable etc.
   # Enable: docker compose --profile watchtower up -d
   # Or add COMPOSE_PROFILES=watchtower to your .env
   watchtower:
@@ -59,12 +57,8 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      # Remove old images after update to save disk space
       WATCHTOWER_CLEANUP: "true"
-      # Check interval in seconds (default: 1h)
       WATCHTOWER_POLL_INTERVAL: ${WATCHTOWER_INTERVAL:-3600}
-      # Optional: send notifications (slack/email/etc.) on update
-      # WATCHTOWER_NOTIFICATION_URL: ${WATCHTOWER_NOTIFICATION_URL:-}
 
 volumes:
   postgres_data:

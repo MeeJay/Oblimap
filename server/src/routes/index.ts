@@ -18,6 +18,8 @@ import { liveAlertRouter } from './liveAlert.routes';
 import obliguardRoutes from './obliguard.routes';
 import ssoRoutes from './sso.routes';
 import siteRoutes from './site.routes';
+import vendorRulesRoutes from './vendorRules.routes';
+import macVendorsRoutes from './macVendors.routes';
 
 const router = Router();
 
@@ -42,6 +44,8 @@ tenantRouter.use(requireAuth);
 tenantRouter.use(requireTenant);
 
 tenantRouter.use('/sites', siteRoutes);
+tenantRouter.use('/vendor-rules', vendorRulesRoutes);
+tenantRouter.use('/mac-vendors', macVendorsRoutes);
 tenantRouter.use('/groups', groupsRoutes);
 tenantRouter.use('/settings', settingsRoutes);
 tenantRouter.use('/notifications', notificationsRoutes);

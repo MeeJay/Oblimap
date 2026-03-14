@@ -1,5 +1,5 @@
 {
-  "_note": "Obliview import template — fill in the sections you need and delete the rest. UUIDs are optional; omit them to always create new records. Unused sections can be removed entirely.",
+  "_note": "Oblimap import template — fill in the sections you need and delete the rest. UUIDs are optional; omit them to always create new records. Unused sections can be removed entirely.",
   "version": 1,
   "sections": ["monitorGroups", "monitors"],
 

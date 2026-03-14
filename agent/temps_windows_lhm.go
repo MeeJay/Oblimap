@@ -10,7 +10,7 @@ import (
 )
 
 // lhmEmbedFS holds the bundled LibreHardwareMonitor DLLs (net472 build, v0.9.6).
-// These are extracted to %ProgramData%\ObliviewAgent\lhm\ on first use so that
+// These are extracted to %ProgramData%\OblimapAgent\lhm\ on first use so that
 // the WinRing0 kernel driver can be installed alongside them.
 //
 // Files embedded:
@@ -35,7 +35,7 @@ var (
 // the first time it is called. Uses a version-tagged marker file so DLLs are
 // only re-extracted when the embedded version changes.
 //
-// Target directory: %ProgramData%\ObliviewAgent\lhm\
+// Target directory: %ProgramData%\OblimapAgent\lhm\
 // (falls back to os.TempDir if ProgramData is unavailable)
 //
 // The agent must run with administrator / SYSTEM privileges for LHM to install
@@ -46,7 +46,7 @@ func ensureLHMExtracted() (dir string, ok bool) {
 		if base == "" {
 			base = os.TempDir()
 		}
-		target := filepath.Join(base, "ObliviewAgent", "lhm")
+		target := filepath.Join(base, "OblimapAgent", "lhm")
 
 		// If the version marker already exists, the DLLs are up to date.
 		marker := filepath.Join(target, ".lhm-"+lhmBuildTag)

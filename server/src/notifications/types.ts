@@ -13,6 +13,13 @@ export interface NotificationPayload {
   groupId?: number;
   downMonitors?: string[];
   isGroupNotification?: boolean;
+  // IPAM notification fields
+  isIpamNotification?: boolean;
+  siteName?: string;
+  siteId?: number;
+  deviceIp?: string;
+  deviceMac?: string | null;
+  deviceName?: string | null;
 }
 
 export interface NotificationPlugin {

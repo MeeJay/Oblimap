@@ -5,13 +5,13 @@ import apiClient from '@/api/client';
 
 // ── Types injected by the Go overlay ─────────────────────────────────────────
 type OblimapWindow = Window & {
-  __obliview_is_native_app?: boolean;
-  __obliview_app_version?: string;
+  __oblimap_is_native_app?: boolean;
+  __oblimap_app_version?: string;
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-const SKIP_KEY = 'obliview:skipped-desktop-version';
+const SKIP_KEY = 'oblimap:skipped-desktop-version';
 
 /** Parse "X.Y.Z" → [X, Y, Z] as numbers. */
 function parseVersion(v: string): [number, number, number] {
@@ -35,10 +35,10 @@ export function DesktopUpdateBanner() {
   const [dismissed, setDismissed] = useState(false);
 
   const ow = typeof window !== 'undefined' ? (window as OblimapWindow) : null;
-  const isNative = !!ow?.__obliview_is_native_app;
+  const isNative = !!ow?.__oblimap_is_native_app;
   // Old builds (before version injection was added) won't have this property.
   // Treat them as "0.0.0" so any server version triggers the banner.
-  const currentVersion = ow?.__obliview_app_version ?? null;
+  const currentVersion = ow?.__oblimap_app_version ?? null;
   const effectiveVersion = currentVersion ?? (isNative ? '0.0.0' : null);
 
   useEffect(() => {

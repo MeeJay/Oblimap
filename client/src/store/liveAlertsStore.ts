@@ -136,7 +136,7 @@ export const useLiveAlertsStore = create<LiveAlertsState>()(
       },
     }),
     {
-      name: 'obliview-alert-prefs',
+      name: 'oblimap-alert-prefs',
       // Only persist preferences, NOT the alert list (alerts always fetched fresh from server)
       partialize: (s) => ({
         localEnabled: s.localEnabled,

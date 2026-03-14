@@ -14,7 +14,7 @@ import { cn } from '@/utils/cn';
 
 /** True when running inside the Oblimap native desktop app (gear overlay sets this). */
 const isNativeApp = typeof window !== 'undefined' &&
-  !!(window as Window & { __obliview_is_native_app?: boolean }).__obliview_is_native_app;
+  !!(window as Window & { __oblimap_is_native_app?: boolean }).__oblimap_is_native_app;
 
 export function Header() {
   const { t } = useTranslation();

@@ -1,19 +1,25 @@
 import { Router } from 'express';
+import { siteController } from '../controllers/site.controller';
 
 const router = Router();
 
-// TODO Phase 3: Site + item CRUD routes
-// GET /api/sites — list sites
-// POST /api/sites — create site
-// GET /api/sites/:id — get site with items
-// PATCH /api/sites/:id — update site
-// DELETE /api/sites/:id — delete site
-// GET /api/sites/:id/items — list items
-// POST /api/sites/:id/items — add manual item
-// PATCH /api/sites/:id/items/:itemId — update item
-// DELETE /api/sites/:id/items/:itemId — delete item
-// GET /api/sites/:id/reservations — list IP reservations
-// POST /api/sites/:id/reservations — create reservation
-// DELETE /api/sites/:id/reservations/:resId — delete reservation
+// ── Sites ─────────────────────────────────────────────────────────────────────
+router.get('/', siteController.list);
+router.post('/', siteController.create);
+router.get('/:id', siteController.get);
+router.patch('/:id', siteController.update);
+router.delete('/:id', siteController.remove);
+
+// ── Items ─────────────────────────────────────────────────────────────────────
+router.get('/:id/items', siteController.listItems);
+router.post('/:id/items', siteController.createItem);
+router.patch('/:id/items/:itemId', siteController.updateItem);
+router.delete('/:id/items/:itemId', siteController.removeItem);
+
+// ── IP Reservations ───────────────────────────────────────────────────────────
+router.get('/:id/reservations', siteController.listReservations);
+router.post('/:id/reservations', siteController.createReservation);
+router.patch('/:id/reservations/:resId', siteController.updateReservation);
+router.delete('/:id/reservations/:resId', siteController.removeReservation);
 
 export default router;

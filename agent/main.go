@@ -33,9 +33,9 @@ func init() {
 		if programData == "" {
 			programData = `C:\ProgramData`
 		}
-		configDir = filepath.Join(programData, "ObliviewAgent")
+		configDir = filepath.Join(programData, "OblimapAgent")
 	} else {
-		configDir = "/etc/obliview-agent"
+		configDir = "/etc/oblimap-agent"
 	}
 	configFile = filepath.Join(configDir, "config.json")
 }
@@ -88,7 +88,7 @@ func setupConfig(urlArg, keyArg string) *Config {
 	if cfg == nil {
 		if urlArg == "" || keyArg == "" {
 			fmt.Fprintf(os.Stderr, "First run: provide --url <serverUrl> --key <apiKey>\n")
-			fmt.Fprintf(os.Stderr, "Example: obliview-agent --url https://obliview.example.com --key your-api-key\n")
+			fmt.Fprintf(os.Stderr, "Example: oblimap-agent --url https://oblimap.example.com --key your-api-key\n")
 			os.Exit(1)
 		}
 		cfg = &Config{
@@ -225,9 +225,9 @@ func applyUpdateIfNewer(cfg *Config, remoteVersion string) {
 	// On other platforms we download the bare binary.
 	var filename string
 	if runtime.GOOS == "windows" {
-		filename = "obliview-agent.msi"
+		filename = "oblimap-agent.msi"
 	} else {
-		filename = fmt.Sprintf("obliview-agent-%s-%s", runtime.GOOS, runtime.GOARCH)
+		filename = fmt.Sprintf("oblimap-agent-%s-%s", runtime.GOOS, runtime.GOARCH)
 	}
 
 	client := &http.Client{Timeout: 120 * time.Second} // larger timeout for MSI download
@@ -244,7 +244,7 @@ func applyUpdateIfNewer(cfg *Config, remoteVersion string) {
 
 	if runtime.GOOS == "windows" {
 		// Save MSI to a temp path — it does not need to be next to the exe.
-		msiPath := filepath.Join(os.TempDir(), "obliview-agent-update.msi")
+		msiPath := filepath.Join(os.TempDir(), "oblimap-agent-update.msi")
 		f, err := os.OpenFile(msiPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		if err != nil {
 			log.Printf("Auto-update: cannot write MSI temp file: %v", err)
@@ -308,16 +308,16 @@ func applyUpdateIfNewer(cfg *Config, remoteVersion string) {
 // outlives the service process (the agent exits immediately after Start()).
 //
 // msiexec /quiet handles the full install sequence:
-//  1. Stop the ObliviewAgent service (WiX <ServiceControl Stop="both">)
-//  2. Overwrite obliview-agent.exe and any other packaged files
+//  1. Stop the OblimapAgent service (WiX <ServiceControl Stop="both">)
+//  2. Overwrite oblimap-agent.exe and any other packaged files
 //  3. Run deferred custom actions (e.g. PawnIO kernel driver installation)
-//  4. Restart the ObliviewAgent service with the new binary
+//  4. Restart the OblimapAgent service with the new binary
 //
 // SERVERURL and APIKEY are forwarded so that the service arguments in the MSI
 // are populated even when config.json already exists (belt-and-suspenders).
 func applyWindowsMSIUpdate(msiPath, serverURL, apiKey string) error {
-	logPath := filepath.Join(os.TempDir(), "obliview-update.log")
-	scriptPath := filepath.Join(os.TempDir(), "obliview-msi-update.bat")
+	logPath := filepath.Join(os.TempDir(), "oblimap-update.log")
+	scriptPath := filepath.Join(os.TempDir(), "oblimap-msi-update.bat")
 	script := fmt.Sprintf(
 		"@echo off\r\n"+
 			"timeout /t 2 /nobreak >nul\r\n"+
@@ -338,7 +338,7 @@ var backoffSteps = []int{5 * 60, 10 * 60, 30 * 60, 60 * 60}
 var backoffLevel = 0
 
 func mainLoop(cfg *Config) {
-	log.Printf("Obliview Agent v%s starting", cfg.AgentVersion)
+	log.Printf("Oblimap Agent v%s starting", cfg.AgentVersion)
 	log.Printf("Server: %s", cfg.ServerURL)
 	log.Printf("Device UUID: %s", cfg.DeviceUUID)
 

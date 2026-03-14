@@ -4,6 +4,7 @@ import { logger } from '../utils/logger';
 import { SOCKET_EVENTS } from '@oblimap/shared';
 import type { Probe, ProbeApiKey, ProbeScanConfig } from '@oblimap/shared';
 import { liveAlertService } from './liveAlert.service';
+import { notificationService } from './notification.service';
 
 let _io: SocketIOServer | null = null;
 
@@ -108,8 +109,10 @@ function normalizeMac(mac: string): string {
 
 async function lookupVendor(mac: string): Promise<string | null> {
   const prefix = mac.substring(0, 8).toUpperCase(); // "AA:BB:CC"
-  const row = await db('mac_vendors').where({ prefix }).first('vendor_name');
-  return (row?.vendor_name as string | null) ?? null;
+  const row = await db('mac_vendors').where({ prefix }).first('vendor_name', 'custom_name');
+  if (!row) return null;
+  // Prefer admin-defined override over IEEE default
+  return (row.custom_name as string | null) ?? (row.vendor_name as string | null) ?? null;
 }
 
 async function applyVendorRules(
@@ -164,16 +167,98 @@ async function recordIpHistory(
   }
 }
 
+// ─── IP Instability Detection ─────────────────────────────────────────────────
+
+/**
+ * After a push, detect IP address instability: an IP that has been claimed by
+ * >= 3 distinct MACs across recent consecutive scans.
+ *
+ * Because a single probe reports each IP exactly once per scan, intra-push
+ * conflict detection is meaningless. Instead we query item_ip_history —
+ * which is written for EVERY mac→ip pair seen in every push — and look for
+ * IPs with too many distinct MACs in the sliding window.
+ *
+ * @param seenIpMacs  Map of ip → mac from the current push (only IPs with MACs)
+ * @param windowMs    Sliding window; should comfortably span 3+ scan intervals
+ *                    Default: 3 × 10 min = 30 min
+ */
+async function checkIpInstability(
+  tenantId: number,
+  siteId: number,
+  seenIpMacs: Map<string, string>,
+  windowMs = 30 * 60 * 1000,
+): Promise<void> {
+  if (seenIpMacs.size === 0) return;
+  const since = new Date(Date.now() - windowMs);
+  const ips = [...seenIpMacs.keys()];
+
+  let rows: { ip: string; mac: string }[];
+  try {
+    rows = await db('item_ip_history')
+      .where({ site_id: siteId, tenant_id: tenantId })
+      .whereIn('ip', ips)
+      .where('last_seen_at', '>=', since)
+      .select('ip', 'mac') as { ip: string; mac: string }[];
+  } catch (err) {
+    logger.warn({ err }, 'IP instability query failed');
+    return;
+  }
+
+  // Group distinct MACs per IP
+  const macsByIp = new Map<string, Set<string>>();
+  for (const row of rows) {
+    if (!macsByIp.has(row.ip)) macsByIp.set(row.ip, new Set());
+    macsByIp.get(row.ip)!.add(row.mac);
+  }
+
+  for (const [ip, macs] of macsByIp) {
+    if (macs.size < 3) continue;
+
+    const macList = [...macs].join(', ');
+    const stableKey = `ip-instability:${siteId}:${ip}`;
+
+    logger.warn({ ip, siteId, tenantId, distinctMacs: macs.size }, 'IP instability detected');
+
+    try {
+      await liveAlertService.add(tenantId, {
+        severity: 'warning',
+        title: `IP Instability: ${ip}`,
+        message: `${macs.size} different MACs claimed ${ip} across the last 3 scans: ${macList}`,
+        navigateTo: `/sites/${siteId}`,
+        stableKey,
+      });
+    } catch (err) {
+      logger.warn({ err, ip }, 'Failed to create IP instability alert');
+    }
+
+    _io
+      ?.to(`tenant:${tenantId}:admin`)
+      .emit(SOCKET_EVENTS.IP_CONFLICT_DETECTED, {
+        ip,
+        siteId,
+        tenantId,
+        distinctMacs: macs.size,
+        macs: [...macs],
+      });
+  }
+}
+
 // ─── Device Processing ───────────────────────────────────────────────────────
 
 async function processDevices(
   probeId: number,
   tenantId: number,
   siteId: number,
+  siteGroupId: number | null,
+  siteName: string,
   devices: DiscoveredDevice[],
 ): Promise<void> {
   const now = new Date();
   const updatedItemIds: number[] = [];
+  // ip → mac for every device with a known MAC seen in this push.
+  // Written to item_ip_history unconditionally (idempotent) so the
+  // instability detector can count distinct MACs per IP across scans.
+  const seenIpMacs = new Map<string, string>();
 
   for (const device of devices) {
     const mac = device.mac ? normalizeMac(device.mac) : null;
@@ -208,7 +293,6 @@ async function processDevices(
         // MAC-based tracking: IP moved?
         if (mac && existingItem.ip !== ip) {
           updates.ip = ip;
-          await recordIpHistory(mac, siteId, tenantId, ip, now);
           _io
             ?.to(`tenant:${tenantId}:admin`)
             .emit(SOCKET_EVENTS.DEVICE_IP_CHANGED, {
@@ -218,6 +302,13 @@ async function processDevices(
               newIp: ip,
               siteId,
             });
+        }
+
+        // Always record mac→ip in history (idempotent: updates last_seen_at
+        // if the pair already exists). This feeds the cross-scan instability detector.
+        if (mac) {
+          seenIpMacs.set(ip, mac);
+          await recordIpHistory(mac, siteId, tenantId, ip, now).catch(() => {});
         }
 
         if (device.hostname && existingItem.hostname !== device.hostname) {
@@ -272,6 +363,7 @@ async function processDevices(
         updatedItemIds.push(itemId);
 
         if (mac) {
+          seenIpMacs.set(ip, mac);
           await recordIpHistory(mac, siteId, tenantId, ip, now);
         }
 
@@ -285,6 +377,21 @@ async function processDevices(
             vendor,
             deviceType,
           });
+
+        // Notification: new device found on this site
+        void notificationService.sendForSite(tenantId, siteGroupId, {
+          monitorName: `New device on ${siteName}`,
+          oldStatus: 'unknown',
+          newStatus: 'up',
+          message: `A new device was discovered at ${ip}${mac ? ` (${mac})` : ''}${vendor ? ` — ${vendor}` : ''} on site "${siteName}".`,
+          timestamp: now.toISOString(),
+          isIpamNotification: true,
+          siteName,
+          siteId,
+          deviceIp: ip,
+          deviceMac: mac,
+          deviceName: device.hostname ?? null,
+        }).catch((err) => logger.warn({ err }, 'IPAM new-device notification failed'));
       }
     } catch (err) {
       logger.warn({ err, ip, mac }, 'Failed to upsert site item');
@@ -293,32 +400,56 @@ async function processDevices(
 
   // Mark items from this probe as offline if not seen in current push
   try {
+    const offlineQuery = db('site_items').where({
+      site_id: siteId,
+      tenant_id: tenantId,
+      discovered_by_probe_id: probeId,
+      is_manual: false,
+      status: 'online',
+    });
     if (updatedItemIds.length > 0) {
-      await db('site_items')
-        .where({
-          site_id: siteId,
-          tenant_id: tenantId,
-          discovered_by_probe_id: probeId,
-          is_manual: false,
-          status: 'online',
-        })
-        .whereNotIn('id', updatedItemIds)
-        .update({ status: 'offline', updated_at: now });
-    } else {
-      // Nothing seen — mark all probe's items offline
-      await db('site_items')
-        .where({
-          site_id: siteId,
-          tenant_id: tenantId,
-          discovered_by_probe_id: probeId,
-          is_manual: false,
-          status: 'online',
-        })
-        .update({ status: 'offline', updated_at: now });
+      offlineQuery.whereNotIn('id', updatedItemIds);
+    }
+
+    // Fetch items going offline so we can notify and emit socket events
+    const goingOffline = await offlineQuery.clone().select('id', 'ip', 'mac', 'custom_name', 'hostname');
+
+    if (goingOffline.length > 0) {
+      await offlineQuery.update({ status: 'offline', updated_at: now });
+
+      for (const item of goingOffline) {
+        const itemId = item.id as number;
+        const ip = item.ip as string;
+        const mac = (item.mac as string | null) ?? null;
+        const name = (item.custom_name as string | null)
+          ?? (item.hostname as string | null)
+          ?? ip;
+
+        _io
+          ?.to(`tenant:${tenantId}:admin`)
+          .emit(SOCKET_EVENTS.ITEM_STATUS_CHANGED, { itemId, status: 'offline', siteId });
+
+        void notificationService.sendForSite(tenantId, siteGroupId, {
+          monitorName: `Device offline on ${siteName}`,
+          oldStatus: 'up',
+          newStatus: 'down',
+          message: `Device "${name}" (${ip}${mac ? ` / ${mac}` : ''}) on site "${siteName}" has gone offline.`,
+          timestamp: now.toISOString(),
+          isIpamNotification: true,
+          siteName,
+          siteId,
+          deviceIp: ip,
+          deviceMac: mac,
+          deviceName: name,
+        }).catch((err) => logger.warn({ err, ip }, 'IPAM offline notification failed'));
+      }
     }
   } catch (err) {
     logger.warn({ err }, 'Failed to mark offline items');
   }
+
+  // Run IP instability detection across scans (fire-and-forget, errors logged inside)
+  void checkIpInstability(tenantId, siteId, seenIpMacs);
 }
 
 // ─── Probe Service ────────────────────────────────────────────────────────────
@@ -417,10 +548,17 @@ class ProbeService {
 
     // Process discovered devices (approved probes with a site assignment only)
     if (probeStatus === 'approved' && probe.site_id) {
+      // Look up site info so processDevices can include it in notifications
+      const site = await db('sites')
+        .where({ id: probe.site_id as number, tenant_id: tenantId })
+        .first('id', 'name', 'group_id');
+
       await processDevices(
         probe.id as number,
         tenantId,
         probe.site_id as number,
+        (site?.group_id as number | null) ?? null,
+        (site?.name as string | null) ?? `Site #${probe.site_id as number}`,
         payload.discoveredDevices,
       ).catch((err) => logger.error({ err }, 'Device processing failed'));
     }

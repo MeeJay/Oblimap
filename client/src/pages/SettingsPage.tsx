@@ -1,7 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { Shield, Server, Plus, Pencil, Trash2, Wifi, Eye, EyeOff, ArrowLeftRight, Copy, RefreshCw } from 'lucide-react';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
-import { NotificationTypesPanel } from '@/components/agent/NotificationTypesPanel';
+import { NotificationTypesPanel } from '@/components/notifications/NotificationTypesPanel';
 import { useAuthStore } from '@/store/authStore';
 import { smtpServerApi, type CreateSmtpServerRequest } from '@/api/smtpServer.api';
 import { appConfigApi } from '@/api/appConfig.api';

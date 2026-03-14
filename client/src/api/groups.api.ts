@@ -5,10 +5,6 @@ import type {
   ApiResponse,
   CreateGroupRequest,
   UpdateGroupRequest,
-  Heartbeat,
-  Monitor,
-  AgentThresholds,
-  AgentGroupConfig,
 } from '@oblimap/shared';
 
 export const groupsApi = {
@@ -55,51 +51,4 @@ export const groupsApi = {
     await apiClient.post('/groups/reorder', { items });
   },
 
-  async clearHeartbeats(id: number): Promise<{ deleted: number; monitorCount: number }> {
-    const res = await apiClient.delete<ApiResponse<{ deleted: number; monitorCount: number }>>(`/groups/${id}/heartbeats`);
-    return res.data.data!;
-  },
-
-  async getHeartbeats(id: number, period: string = '24h'): Promise<Heartbeat[]> {
-    const res = await apiClient.get<ApiResponse<Heartbeat[]>>(`/groups/${id}/heartbeats`, {
-      params: { period },
-    });
-    return res.data.data!;
-  },
-
-  async getDetailStats(id: number, period: string = '24h'): Promise<{
-    total: number;
-    up: number;
-    down: number;
-    uptimePct: number;
-    avgResponseTime: number | null;
-    monitorCount: number;
-    downMonitorNames: string[];
-  }> {
-    const res = await apiClient.get<ApiResponse<{
-      total: number;
-      up: number;
-      down: number;
-      uptimePct: number;
-      avgResponseTime: number | null;
-      monitorCount: number;
-      downMonitorNames: string[];
-    }>>(`/groups/${id}/detail-stats`, { params: { period } });
-    return res.data.data!;
-  },
-
-  async getMonitors(id: number, descendants: boolean = false): Promise<Monitor[]> {
-    const res = await apiClient.get<ApiResponse<Monitor[]>>(`/groups/${id}/monitors`, {
-      params: descendants ? { descendants: 'true' } : {},
-    });
-    return res.data.data!;
-  },
-
-  async updateAgentGroupConfig(
-    id: number,
-    data: { agentGroupConfig?: Partial<AgentGroupConfig>; agentThresholds?: AgentThresholds },
-  ): Promise<MonitorGroup> {
-    const res = await apiClient.patch<ApiResponse<MonitorGroup>>(`/groups/${id}/agent-config`, data);
-    return res.data.data!;
-  },
 };

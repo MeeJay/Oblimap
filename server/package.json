@@ -1,6 +1,6 @@
 {
   "name": "@oblimap/server",
-  "version": "2.0.55",
+  "version": "2.0.56",
   "private": true,
   "main": "dist/src/index.js",
   "scripts": {
@@ -10,7 +10,8 @@
     "migrate": "knex migrate:latest --knexfile knexfile.ts",
     "migrate:make": "knex migrate:make --knexfile knexfile.ts",
     "seed": "knex seed:run --knexfile knexfile.ts",
-    "migrate:rollback": "knex migrate:rollback --knexfile knexfile.ts"
+    "migrate:rollback": "knex migrate:rollback --knexfile knexfile.ts",
+    "seed:oui": "tsx src/scripts/seedMacVendors.ts"
   },
   "dependencies": {
     "@oblimap/shared": "*",

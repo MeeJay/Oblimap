@@ -13,6 +13,7 @@ import {
   ArrowLeftRight,
   PackageOpen,
   Building2,
+  Database,
   ChevronDown,
   PanelLeft,
   PanelLeftClose,
@@ -64,15 +65,16 @@ export function Sidebar() {
   const { user, isAdmin } = useAuthStore();
 
   const topNavItems: NavItem[] = [
-    { label: t('nav.dashboard'), path: '/',       icon: <LayoutDashboard size={18} /> },
-    { label: 'Sites',           path: '/sites',   icon: <MapPin size={18} /> },
-    { label: 'Groups',          path: '/groups',  icon: <Folder size={18} />, adminOnly: true },
-    { label: 'Probes',          path: '/admin/probes', icon: <Radar size={18} />, adminOnly: true },
+    { label: t('nav.dashboard'), path: '/',            icon: <LayoutDashboard size={18} /> },
+    { label: t('nav.sites'),     path: '/sites',        icon: <MapPin size={18} /> },
+    { label: t('nav.groups'),    path: '/groups',       icon: <Folder size={18} />, adminOnly: true },
+    { label: t('nav.probes'),    path: '/admin/probes', icon: <Radar size={18} />, adminOnly: true },
   ];
 
   const adminNavItems: NavItem[] = [
     { label: t('nav.users'),        path: '/admin/users',         icon: <Users size={18} />,      adminOnly: true },
     { label: t('tenant.pageTitle'), path: '/admin/tenants',       icon: <Building2 size={18} />,  adminOnly: true },
+    { label: t('nav.macVendors'),   path: '/admin/mac-vendors',   icon: <Database size={18} />,   adminOnly: true },
     { label: t('nav.importExport'), path: '/admin/import-export', icon: <PackageOpen size={18} />, adminOnly: true },
   ];
 

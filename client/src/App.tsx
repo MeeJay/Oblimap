@@ -11,11 +11,11 @@ import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { ForeignAuthPage } from '@/pages/ForeignAuthPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { SitesPage } from '@/pages/SitesPage';
+import { SiteDetailPage } from '@/pages/SiteDetailPage';
 import { GroupManagePage } from '@/pages/GroupManagePage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { NotificationsPage } from '@/pages/NotificationsPage';
 import { AdminUsersPage } from '@/pages/AdminUsersPage';
-import { AdminAgentPage } from '@/pages/AdminAgentPage';
 import { AdminProbePage } from '@/pages/AdminProbePage';
 import { ProbeDetailPage } from '@/pages/ProbeDetailPage';
 import { ProfilePage } from '@/pages/ProfilePage';
@@ -24,6 +24,7 @@ import { GroupEditPage } from '@/pages/GroupEditPage';
 import { DownloadPage } from '@/pages/DownloadPage';
 import { ImportExportPage } from '@/pages/ImportExportPage';
 import { AdminTenantsPage } from '@/pages/AdminTenantsPage';
+import { AdminMacVendorsPage } from '@/pages/AdminMacVendorsPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import '@/i18n';
 
@@ -50,6 +51,7 @@ export default function App() {
           <Route element={<AppLayout />}>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/sites" element={<SitesPage />} />
+            <Route path="/sites/:id" element={<SiteDetailPage />} />
             <Route path="/download" element={<DownloadPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/group/:id" element={<GroupDetailPage />} />
@@ -60,11 +62,11 @@ export default function App() {
               <Route path="/groups" element={<GroupManagePage />} />
               <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/admin/users" element={<AdminUsersPage />} />
-              <Route path="/admin/agents" element={<AdminAgentPage />} />
               <Route path="/admin/probes" element={<AdminProbePage />} />
               <Route path="/admin/import-export" element={<ImportExportPage />} />
               <Route path="/admin/tenants" element={<AdminTenantsPage />} />
               <Route path="/admin/probes/:id" element={<ProbeDetailPage />} />
+              <Route path="/admin/mac-vendors" element={<AdminMacVendorsPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
           </Route>

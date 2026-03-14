@@ -51,7 +51,7 @@ export const smtpPlugin: NotificationPlugin = {
       monitorName: 'Test Monitor',
       oldStatus: 'up',
       newStatus: 'down',
-      message: 'Test from Obliview',
+      message: 'Test from Oblimap',
       timestamp: new Date().toISOString(),
     });
   },

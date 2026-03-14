@@ -32,7 +32,7 @@ export function TenantSwitcher() {
   }, [open]);
 
   // In the native desktop app the injected tab bar replaces this dropdown
-  const isNativeApp = !!(window as Window & { __obliview_is_native_app?: boolean }).__obliview_is_native_app;
+  const isNativeApp = !!(window as Window & { __oblimap_is_native_app?: boolean }).__oblimap_is_native_app;
   if (isNativeApp && tenants.length > 1) return null;
 
   // Only show when there are multiple tenants

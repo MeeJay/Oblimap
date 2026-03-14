@@ -5,6 +5,7 @@ import {
   ChevronDown, RefreshCw, Eye, Copy, AlertCircle, Loader2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import { probeApi } from '../api/probe.api';
 import type { Probe, ProbeApiKey } from '@oblimap/shared';
 import { clsx } from 'clsx';
@@ -12,39 +13,41 @@ import { clsx } from 'clsx';
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: Probe['status'] }) {
+  const { t } = useTranslation();
   const map: Record<string, string> = {
-    pending: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
-    approved: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
-    refused: 'bg-red-500/15 text-red-400 border-red-500/30',
+    pending:   'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',
+    approved:  'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
+    refused:   'bg-red-500/15 text-red-400 border-red-500/30',
     suspended: 'bg-zinc-500/15 text-zinc-400 border-zinc-500/30',
   };
-  const label: Record<string, string> = {
-    pending: 'Pending',
-    approved: 'Approved',
-    refused: 'Refused',
-    suspended: 'Suspended',
+  const labelMap: Record<string, string> = {
+    pending:   t('probesPage.statusPending'),
+    approved:  t('probesPage.statusApproved'),
+    refused:   t('probesPage.statusRefused'),
+    suspended: t('probesPage.statusSuspended'),
   };
   return (
     <span className={clsx('text-xs font-medium px-2 py-0.5 rounded border', map[status] ?? '')}>
-      {label[status] ?? status}
+      {labelMap[status] ?? status}
     </span>
   );
 }
 
 function OnlineDot({ lastSeenAt }: { lastSeenAt: string | null }) {
+  const { t } = useTranslation();
   if (!lastSeenAt) return <span className="w-2 h-2 rounded-full bg-zinc-600 inline-block" />;
   const diff = Date.now() - new Date(lastSeenAt).getTime();
   const online = diff < 5 * 60 * 1000;
   return (
     <span
       className={clsx('w-2 h-2 rounded-full inline-block', online ? 'bg-emerald-500' : 'bg-zinc-600')}
-      title={online ? 'Online' : `Last seen: ${new Date(lastSeenAt).toLocaleString()}`}
+      title={online ? t('probesPage.statusApproved') : `${t('probesPage.colLastSeen')}: ${new Date(lastSeenAt).toLocaleString()}`}
     />
   );
 }
 
 function formatLastSeen(ts: string | null) {
-  if (!ts) return 'Never';
+  if (!ts) return '—';
   const diff = Date.now() - new Date(ts).getTime();
   if (diff < 60_000) return 'Just now';
   if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
@@ -63,6 +66,7 @@ function ApiKeyModal({
   tenantKeys: ProbeApiKey[];
   onRefresh: () => void;
 }) {
+  const { t } = useTranslation();
   const [newKeyName, setNewKeyName] = useState('');
   const [creating, setCreating] = useState(false);
   const [newlyCreated, setNewlyCreated] = useState<ProbeApiKey | null>(null);
@@ -76,27 +80,29 @@ function ApiKeyModal({
       setNewlyCreated(key);
       setNewKeyName('');
       onRefresh();
-      toast.success('API key created');
+      toast.success(t('probesPage.apiKeys.created'));
     } catch {
-      toast.error('Failed to create API key');
+      toast.error(t('probesPage.apiKeys.failedCreate'));
     } finally {
       setCreating(false);
     }
   }
 
   async function handleDelete(id: number) {
-    if (!confirm('Delete this API key? Any probes using it will stop authenticating.')) return;
+    if (!confirm(t('probesPage.apiKeys.confirmDelete'))) return;
     try {
       await probeApi.deleteKey(id);
       onRefresh();
-      toast.success('Key deleted');
+      toast.success(t('probesPage.apiKeys.deleted') ?? t('common.success'));
     } catch {
-      toast.error('Failed to delete key');
+      toast.error(t('probesPage.apiKeys.failedDelete'));
     }
   }
 
   function copyKey(key: string) {
-    navigator.clipboard.writeText(key).then(() => toast.success('Copied!')).catch(() => undefined);
+    navigator.clipboard.writeText(key)
+      .then(() => toast.success(t('probesPage.apiKeys.copied')))
+      .catch(() => undefined);
   }
 
   return (
@@ -105,7 +111,7 @@ function ApiKeyModal({
         <div className="flex items-center justify-between p-5 border-b border-border">
           <div className="flex items-center gap-2 text-text-primary font-semibold">
             <Key size={18} className="text-accent" />
-            API Keys
+            {t('probesPage.apiKeys.title')}
           </div>
           <button
             onClick={onClose}
@@ -119,7 +125,7 @@ function ApiKeyModal({
           <div className="flex gap-2">
             <input
               type="text"
-              placeholder="Key name (e.g. Production)"
+              placeholder={t('probesPage.apiKeys.namePlaceholder')}
               value={newKeyName}
               onChange={(e) => setNewKeyName(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') void handleCreate(); }}
@@ -131,14 +137,14 @@ function ApiKeyModal({
               className="btn-primary flex items-center gap-1.5 text-sm px-3 py-2 disabled:opacity-50"
             >
               {creating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-              Create
+              {t('probesPage.apiKeys.create')}
             </button>
           </div>
 
           {newlyCreated && (
             <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3">
               <p className="text-xs text-emerald-400 font-medium mb-1">
-                ✓ Key created — copy it now
+                {t('probesPage.apiKeys.keyCreated')}
               </p>
               <div className="flex items-center gap-2">
                 <code className="text-xs text-text-primary flex-1 break-all">{newlyCreated.key}</code>
@@ -154,7 +160,7 @@ function ApiKeyModal({
 
           <div className="space-y-2 max-h-72 overflow-y-auto">
             {tenantKeys.length === 0 ? (
-              <p className="text-text-muted text-sm text-center py-4">No API keys yet</p>
+              <p className="text-text-muted text-sm text-center py-4">{t('probesPage.apiKeys.noKeys')}</p>
             ) : (
               tenantKeys.map((k) => (
                 <div
@@ -168,7 +174,7 @@ function ApiKeyModal({
                     </p>
                     {k.lastUsedAt && (
                       <p className="text-xs text-text-muted">
-                        Last used: {new Date(k.lastUsedAt).toLocaleString()}
+                        {t('probesPage.apiKeys.lastUsed', { date: new Date(k.lastUsedAt).toLocaleString() })}
                       </p>
                     )}
                   </div>
@@ -176,14 +182,14 @@ function ApiKeyModal({
                     <button
                       onClick={() => copyKey(k.key)}
                       className="p-1.5 text-text-muted hover:text-text-primary rounded transition-colors"
-                      title="Copy key"
+                      title={t('probesPage.apiKeys.copyKey')}
                     >
                       <Copy size={14} />
                     </button>
                     <button
                       onClick={() => void handleDelete(k.id)}
                       className="p-1.5 text-text-muted hover:text-red-400 rounded transition-colors"
-                      title="Delete key"
+                      title={t('probesPage.apiKeys.deleteKey')}
                     >
                       <Trash2 size={14} />
                     </button>
@@ -215,6 +221,7 @@ function ProbeRow({
   onRefuse: (id: number) => void;
   onDelete: (id: number) => void;
 }) {
+  const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const platform = probe.osInfo?.platform
@@ -270,14 +277,14 @@ function ProbeRow({
               <button
                 onClick={() => onApprove(probe.id)}
                 className="p-1.5 text-emerald-400 hover:bg-emerald-500/10 rounded transition-colors"
-                title="Approve"
+                title={t('probesPage.detail.approve')}
               >
                 <CheckCircle size={15} />
               </button>
               <button
                 onClick={() => onRefuse(probe.id)}
                 className="p-1.5 text-red-400 hover:bg-red-500/10 rounded transition-colors"
-                title="Refuse"
+                title={t('probesPage.detail.refuse')}
               >
                 <XCircle size={15} />
               </button>
@@ -287,7 +294,7 @@ function ProbeRow({
             <button
               onClick={() => onApprove(probe.id)}
               className="p-1.5 text-emerald-400 hover:bg-emerald-500/10 rounded transition-colors"
-              title="Re-approve"
+              title={t('probesPage.detail.reApprove')}
             >
               <CheckCircle size={15} />
             </button>
@@ -295,7 +302,7 @@ function ProbeRow({
           <Link
             to={`/admin/probes/${probe.id}`}
             className="p-1.5 text-text-muted hover:text-text-primary rounded transition-colors"
-            title="View detail"
+            title={t('common.edit')}
           >
             <Eye size={15} />
           </Link>
@@ -314,7 +321,7 @@ function ProbeRow({
                     onClick={() => { setMenuOpen(false); onDelete(probe.id); }}
                     className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-bg-elevated flex items-center gap-2"
                   >
-                    <Trash2 size={14} /> Delete
+                    <Trash2 size={14} /> {t('common.delete')}
                   </button>
                 </div>
               </>
@@ -329,6 +336,7 @@ function ProbeRow({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export function AdminProbePage() {
+  const { t } = useTranslation();
   const [probes, setProbes] = useState<Probe[]>([]);
   const [keys, setKeys] = useState<ProbeApiKey[]>([]);
   const [loading, setLoading] = useState(true);
@@ -343,11 +351,11 @@ export function AdminProbePage() {
       setProbes(probeRes.probes);
       setKeys(keyRes.keys);
     } catch {
-      toast.error('Failed to load probes');
+      toast.error(t('probesPage.failedLoad'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -371,47 +379,54 @@ export function AdminProbePage() {
   async function handleApprove(id: number) {
     try {
       await probeApi.approve(id);
-      toast.success('Probe approved');
+      toast.success(t('probesPage.approved'));
       void load();
-    } catch { toast.error('Failed to approve probe'); }
+    } catch { toast.error(t('probesPage.failedApprove')); }
   }
 
   async function handleRefuse(id: number) {
-    if (!confirm('Refuse this probe?')) return;
+    if (!confirm(t('probesPage.confirmRefuse'))) return;
     try {
       await probeApi.refuse(id);
-      toast.success('Probe refused');
+      toast.success(t('probesPage.refused'));
       void load();
-    } catch { toast.error('Failed to refuse probe'); }
+    } catch { toast.error(t('probesPage.failedRefuse')); }
   }
 
   async function handleDelete(id: number) {
-    if (!confirm('Delete this probe?')) return;
+    if (!confirm(t('probesPage.confirmDelete'))) return;
     try {
       await probeApi.remove(id);
-      toast.success('Probe deleted');
+      toast.success(t('probesPage.deleted'));
       void load();
-    } catch { toast.error('Failed to delete probe'); }
+    } catch { toast.error(t('probesPage.failedDelete')); }
   }
 
   async function handleBulk(action: string) {
     setBulkMenu(false);
     const ids = Array.from(selected);
     if (ids.length === 0) return;
-    if (action === 'delete' && !confirm(`Delete ${ids.length} probe(s)?`)) return;
+    if (action === 'delete' && !confirm(t('probesPage.confirmBulkDelete', { count: ids.length }))) return;
     try {
       await probeApi.bulk(action, ids);
       toast.success(
         action === 'approve'
-          ? `${ids.length} probe(s) approved`
+          ? t('probesPage.bulkApproved', { count: ids.length })
           : action === 'delete'
-            ? `${ids.length} probe(s) deleted`
-            : `Command queued for ${ids.length} probe(s)`,
+            ? t('probesPage.bulkDeleted', { count: ids.length })
+            : t('probesPage.bulkCommandQueued', { count: ids.length }),
       );
       setSelected(new Set());
       void load();
-    } catch { toast.error(`Bulk ${action} failed`); }
+    } catch { toast.error(t('probesPage.bulkFailed', { action })); }
   }
+
+  const filterLabels: Record<string, string> = {
+    all:      t('probesPage.filterAll'),
+    pending:  t('probesPage.statusPending'),
+    approved: t('probesPage.statusApproved'),
+    refused:  t('probesPage.statusRefused'),
+  };
 
   if (loading) {
     return (
@@ -426,10 +441,10 @@ export function AdminProbePage() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <Radar size={24} className="text-accent" />
-          <h1 className="text-2xl font-semibold text-text-primary">Probes</h1>
+          <h1 className="text-2xl font-semibold text-text-primary">{t('probesPage.title')}</h1>
           {pendingCount > 0 && (
             <span className="bg-yellow-500 text-black text-xs font-bold px-2 py-0.5 rounded-full">
-              {pendingCount} pending
+              {pendingCount} {t('probesPage.statusPending').toLowerCase()}
             </span>
           )}
         </div>
@@ -437,7 +452,7 @@ export function AdminProbePage() {
           <button
             onClick={() => void load()}
             className="p-2 text-text-muted hover:text-text-primary rounded-lg transition-colors"
-            title="Refresh"
+            title={t('common.refresh')}
           >
             <RefreshCw size={16} />
           </button>
@@ -446,7 +461,7 @@ export function AdminProbePage() {
             className="btn-secondary flex items-center gap-1.5 text-sm"
           >
             <Key size={14} />
-            API Keys ({keys.length})
+            {t('probesPage.apiKeys.title')} ({keys.length})
           </button>
         </div>
       </div>
@@ -465,7 +480,7 @@ export function AdminProbePage() {
                   : 'text-text-muted hover:text-text-primary hover:bg-bg-elevated',
               )}
             >
-              {s.charAt(0).toUpperCase() + s.slice(1)}
+              {filterLabels[s] ?? s}
               {s === 'pending' && pendingCount > 0 && (
                 <span className="ml-1.5 bg-yellow-500 text-black text-xs rounded-full px-1.5">
                   {pendingCount}
@@ -477,13 +492,15 @@ export function AdminProbePage() {
 
         {selected.size > 0 && (
           <div className="relative flex items-center gap-2">
-            <span className="text-sm text-text-muted">{selected.size} selected</span>
+            <span className="text-sm text-text-muted">
+              {t('probesPage.selected', { count: selected.size })}
+            </span>
             <div className="relative">
               <button
                 onClick={() => setBulkMenu(!bulkMenu)}
                 className="btn-secondary flex items-center gap-1 text-sm"
               >
-                Actions <ChevronDown size={14} />
+                {t('probesPage.actions')} <ChevronDown size={14} />
               </button>
               {bulkMenu && (
                 <>
@@ -493,20 +510,20 @@ export function AdminProbePage() {
                       onClick={() => void handleBulk('approve')}
                       className="w-full text-left px-3 py-2 text-sm text-emerald-400 hover:bg-bg-elevated flex items-center gap-2"
                     >
-                      <CheckCircle size={14} /> Approve all
+                      <CheckCircle size={14} /> {t('probesPage.approveAll')}
                     </button>
                     <button
                       onClick={() => void handleBulk('uninstall')}
                       className="w-full text-left px-3 py-2 text-sm text-text-primary hover:bg-bg-elevated flex items-center gap-2"
                     >
-                      <Trash2 size={14} /> Uninstall all
+                      <Trash2 size={14} /> {t('probesPage.uninstallAll')}
                     </button>
                     <div className="border-t border-border my-1" />
                     <button
                       onClick={() => void handleBulk('delete')}
                       className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-bg-elevated flex items-center gap-2"
                     >
-                      <Trash2 size={14} /> Delete all
+                      <Trash2 size={14} /> {t('probesPage.deleteAll')}
                     </button>
                   </div>
                 </>
@@ -521,12 +538,14 @@ export function AdminProbePage() {
         <div className="bg-bg-card border border-border rounded-xl p-12 text-center">
           <Radar size={40} className="text-text-muted mx-auto mb-3" />
           <p className="text-text-primary font-medium mb-1">
-            No probes{filterStatus !== 'all' ? ` (${filterStatus})` : ''}
+            {filterStatus !== 'all'
+              ? t('probesPage.noProbesFiltered', { status: filterStatus })
+              : t('probesPage.noProbes')}
           </p>
           <p className="text-text-muted text-sm">
             {filterStatus === 'all'
-              ? 'Install a probe on a network host — it will appear here after its first push.'
-              : 'Try a different filter.'}
+              ? t('probesPage.noProbesDesc')
+              : t('probesPage.tryFilter')}
           </p>
         </div>
       ) : (
@@ -542,12 +561,12 @@ export function AdminProbePage() {
                     className="accent-accent"
                   />
                 </th>
-                <th className="px-4 py-3 text-left">Probe</th>
-                <th className="px-4 py-3 text-left hidden md:table-cell">Platform</th>
-                <th className="px-4 py-3 text-left hidden lg:table-cell">Site</th>
-                <th className="px-4 py-3 text-left">Status</th>
-                <th className="px-4 py-3 text-left hidden sm:table-cell">Last seen</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+                <th className="px-4 py-3 text-left">{t('probesPage.colProbe')}</th>
+                <th className="px-4 py-3 text-left hidden md:table-cell">{t('probesPage.colPlatform')}</th>
+                <th className="px-4 py-3 text-left hidden lg:table-cell">{t('probesPage.colSite')}</th>
+                <th className="px-4 py-3 text-left">{t('probesPage.colStatus')}</th>
+                <th className="px-4 py-3 text-left hidden sm:table-cell">{t('probesPage.colLastSeen')}</th>
+                <th className="px-4 py-3 text-right">{t('probesPage.colActions')}</th>
               </tr>
             </thead>
             <tbody>

@@ -3,13 +3,13 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_DB: obliview
-      POSTGRES_USER: obliview
+      POSTGRES_DB: oblimap
+      POSTGRES_USER: oblimap
       POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U obliview"]
+      test: ["CMD-SHELL", "pg_isready -U oblimap"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -25,8 +25,8 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: production
-      PORT: 3001
-      DATABASE_URL: postgres://obliview:${DB_PASSWORD:-changeme}@postgres:5432/obliview
+      PORT: 3002
+      DATABASE_URL: postgres://oblimap:${DB_PASSWORD:-changeme}@postgres:5432/oblimap
       SESSION_SECRET: ${SESSION_SECRET:-change-this-in-production}
       CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost}
       DEFAULT_ADMIN_USERNAME: ${DEFAULT_ADMIN_USERNAME:-admin}

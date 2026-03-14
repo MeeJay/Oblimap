@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, type FormEvent } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, ChevronUp, ChevronDown, FolderTree, Server } from 'lucide-react';
+import { ArrowLeft, ChevronUp, ChevronDown, FolderTree } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { MonitorGroup, GroupTreeNode } from '@oblimap/shared';
 import { groupsApi } from '@/api/groups.api';
@@ -11,6 +11,7 @@ import { Input } from '@/components/common/Input';
 import { GroupPicker } from '@/components/common/GroupPicker';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { NotificationBindingsPanel } from '@/components/notifications/NotificationBindingsPanel';
+import { VendorRulesPanel } from '@/components/ipam/VendorRulesPanel';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { cn } from '@/utils/cn';
@@ -186,22 +187,15 @@ export function GroupEditPage() {
 
       <div className="flex items-center gap-3 mb-6">
         <h1 className="text-2xl font-semibold text-text-primary">{t('groups.edit')}</h1>
-        {group.kind === 'agent' ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-bg-tertiary border border-border px-2.5 py-0.5 text-xs font-medium text-text-muted">
-            <Server size={11} />
-            {t('groups.agentGroup')}
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1 rounded-full bg-bg-tertiary border border-border px-2.5 py-0.5 text-xs font-medium text-text-muted">
-            <FolderTree size={11} />
-            {t('groups.monitorGroup')}
-          </span>
-        )}
+        <span className="inline-flex items-center gap-1 rounded-full bg-bg-tertiary border border-border px-2.5 py-0.5 text-xs font-medium text-text-muted">
+          <FolderTree size={11} />
+          {t('nav.groups')}
+        </span>
       </div>
 
       {/* General */}
       <div className="rounded-lg border border-border bg-bg-secondary p-5 mb-6">
-        <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-wide mb-4">{t('monitors.form.sectionGeneral')}</h2>
+        <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-wide mb-4">{t('common.name')}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
             label={t('groups.form.name')}
@@ -266,6 +260,11 @@ export function GroupEditPage() {
           scopeId={groupId}
           title={t('monitors.sectionSettings')}
         />
+      </div>
+
+      {/* Vendor → Device Type Rules */}
+      <div className="mb-6">
+        <VendorRulesPanel groupId={groupId} />
       </div>
 
       {/* Position (admin only) */}

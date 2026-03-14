@@ -854,6 +854,73 @@ export const notificationService = {
     }
   },
 
+  /**
+   * Resolve channels for an IPAM site event.
+   * Chain: Global → site's group ancestors (root→leaf, including self).
+   * Falls back to global-only if the site has no group.
+   */
+  async resolveChannelsForSite(tenantId: number, siteGroupId: number | null): Promise<number[]> {
+    let channelIds: Set<number> = new Set();
+
+    // Always apply global bindings
+    const globalBindings = await this.getBindings('global', null);
+    channelIds = this._applyBindings(channelIds, globalBindings);
+
+    // Apply group chain if site is assigned to a group
+    if (siteGroupId !== null) {
+      const ancestorRows = await db('group_closure')
+        .where('descendant_id', siteGroupId)
+        .orderBy('depth', 'desc')
+        .select('ancestor_id');
+
+      for (const row of ancestorRows) {
+        const groupBindings = await this.getBindings('group', row.ancestor_id);
+        channelIds = this._applyBindings(channelIds, groupBindings);
+      }
+    }
+
+    return Array.from(channelIds);
+  },
+
+  /**
+   * Dispatch an IPAM notification (new device, offline, IP conflict, etc.)
+   * via channels resolved for the site.
+   */
+  async sendForSite(
+    tenantId: number,
+    siteGroupId: number | null,
+    payload: NotificationPayload,
+  ): Promise<void> {
+    const channelIds = await this.resolveChannelsForSite(tenantId, siteGroupId);
+    if (channelIds.length === 0) return;
+
+    const enriched: NotificationPayload = { ...payload, appName: config.appName, isIpamNotification: true };
+
+    const channels = await db<ChannelRow>('notification_channels')
+      .whereIn('id', channelIds)
+      .where({ is_enabled: true });
+
+    for (const row of channels) {
+      const channel = rowToChannel(row);
+      const plugin = getPlugin(channel.type);
+      if (!plugin) {
+        logger.warn(`No plugin for notification type "${channel.type}"`);
+        continue;
+      }
+
+      try {
+        const resolvedConfig = await this.resolveChannelConfig(channel);
+        await plugin.send(resolvedConfig, enriched);
+        await this.logNotification(channel.id, null, 'ipam_event', true);
+        logger.info(`IPAM notification sent: ${channel.name} (${channel.type}) — ${payload.monitorName}`);
+      } catch (error) {
+        const errMsg = error instanceof Error ? error.message : 'Unknown error';
+        await this.logNotification(channel.id, null, 'ipam_event', false, errMsg);
+        logger.error(`IPAM notification failed: ${channel.name} (${channel.type}): ${errMsg}`);
+      }
+    }
+  },
+
   async logNotification(
     channelId: number,
     monitorId: number | null,

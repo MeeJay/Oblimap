@@ -12,7 +12,7 @@ export const freemobilePlugin: NotificationPlugin = {
 
   async send(config, payload) {
     const icon = statusIcon(payload.newStatus);
-    const prefix = payload.appName || 'Obliview';
+    const prefix = payload.appName || 'Oblimap';
     const msg = `[${prefix}] ${icon} ${payload.monitorName}: ${payload.oldStatus} → ${payload.newStatus}${payload.message ? ` - ${payload.message}` : ''}`;
 
     const params = new URLSearchParams({
@@ -32,7 +32,7 @@ export const freemobilePlugin: NotificationPlugin = {
       monitorName: 'Test Monitor',
       oldStatus: 'up',
       newStatus: 'down',
-      message: 'Test from Obliview',
+      message: 'Test from Oblimap',
       timestamp: new Date().toISOString(),
     });
   },

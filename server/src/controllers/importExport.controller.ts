@@ -6,13 +6,11 @@ import { AppError } from '../middleware/errorHandler';
 
 
 type ExportSection =
-  | 'monitorGroups'
+  | 'siteGroups'
+  | 'sites'
   | 'settings'
   | 'notificationChannels'
-  | 'agentGroups'
-  | 'teams'
-  | 'remediationActions'
-  | 'remediationBindings';
+  | 'teams';
 
 /**
  * What to do when an imported item's UUID already exists in the database.
@@ -112,13 +110,13 @@ export const importExportController = {
           'UUIDs are automatically assigned to all records on first export.',
         ].join(' '),
         sections: all
-          ? (['monitorGroups', 'settings', 'notificationChannels', 'agentGroups', 'teams', 'remediationActions', 'remediationBindings'] as ExportSection[])
+          ? (['siteGroups', 'sites', 'settings', 'notificationChannels', 'teams'] as ExportSection[])
           : (requested as ExportSection[]),
       };
 
       // ── Lazily-built UUID maps (shared across sections) ─────────────────────
-      let _groupUuidMap:   Map<number, string> | null = null;
-      let _monitorUuidMap: Map<number, string> | null = null;
+      let _groupUuidMap: Map<number, string> | null = null;
+      let _siteUuidMap:  Map<number, string> | null = null;
 
       async function getGroupUuidMap(): Promise<Map<number, string>> {
         if (!_groupUuidMap) {
@@ -128,20 +126,20 @@ export const importExportController = {
         return _groupUuidMap;
       }
 
-      async function getMonitorUuidMap(): Promise<Map<number, string>> {
-        if (!_monitorUuidMap) {
-          const rows = await db('monitors').where({ tenant_id: tenantId }).select('id', 'uuid');
-          _monitorUuidMap = new Map(rows.map((r: { id: number; uuid: string }) => [r.id, r.uuid]));
+      async function getSiteUuidMap(): Promise<Map<number, string>> {
+        if (!_siteUuidMap) {
+          const rows = await db('sites').where({ tenant_id: tenantId }).select('id', 'uuid');
+          _siteUuidMap = new Map(rows.map((r: { id: number; uuid: string }) => [r.id, r.uuid]));
         }
-        return _monitorUuidMap;
+        return _siteUuidMap;
       }
 
-      // ── Monitor Groups (kind='monitor') ─────────────────────────────────────
-      if (want('monitorGroups')) {
-        const groups  = await db('monitor_groups').where({ kind: 'monitor', tenant_id: tenantId }).orderBy('sort_order').orderBy('name');
+      // ── Site Groups ──────────────────────────────────────────────────────────
+      if (want('siteGroups')) {
+        const groups  = await db('monitor_groups').where({ tenant_id: tenantId }).orderBy('sort_order').orderBy('name');
         const selfMap = new Map<number, string>(groups.map((g: any) => [g.id as number, g.uuid as string]));
 
-        payload.monitorGroups = groups.map((g: any) => ({
+        payload.siteGroups = groups.map((g: any) => ({
           uuid:               g.uuid,
           name:               g.name,
           description:        g.description,
@@ -152,19 +150,32 @@ export const importExportController = {
         }));
       }
 
+      // ── Sites ────────────────────────────────────────────────────────────────
+      if (want('sites')) {
+        const sites = await db('sites').where({ tenant_id: tenantId }).orderBy('name');
+        const guMap = await getGroupUuidMap();
+
+        payload.sites = sites.map((s: any) => ({
+          uuid:        s.uuid,
+          name:        s.name,
+          description: s.description ?? null,
+          groupUuid:   s.group_id != null ? (guMap.get(s.group_id) ?? null) : null,
+        }));
+      }
+
       // ── Settings (all scopes) ────────────────────────────────────────────────
       if (want('settings')) {
         const settings = await db('settings').where({ tenant_id: tenantId }).orderBy('scope').orderBy('scope_id').orderBy('key');
         const guMap    = await getGroupUuidMap();
-        const muMap    = await getMonitorUuidMap();
+        const suMap    = await getSiteUuidMap();
 
         payload.settings = settings
           .map((s: any) => ({
             scope:     s.scope,
             scopeUuid:
-              s.scope === 'global'  ? null :
-              s.scope === 'group'   ? (guMap.get(s.scope_id) ?? null) :
-              s.scope === 'monitor' ? (muMap.get(s.scope_id) ?? null) :
+              s.scope === 'global' ? null :
+              s.scope === 'group'  ? (guMap.get(s.scope_id) ?? null) :
+              s.scope === 'site'   ? (suMap.get(s.scope_id) ?? null) :
               null,
             key:   s.key,
             value: s.value,
@@ -177,7 +188,7 @@ export const importExportController = {
         const channels = await db('notification_channels').where({ tenant_id: tenantId }).orderBy('id');
         const bindings = await db('notification_bindings').orderBy('channel_id');
         const guMap    = await getGroupUuidMap();
-        const muMap    = await getMonitorUuidMap();
+        const suMap    = await getSiteUuidMap();
 
         payload.notificationChannels = channels.map((c: any) => ({
           uuid:      c.uuid,
@@ -190,9 +201,9 @@ export const importExportController = {
             .map((b: any) => ({
               scope:        b.scope,
               scopeUuid:
-                b.scope === 'global'  ? null :
-                b.scope === 'group'   ? (guMap.get(b.scope_id) ?? null) :
-                b.scope === 'monitor' ? (muMap.get(b.scope_id) ?? null) :
+                b.scope === 'global' ? null :
+                b.scope === 'group'  ? (guMap.get(b.scope_id) ?? null) :
+                b.scope === 'site'   ? (suMap.get(b.scope_id) ?? null) :
                 null,
               overrideMode: b.override_mode,
             }))
@@ -200,95 +211,12 @@ export const importExportController = {
         }));
       }
 
-      // ── Agent Groups (kind='agent') ──────────────────────────────────────────
-      if (want('agentGroups')) {
-        const groups  = await db('monitor_groups').where({ kind: 'agent', tenant_id: tenantId }).orderBy('sort_order').orderBy('name');
-        const selfMap = new Map<number, string>(groups.map((g: any) => [g.id as number, g.uuid as string]));
-
-        payload.agentGroups = groups.map((g: any) => ({
-          uuid:             g.uuid,
-          name:             g.name,
-          description:      g.description,
-          parentUuid:       g.parent_id != null ? (selfMap.get(g.parent_id) ?? null) : null,
-          sortOrder:        g.sort_order,
-          agentThresholds:  g.agent_thresholds,
-          agentGroupConfig: g.agent_group_config,
-        }));
-      }
-
-      // ── Remediation Actions ──────────────────────────────────────────────────
-      if (want('remediationActions')) {
-        const includeSSHCredentials = req.query.includeSSHCredentials === 'true';
-        const actions = await db('remediation_actions').where({ tenant_id: tenantId }).orderBy('id');
-
-        payload.remediationActions = actions.map((a: any) => {
-          let config = a.config;
-          // config is stored as JSONB — Knex returns it already parsed
-          const parsedConfig: Record<string, unknown> =
-            typeof config === 'string' ? (JSON.parse(config) as Record<string, unknown>) : (config as Record<string, unknown>) ?? {};
-
-          // Redact SSH credentials unless explicitly requested
-          if (a.type === 'ssh' && !includeSSHCredentials) {
-            const redacted = { ...parsedConfig };
-            if ('credentialEnc' in redacted) redacted.credentialEnc = '[redacted]';
-            if ('password' in redacted) redacted.password = '[redacted]';
-            if ('privateKey' in redacted) redacted.privateKey = '[redacted]';
-            config = redacted;
-          } else {
-            config = parsedConfig;
-          }
-
-          return {
-            uuid:    a.uuid,
-            name:    a.name,
-            type:    a.type,
-            config,
-            enabled: a.enabled,
-          };
-        });
-      }
-
-      // ── Remediation Bindings ─────────────────────────────────────────────────
-      if (want('remediationBindings')) {
-        const bindings  = await db('remediation_bindings').orderBy('id');
-        const actions   = await db('remediation_actions').where({ tenant_id: tenantId }).select('id', 'uuid');
-        const guMap     = await getGroupUuidMap();
-        const muMap     = await getMonitorUuidMap();
-        const actionUuidById = new Map<number, string>(
-          actions.map((a: { id: number; uuid: string }) => [a.id, a.uuid]),
-        );
-
-        payload.remediationBindings = bindings
-          .map((b: any) => {
-            const actionUuid = actionUuidById.get(b.action_id);
-            if (!actionUuid) return null;
-
-            const scopeUuid =
-              b.scope === 'global'  ? null :
-              b.scope === 'group'   ? (guMap.get(b.scope_id) ?? null) :
-              b.scope === 'monitor' ? (muMap.get(b.scope_id) ?? null) :
-              null;
-
-            if (b.scope !== 'global' && scopeUuid === null) return null;
-
-            return {
-              actionUuid,
-              scope:           b.scope,
-              scopeUuid,
-              overrideMode:    b.override_mode,
-              triggerOn:       b.trigger_on,
-              cooldownSeconds: b.cooldown_seconds,
-            };
-          })
-          .filter(Boolean);
-      }
-
       // ── Teams + Permissions (no memberships — users are never exported) ───────
       if (want('teams')) {
         const teams       = await db('user_teams').where({ tenant_id: tenantId }).orderBy('id');
         const permissions = await db('team_permissions').orderBy('team_id');
         const guMap       = await getGroupUuidMap();
-        const muMap       = await getMonitorUuidMap();
+        const suMap       = await getSiteUuidMap();
 
         payload.teams = teams.map((t: any) => ({
           uuid:        t.uuid,
@@ -301,14 +229,16 @@ export const importExportController = {
               scope:     p.scope,
               scopeUuid: p.scope === 'group'
                 ? (guMap.get(p.scope_id) ?? null)
-                : (muMap.get(p.scope_id) ?? null),
+                : p.scope === 'site'
+                  ? (suMap.get(p.scope_id) ?? null)
+                  : null,
               level: p.level,
             }))
             .filter((p: any) => p.scopeUuid !== null),
         }));
       }
 
-      const filename = `obliview-export-${new Date().toISOString().slice(0, 10)}.json`;
+      const filename = `oblimap-export-${new Date().toISOString().slice(0, 10)}.json`;
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
       res.setHeader('Content-Type', 'application/json');
       res.json(payload);
@@ -348,66 +278,52 @@ export const importExportController = {
 
         // ── Pre-populate UUID → DB id maps (scoped to current tenant) ─────────
         const groupIdByUuid:   Map<string, number> = new Map();
-        const monitorIdByUuid: Map<string, number> = new Map();
+        const siteIdByUuid:    Map<string, number> = new Map();
         const channelIdByUuid: Map<string, number> = new Map();
         const teamIdByUuid:    Map<string, number> = new Map();
 
         for (const r of await trx('monitor_groups').where({ tenant_id: tenantId }).select('id', 'uuid'))
           groupIdByUuid.set(r.uuid, r.id);
-        for (const r of await trx('monitors').where({ tenant_id: tenantId }).select('id', 'uuid'))
-          monitorIdByUuid.set(r.uuid, r.id);
+        for (const r of await trx('sites').where({ tenant_id: tenantId }).select('id', 'uuid'))
+          siteIdByUuid.set(r.uuid, r.id);
         for (const r of await trx('notification_channels').where({ tenant_id: tenantId }).select('id', 'uuid'))
           channelIdByUuid.set(r.uuid, r.id);
         for (const r of await trx('user_teams').where({ tenant_id: tenantId }).select('id', 'uuid'))
           teamIdByUuid.set(r.uuid, r.id);
 
         /**
-         * Batch resolution maps: track original-UUID → new DB id for items
-         * imported in this run.  Used to resolve parent references for
-         * children imported in the same batch (even when generateNew created
-         * a fresh UUID for the parent).
+         * Batch resolution map: tracks original-UUID → new DB id for groups
+         * imported in this run. Used to resolve parent references for children
+         * imported in the same batch (even when generateNew created a fresh UUID).
          */
         const batchGroupByOrigUuid: Map<string, number> = new Map();
+        const batchSiteByOrigUuid:  Map<string, number> = new Map();
 
-        /** Resolve a group UUID → DB id: batch-result first, then existing DB */
         function resolveGroup(uuid: string | null | undefined): number | null {
           if (!uuid) return null;
           return batchGroupByOrigUuid.get(uuid) ?? groupIdByUuid.get(uuid) ?? null;
         }
 
-        /** Resolve a monitor UUID → DB id (for settings / bindings) */
-        function resolveMonitor(uuid: string | null | undefined): number | null {
+        function resolveSite(uuid: string | null | undefined): number | null {
           if (!uuid) return null;
-          return monitorIdByUuid.get(uuid) ?? null;
+          return batchSiteByOrigUuid.get(uuid) ?? siteIdByUuid.get(uuid) ?? null;
         }
 
         // ── Cross-tenant UUID collision pre-check ─────────────────────────────
-        // UUIDs have a global UNIQUE constraint across all tenants.  If an
-        // imported UUID belongs to a *different* tenant, we must never try to
-        // INSERT with that UUID (→ unique-constraint violation = 500) nor
-        // UPDATE it (→ wrong tenant mutation).  We auto-treat these as
-        // 'generateNew' regardless of the user-chosen conflictStrategy.
+        // UUIDs have a global UNIQUE constraint across all tenants. If an imported
+        // UUID belongs to a *different* tenant we must never INSERT with that UUID.
+        const _importedGroupUuids   = ((data.siteGroups as any[]) ?? []).map((g: any) => g.uuid).filter(Boolean) as string[];
+        const _importedSiteUuids    = ((data.sites      as any[]) ?? []).map((s: any) => s.uuid).filter(Boolean) as string[];
+        const _importedChannelUuids = ((data.notificationChannels as any[]) ?? []).map((c: any) => c.uuid).filter(Boolean) as string[];
+        const _importedTeamUuids    = ((data.teams      as any[]) ?? []).map((t: any) => t.uuid).filter(Boolean) as string[];
 
-        // Collect all UUIDs present in the import payload (groups covers both
-        // monitor groups AND agent groups since they share the same table).
-        const _importedGroupUuids   = [
-          ...((data.monitorGroups        as any[]) ?? []).map((g: any) => g.uuid),
-          ...((data.agentGroups          as any[]) ?? []).map((g: any) => g.uuid),
-        ].filter(Boolean) as string[];
-        const _importedMonitorUuids = ((data.monitors              as any[]) ?? []).map((m: any) => m.uuid).filter(Boolean) as string[];
-        const _importedChannelUuids = ((data.notificationChannels  as any[]) ?? []).map((c: any) => c.uuid).filter(Boolean) as string[];
-        const _importedTeamUuids    = ((data.teams                 as any[]) ?? []).map((t: any) => t.uuid).filter(Boolean) as string[];
-        const _importedActionUuids  = ((data.remediationActions    as any[]) ?? []).map((a: any) => a.uuid).filter(Boolean) as string[];
-
-        // For each table, find which of those UUIDs are already owned by another tenant.
-        // Using select+map rather than pluck() for reliable behaviour within a transaction.
         const _toUuidSet = (rows: { uuid: string }[]) => new Set<string>(rows.map(r => r.uuid));
 
         const foreignGroupUuids   = _importedGroupUuids.length
           ? _toUuidSet(await trx('monitor_groups')       .whereIn('uuid', _importedGroupUuids)  .whereNot({ tenant_id: tenantId }).select('uuid'))
           : new Set<string>();
-        const foreignMonitorUuids = _importedMonitorUuids.length
-          ? _toUuidSet(await trx('monitors')             .whereIn('uuid', _importedMonitorUuids).whereNot({ tenant_id: tenantId }).select('uuid'))
+        const foreignSiteUuids    = _importedSiteUuids.length
+          ? _toUuidSet(await trx('sites')                .whereIn('uuid', _importedSiteUuids)   .whereNot({ tenant_id: tenantId }).select('uuid'))
           : new Set<string>();
         const foreignChannelUuids = _importedChannelUuids.length
           ? _toUuidSet(await trx('notification_channels').whereIn('uuid', _importedChannelUuids).whereNot({ tenant_id: tenantId }).select('uuid'))
@@ -415,23 +331,7 @@ export const importExportController = {
         const foreignTeamUuids    = _importedTeamUuids.length
           ? _toUuidSet(await trx('user_teams')           .whereIn('uuid', _importedTeamUuids)   .whereNot({ tenant_id: tenantId }).select('uuid'))
           : new Set<string>();
-        const foreignActionUuids  = _importedActionUuids.length
-          ? _toUuidSet(await trx('remediation_actions')  .whereIn('uuid', _importedActionUuids) .whereNot({ tenant_id: tenantId }).select('uuid'))
-          : new Set<string>();
 
-        /**
-         * Determine the effective (uuid, strategy) for an item being imported.
-         *
-         * Rules:
-         *  - No UUID in data                         → CREATE with a fresh UUID
-         *  - UUID belongs to a different tenant      → CREATE with a fresh UUID
-         *    (regardless of conflictStrategy — cannot reuse or mutate foreign UUIDs)
-         *  - UUID not in target tenant               → CREATE with the given UUID
-         *  - UUID exists in target tenant            → apply conflictStrategy
-         *    · update      → UPDATE existing record
-         *    · generateNew → CREATE with new random UUID
-         *    · ignore      → SKIP
-         */
         function resolveConflict(
           inputUuid: string | null | undefined,
           idMap: Map<string, number>,
@@ -440,38 +340,34 @@ export const importExportController = {
           if (!inputUuid) {
             return { action: 'create', uuid: randomUUID() };
           }
-          // UUID belongs to another tenant → must generate a fresh one
           if (foreignUuids.has(inputUuid)) {
             return { action: 'create', uuid: randomUUID() };
           }
           const existingId = idMap.get(inputUuid);
           if (existingId === undefined) {
-            // UUID not in target tenant at all → create with provided UUID
             return { action: 'create', uuid: inputUuid };
           }
-          // UUID conflict in target tenant → apply strategy
           if (conflictStrategy === 'update')      return { action: 'update', uuid: inputUuid, existingId };
           if (conflictStrategy === 'generateNew') return { action: 'create', uuid: randomUUID() };
           /* ignore */                            return { action: 'skip' };
         }
 
-        // ── Monitor Groups ────────────────────────────────────────────────────
-        if (want('monitorGroups') && Array.isArray(data.monitorGroups)) {
+        // ── Site Groups ────────────────────────────────────────────────────────
+        if (want('siteGroups') && Array.isArray(data.siteGroups)) {
           let created = 0, updated = 0, skipped = 0;
 
           const sorted = topoSort(
-            data.monitorGroups as Record<string, unknown>[],
+            data.siteGroups as Record<string, unknown>[],
             'uuid', 'parentUuid',
           );
 
           for (const g of sorted) {
             if (!g.name) { skipped++; continue; }
 
-            const decision  = resolveConflict(g.uuid as string | undefined, groupIdByUuid, foreignGroupUuids);
-            const parentId  = resolveGroup(g.parentUuid as string | null | undefined);
+            const decision = resolveConflict(g.uuid as string | undefined, groupIdByUuid, foreignGroupUuids);
+            const parentId = resolveGroup(g.parentUuid as string | null | undefined);
 
             if (decision.action === 'skip') {
-              // Still register so children can resolve their parent
               if (g.uuid) batchGroupByOrigUuid.set(g.uuid as string, groupIdByUuid.get(g.uuid as string)!);
               skipped++;
               continue;
@@ -492,7 +388,6 @@ export const importExportController = {
                 batchGroupByOrigUuid.set(g.uuid as string, decision.existingId);
               updated++;
             } else {
-              // create
               const slug  = await ensureUniqueSlugTrx(trx, slugify(g.name as string), tenantId);
               const [row] = await trx('monitor_groups').insert({
                 uuid:                decision.uuid,
@@ -503,19 +398,62 @@ export const importExportController = {
                 sort_order:          (g.sortOrder as number) ?? 0,
                 is_general:          (g.isGeneral as boolean) ?? false,
                 group_notifications: (g.groupNotifications as boolean) ?? false,
-                kind:                'monitor',
                 tenant_id:           tenantId,
               }).returning('*');
 
               await insertGroupClosure(trx, row.id, parentId);
               groupIdByUuid.set(decision.uuid, row.id);
-              // Map original UUID (if different) to new DB id for child resolution
               if (g.uuid) batchGroupByOrigUuid.set(g.uuid as string, row.id);
               batchGroupByOrigUuid.set(decision.uuid, row.id);
               created++;
             }
           }
-          results.monitorGroups = { created, updated, skipped };
+          results.siteGroups = { created, updated, skipped };
+        }
+
+        // ── Sites ─────────────────────────────────────────────────────────────
+        if (want('sites') && Array.isArray(data.sites)) {
+          let created = 0, updated = 0, skipped = 0;
+
+          for (const s of data.sites as Record<string, unknown>[]) {
+            if (!s.name) { skipped++; continue; }
+
+            const decision = resolveConflict(s.uuid as string | undefined, siteIdByUuid, foreignSiteUuids);
+            const groupId  = resolveGroup(s.groupUuid as string | null | undefined);
+
+            if (decision.action === 'skip') {
+              if (s.uuid) batchSiteByOrigUuid.set(s.uuid as string, siteIdByUuid.get(s.uuid as string)!);
+              skipped++;
+              continue;
+            }
+
+            if (decision.action === 'update') {
+              await trx('sites').where({ uuid: decision.uuid, tenant_id: tenantId }).update({
+                name:        s.name,
+                description: (s.description as string | null) ?? null,
+                group_id:    groupId,
+                updated_at:  new Date(),
+              });
+              batchSiteByOrigUuid.set(decision.uuid, decision.existingId);
+              if (s.uuid && s.uuid !== decision.uuid)
+                batchSiteByOrigUuid.set(s.uuid as string, decision.existingId);
+              updated++;
+            } else {
+              const [row] = await trx('sites').insert({
+                uuid:        decision.uuid,
+                name:        s.name,
+                description: (s.description as string | null) ?? null,
+                group_id:    groupId,
+                tenant_id:   tenantId,
+              }).returning('*');
+
+              siteIdByUuid.set(decision.uuid, row.id);
+              if (s.uuid) batchSiteByOrigUuid.set(s.uuid as string, row.id);
+              batchSiteByOrigUuid.set(decision.uuid, row.id);
+              created++;
+            }
+          }
+          results.sites = { created, updated, skipped };
         }
 
         // ── Settings ─────────────────────────────────────────────────────────
@@ -531,8 +469,8 @@ export const importExportController = {
             if (scope !== 'global') {
               const scopeUuid = s.scopeUuid as string | null;
               if (!scopeUuid) { skipped++; continue; }
-              if (scope === 'group')   scopeId = resolveGroup(scopeUuid);
-              if (scope === 'monitor') scopeId = resolveMonitor(scopeUuid);
+              if (scope === 'group') scopeId = resolveGroup(scopeUuid);
+              if (scope === 'site')  scopeId = resolveSite(scopeUuid);
               if (scopeId === null) { skipped++; continue; }
             }
 
@@ -591,8 +529,8 @@ export const importExportController = {
                 if (bScope !== 'global') {
                   const bUuid = b.scopeUuid as string | null;
                   if (!bUuid) continue;
-                  if (bScope === 'group')   bScopeId = resolveGroup(bUuid);
-                  if (bScope === 'monitor') bScopeId = resolveMonitor(bUuid);
+                  if (bScope === 'group') bScopeId = resolveGroup(bUuid);
+                  if (bScope === 'site')  bScopeId = resolveSite(bUuid);
                   if (bScopeId === null) continue;
                 }
 
@@ -606,66 +544,6 @@ export const importExportController = {
             }
           }
           results.notificationChannels = { created, updated, skipped };
-        }
-
-        // ── Agent Groups ──────────────────────────────────────────────────────
-        if (want('agentGroups') && Array.isArray(data.agentGroups)) {
-          let created = 0, updated = 0, skipped = 0;
-
-          const sorted = topoSort(
-            data.agentGroups as Record<string, unknown>[],
-            'uuid', 'parentUuid',
-          );
-
-          for (const g of sorted) {
-            if (!g.name) { skipped++; continue; }
-
-            const decision = resolveConflict(g.uuid as string | undefined, groupIdByUuid, foreignGroupUuids);
-            const parentId = resolveGroup(g.parentUuid as string | null | undefined);
-
-            if (decision.action === 'skip') {
-              if (g.uuid) batchGroupByOrigUuid.set(g.uuid as string, groupIdByUuid.get(g.uuid as string)!);
-              skipped++;
-              continue;
-            }
-
-            if (decision.action === 'update') {
-              await trx('monitor_groups').where({ uuid: decision.uuid, tenant_id: tenantId }).update({
-                name:             g.name,
-                description:      (g.description as string | null) ?? null,
-                sort_order:       (g.sortOrder as number) ?? 0,
-                agent_thresholds: g.agentThresholds  ? JSON.stringify(g.agentThresholds)  : null,
-                agent_group_config: g.agentGroupConfig ? JSON.stringify(g.agentGroupConfig) : null,
-                updated_at:       new Date(),
-              });
-              batchGroupByOrigUuid.set(decision.uuid, decision.existingId);
-              if (g.uuid) batchGroupByOrigUuid.set(g.uuid as string, decision.existingId);
-              updated++;
-            } else {
-              const slug  = await ensureUniqueSlugTrx(trx, slugify(g.name as string), tenantId);
-              const [row] = await trx('monitor_groups').insert({
-                uuid:               decision.uuid,
-                name:               g.name,
-                slug,
-                description:        (g.description as string | null) ?? null,
-                parent_id:          parentId,
-                sort_order:         (g.sortOrder as number) ?? 0,
-                is_general:         false,
-                group_notifications: false,
-                kind:               'agent',
-                agent_thresholds:   g.agentThresholds  ? JSON.stringify(g.agentThresholds)  : null,
-                agent_group_config: g.agentGroupConfig ? JSON.stringify(g.agentGroupConfig) : null,
-                tenant_id:          tenantId,
-              }).returning('*');
-
-              await insertGroupClosure(trx, row.id, parentId);
-              groupIdByUuid.set(decision.uuid, row.id);
-              if (g.uuid) batchGroupByOrigUuid.set(g.uuid as string, row.id);
-              batchGroupByOrigUuid.set(decision.uuid, row.id);
-              created++;
-            }
-          }
-          results.agentGroups = { created, updated, skipped };
         }
 
         // ── Teams ─────────────────────────────────────────────────────────────
@@ -716,8 +594,8 @@ export const importExportController = {
                 if (!pUuid) continue;
 
                 let scopeId: number | null = null;
-                if (pScope === 'group')   scopeId = resolveGroup(pUuid);
-                if (pScope === 'monitor') scopeId = resolveMonitor(pUuid);
+                if (pScope === 'group') scopeId = resolveGroup(pUuid);
+                if (pScope === 'site')  scopeId = resolveSite(pUuid);
                 if (scopeId === null) continue;
 
                 await trx('team_permissions').insert({
@@ -730,121 +608,6 @@ export const importExportController = {
             }
           }
           results.teams = { created, updated, skipped };
-        }
-
-        // ── Remediation Actions ─────────────────────────────────────────────────
-        if (want('remediationActions') && Array.isArray(data.remediationActions)) {
-          let created = 0, updated = 0, skipped = 0;
-
-          // Build UUID map for remediation_actions (scoped to tenant)
-          const actionIdByUuid: Map<string, number> = new Map();
-          for (const r of await trx('remediation_actions').where({ tenant_id: tenantId }).select('id', 'uuid'))
-            actionIdByUuid.set(r.uuid, r.id);
-
-          // Also track newly imported actions so bindings can reference them in same run
-          const batchActionByOrigUuid: Map<string, number> = new Map();
-
-          for (const a of data.remediationActions as Record<string, unknown>[]) {
-            if (!a.name || !a.type) { skipped++; continue; }
-
-            const decision = resolveConflict(a.uuid as string | undefined, actionIdByUuid, foreignActionUuids);
-
-            if (decision.action === 'skip') {
-              if (a.uuid) batchActionByOrigUuid.set(a.uuid as string, actionIdByUuid.get(a.uuid as string)!);
-              skipped++;
-              continue;
-            }
-
-            const configVal = typeof a.config === 'string'
-              ? a.config
-              : JSON.stringify(a.config ?? {});
-
-            const actionRow: Record<string, unknown> = {
-              name:       a.name,
-              type:       a.type,
-              config:     configVal,
-              enabled:    (a.enabled as boolean) ?? true,
-              tenant_id:  tenantId,
-              updated_at: new Date(),
-            };
-
-            if (decision.action === 'update') {
-              await trx('remediation_actions').where({ uuid: decision.uuid, tenant_id: tenantId }).update(actionRow);
-              batchActionByOrigUuid.set(decision.uuid, decision.existingId);
-              if (a.uuid) batchActionByOrigUuid.set(a.uuid as string, decision.existingId);
-              updated++;
-            } else {
-              const [inserted] = await trx('remediation_actions')
-                .insert({ ...actionRow, uuid: decision.uuid })
-                .returning('id');
-              actionIdByUuid.set(decision.uuid, inserted.id);
-              if (a.uuid) batchActionByOrigUuid.set(a.uuid as string, inserted.id);
-              batchActionByOrigUuid.set(decision.uuid, inserted.id);
-              created++;
-            }
-          }
-
-          // Store batch map on outer scope so remediationBindings can use it
-          (trx as any).__remediationActionBatchMap = batchActionByOrigUuid;
-          (trx as any).__remediationActionIdByUuid = actionIdByUuid;
-
-          results.remediationActions = { created, updated, skipped };
-        }
-
-        // ── Remediation Bindings ────────────────────────────────────────────────
-        if (want('remediationBindings') && Array.isArray(data.remediationBindings)) {
-          let created = 0, skipped = 0;
-
-          // Resolve action UUID → DB id: prefer batch map (from this import run)
-          // then fall back to looking up existing actions from DB
-          const batchActionMap: Map<string, number> =
-            (trx as any).__remediationActionBatchMap ?? new Map<string, number>();
-          let actionIdByUuid: Map<string, number> =
-            (trx as any).__remediationActionIdByUuid ?? new Map<string, number>();
-
-          // If remediationActions wasn't imported in this run, load from DB (scoped to tenant)
-          if (actionIdByUuid.size === 0) {
-            const rows = await trx('remediation_actions').where({ tenant_id: tenantId }).select('id', 'uuid');
-            actionIdByUuid = new Map(rows.map((r: { id: number; uuid: string }) => [r.uuid, r.id]));
-          }
-
-          function resolveAction(uuid: string | null | undefined): number | null {
-            if (!uuid) return null;
-            return batchActionMap.get(uuid) ?? actionIdByUuid.get(uuid) ?? null;
-          }
-
-          for (const b of data.remediationBindings as Record<string, unknown>[]) {
-            const bScope = b.scope as string;
-            if (!bScope) { skipped++; continue; }
-
-            const actionId = resolveAction(b.actionUuid as string | null | undefined);
-            if (actionId === null) { skipped++; continue; }
-
-            let bScopeId: number | null = null;
-            if (bScope !== 'global') {
-              const bUuid = b.scopeUuid as string | null;
-              if (!bUuid) { skipped++; continue; }
-              if (bScope === 'group')   bScopeId = resolveGroup(bUuid);
-              if (bScope === 'monitor') bScopeId = resolveMonitor(bUuid);
-              if (bScopeId === null) { skipped++; continue; }
-            }
-
-            // Upsert — replace existing binding for this action+scope combination
-            await trx('remediation_bindings')
-              .where({ action_id: actionId, scope: bScope, scope_id: bScopeId })
-              .del();
-
-            await trx('remediation_bindings').insert({
-              action_id:       actionId,
-              scope:           bScope,
-              scope_id:        bScopeId,
-              override_mode:   (b.overrideMode as string) ?? 'merge',
-              trigger_on:      (b.triggerOn   as string) ?? 'down',
-              cooldown_seconds:(b.cooldownSeconds as number) ?? 300,
-            });
-            created++;
-          }
-          results.remediationBindings = { created, updated: 0, skipped };
         }
 
       }); // end transaction

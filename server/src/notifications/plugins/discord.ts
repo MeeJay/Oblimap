@@ -7,7 +7,7 @@ export const discordPlugin: NotificationPlugin = {
   description: 'Send to a Discord channel via webhook',
   configFields: [
     { key: 'webhookUrl', label: 'Discord Webhook URL', type: 'url', required: true, placeholder: 'https://discord.com/api/webhooks/...' },
-    { key: 'username', label: 'Bot Username (optional)', type: 'text', placeholder: 'Obliview' },
+    { key: 'username', label: 'Bot Username (optional)', type: 'text', placeholder: 'Oblimap' },
   ],
 
   async send(config, payload) {
@@ -39,7 +39,7 @@ export const discordPlugin: NotificationPlugin = {
       monitorName: 'Test Monitor',
       oldStatus: 'up',
       newStatus: 'down',
-      message: 'This is a test notification from Obliview',
+      message: 'This is a test notification from Oblimap',
       timestamp: new Date().toISOString(),
     });
   },

@@ -13,7 +13,7 @@ export const gotifyPlugin: NotificationPlugin = {
 
   async send(config, payload) {
     const icon = statusIcon(payload.newStatus);
-    const prefix = payload.appName || 'Obliview';
+    const prefix = payload.appName || 'Oblimap';
     const url = `${String(config.serverUrl).replace(/\/$/, '')}/message`;
 
     const res = await fetch(`${url}?token=${config.appToken}`, {
@@ -34,7 +34,7 @@ export const gotifyPlugin: NotificationPlugin = {
       monitorName: 'Test Monitor',
       oldStatus: 'up',
       newStatus: 'down',
-      message: 'Test from Obliview',
+      message: 'Test from Oblimap',
       timestamp: new Date().toISOString(),
     });
   },

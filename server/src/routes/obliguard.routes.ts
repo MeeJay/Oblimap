@@ -11,7 +11,7 @@ const router = Router();
  * GET /api/obliguard/link?uuid={uuid}
  *
  * Called by Obliguard (or any external service) to look up an agent device by
- * its machine UUID and get the Obliview page path for that device.
+ * its machine UUID and get the Oblimap page path for that device.
  *
  * Auth: Bearer token — must match the configured obliguard_config.apiKey.
  * No session required (cross-service call).
@@ -57,7 +57,7 @@ router.get('/link', async (req: Request, res: Response, next: NextFunction): Pro
 /**
  * GET /api/obliguard/proxy-link?uuid={uuid}
  *
- * Called by Obliview's own client (session auth) to look up a device in Obliguard.
+ * Called by Oblimap's own client (session auth) to look up a device in Obliguard.
  * The server proxies the request to the configured Obliguard instance using the
  * stored API key, so the key is never exposed to the browser.
  *

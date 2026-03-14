@@ -364,8 +364,11 @@ export interface IpReservation {
 // IPAM — MAC Vendors
 // ============================================
 export interface MacVendor {
-  prefix: string; // e.g. "AA:BB:CC"
-  vendorName: string;
+  prefix: string;       // e.g. "AA:BB:CC"
+  vendorName: string;   // from IEEE OUI database
+  customName: string | null; // admin-defined override (null = use vendorName)
+  /** Effective display name: customName if set, else vendorName */
+  effectiveName: string;
   updatedAt: string;
 }
 

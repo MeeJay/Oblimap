@@ -6,6 +6,7 @@ import {
   Activity, Globe,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useTranslation } from 'react-i18next';
 import { probeApi } from '../api/probe.api';
 import type { Probe, ProbeScanConfig } from '@oblimap/shared';
 import { clsx } from 'clsx';
@@ -13,15 +14,19 @@ import { clsx } from 'clsx';
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: Probe['status'] }) {
-  const map: Record<string, { cls: string; label: string }> = {
-    pending: { cls: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30', label: 'Pending Approval' },
-    approved: { cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', label: 'Approved' },
-    refused: { cls: 'bg-red-500/15 text-red-400 border-red-500/30', label: 'Refused' },
-    suspended: { cls: 'bg-zinc-500/15 text-zinc-400 border-zinc-500/30', label: 'Suspended' },
+  const { t } = useTranslation();
+  const map: Record<string, { cls: string; labelKey: string }> = {
+    pending:   { cls: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30',  labelKey: 'probesPage.detail.statusPending'        },
+    approved:  { cls: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30', labelKey: 'probesPage.statusApproved'             },
+    refused:   { cls: 'bg-red-500/15 text-red-400 border-red-500/30',             labelKey: 'probesPage.statusRefused'              },
+    suspended: { cls: 'bg-zinc-500/15 text-zinc-400 border-zinc-500/30',          labelKey: 'probesPage.statusSuspended'            },
   };
-  const { cls, label } = map[status] ?? { cls: '', label: status };
+  const entry = map[status] ?? { cls: '', labelKey: '' };
+  const label = entry.labelKey
+    ? (status === 'pending' ? t('probesPage.statusPendingApproval') : t(entry.labelKey as never))
+    : status;
   return (
-    <span className={clsx('text-xs font-semibold px-2.5 py-1 rounded-full border', cls)}>
+    <span className={clsx('text-xs font-semibold px-2.5 py-1 rounded-full border', entry.cls)}>
       {label}
     </span>
   );
@@ -49,6 +54,7 @@ function SubnetListEditor({
   onChange: (v: string[]) => void;
   placeholder?: string;
 }) {
+  const { t } = useTranslation();
   const [input, setInput] = useState('');
 
   function add() {
@@ -79,11 +85,11 @@ function SubnetListEditor({
           disabled={!input.trim()}
           className="btn-secondary flex items-center gap-1 text-sm disabled:opacity-50"
         >
-          <Plus size={14} /> Add
+          <Plus size={14} /> {t('common.apply')}
         </button>
       </div>
       {value.length === 0 ? (
-        <p className="text-text-muted text-xs italic">None</p>
+        <p className="text-text-muted text-xs italic">{t('probesPage.detail.noneSubnets')}</p>
       ) : (
         <div className="flex flex-wrap gap-1.5">
           {value.map((subnet) => (
@@ -109,6 +115,7 @@ function SubnetListEditor({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export function ProbeDetailPage() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
@@ -134,11 +141,11 @@ export function ProbeDetailPage() {
       setScanInterval(p.scanIntervalSeconds);
       setScanConfig(p.scanConfig);
     } catch {
-      toast.error('Failed to load probe');
+      toast.error(t('probesPage.failedLoad'));
     } finally {
       setLoading(false);
     }
-  }, [probeId]);
+  }, [probeId, t]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -150,10 +157,10 @@ export function ProbeDetailPage() {
         scanIntervalSeconds: scanInterval,
         scanConfig,
       });
-      toast.success('Probe updated');
+      toast.success(t('probesPage.updated'));
       void load();
     } catch {
-      toast.error('Failed to save');
+      toast.error(t('probesPage.failedSave'));
     } finally {
       setSaving(false);
     }
@@ -162,41 +169,41 @@ export function ProbeDetailPage() {
   async function handleApprove() {
     try {
       await probeApi.approve(probeId);
-      toast.success('Probe approved');
+      toast.success(t('probesPage.approved'));
       void load();
-    } catch { toast.error('Failed to approve'); }
+    } catch { toast.error(t('probesPage.failedApprove')); }
   }
 
   async function handleRefuse() {
-    if (!confirm('Refuse this probe?')) return;
+    if (!confirm(t('probesPage.confirmRefuse'))) return;
     try {
       await probeApi.refuse(probeId);
-      toast.success('Probe refused');
+      toast.success(t('probesPage.refused'));
       void load();
-    } catch { toast.error('Failed to refuse'); }
+    } catch { toast.error(t('probesPage.failedRefuse')); }
   }
 
   async function handleCommand(command: string) {
-    const labels: Record<string, string> = {
-      uninstall: 'Queue uninstall command?',
-      update: 'Queue update command?',
-      rescan: 'Queue rescan command?',
+    const confirmLabels: Record<string, string> = {
+      uninstall: t('probesPage.detail.confirmUninstall'),
+      update:    t('probesPage.detail.confirmUpdate'),
+      rescan:    t('probesPage.detail.confirmRescan'),
     };
-    if (!confirm(labels[command] ?? `Send command: ${command}?`)) return;
+    if (!confirm(confirmLabels[command] ?? `Send command: ${command}?`)) return;
     try {
       await probeApi.sendCommand(probeId, command);
-      toast.success(`Command "${command}" queued`);
+      toast.success(t('probesPage.detail.commandQueued', { command }));
       void load();
-    } catch { toast.error('Failed to send command'); }
+    } catch { toast.error(t('probesPage.detail.failedCommand')); }
   }
 
   async function handleDelete() {
-    if (!confirm('Delete this probe? This cannot be undone.')) return;
+    if (!confirm(t('probesPage.confirmDelete'))) return;
     try {
       await probeApi.remove(probeId);
-      toast.success('Probe deleted');
+      toast.success(t('probesPage.deleted'));
       navigate('/admin/probes');
-    } catch { toast.error('Failed to delete probe'); }
+    } catch { toast.error(t('probesPage.failedDelete')); }
   }
 
   if (loading) {
@@ -212,9 +219,9 @@ export function ProbeDetailPage() {
       <div className="p-6">
         <div className="bg-bg-card border border-border rounded-xl p-12 text-center">
           <AlertTriangle className="text-text-muted mx-auto mb-3" size={32} />
-          <p className="text-text-primary font-medium">Probe not found</p>
+          <p className="text-text-primary font-medium">{t('probesPage.notFound')}</p>
           <Link to="/admin/probes" className="text-accent text-sm mt-2 inline-block">
-            Back to probes
+            {t('probesPage.backLink')}
           </Link>
         </div>
       </div>
@@ -234,7 +241,7 @@ export function ProbeDetailPage() {
         className="inline-flex items-center gap-2 text-text-secondary hover:text-text-primary text-sm transition-colors"
       >
         <ArrowLeft size={14} />
-        Back to Probes
+        {t('probesPage.backToProbes')}
       </Link>
 
       {/* Header */}
@@ -264,13 +271,13 @@ export function ProbeDetailPage() {
                 onClick={() => void handleApprove()}
                 className="btn-primary flex items-center gap-1.5 text-sm"
               >
-                <CheckCircle size={14} /> Approve
+                <CheckCircle size={14} /> {t('probesPage.detail.approve')}
               </button>
               <button
                 onClick={() => void handleRefuse()}
                 className="btn-secondary flex items-center gap-1.5 text-sm text-red-400"
               >
-                <XCircle size={14} /> Refuse
+                <XCircle size={14} /> {t('probesPage.detail.refuse')}
               </button>
             </>
           )}
@@ -279,7 +286,7 @@ export function ProbeDetailPage() {
               onClick={() => void handleApprove()}
               className="btn-primary flex items-center gap-1.5 text-sm"
             >
-              <CheckCircle size={14} /> Re-approve
+              <CheckCircle size={14} /> {t('probesPage.detail.reApprove')}
             </button>
           )}
         </div>
@@ -288,37 +295,37 @@ export function ProbeDetailPage() {
       {/* Info card */}
       <div className="bg-bg-card border border-border rounded-xl p-5">
         <h2 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
-          <Monitor size={15} className="text-accent" /> Probe Info
+          <Monitor size={15} className="text-accent" /> {t('probesPage.detail.probeInfo')}
         </h2>
-        <InfoRow label="Hostname" value={probe.hostname} />
+        <InfoRow label={t('probesPage.detail.hostname')} value={probe.hostname} />
         <InfoRow
-          label="Platform"
+          label={t('probesPage.detail.platform')}
           value={
             probe.osInfo
               ? `${String(probe.osInfo.platform ?? '')} ${String(probe.osInfo.arch ?? '')} ${probe.osInfo.release ? `(${String(probe.osInfo.release)})` : ''}`
               : null
           }
         />
-        <InfoRow label="Version" value={probe.probeVersion ? `v${probe.probeVersion}` : null} />
+        <InfoRow label={t('probesPage.detail.version')} value={probe.probeVersion ? `v${probe.probeVersion}` : null} />
         <InfoRow
-          label="Last seen"
+          label={t('probesPage.detail.lastSeen')}
           value={
             probe.lastSeenAt
               ? new Date(probe.lastSeenAt).toLocaleString()
-              : 'Never'
+              : t('common.never')
           }
         />
         <InfoRow
-          label="Approved"
+          label={t('probesPage.detail.approvedAt')}
           value={probe.approvedAt ? new Date(probe.approvedAt).toLocaleString() : null}
         />
         <InfoRow
-          label="Assigned site"
-          value={probe.siteId ? `Site #${probe.siteId}` : 'None (assign from settings below)'}
+          label={t('probesPage.detail.assignedSite')}
+          value={probe.siteId ? `Site #${probe.siteId}` : t('probesPage.detail.noSite')}
         />
         {probe.pendingCommand && (
           <InfoRow
-            label="Pending command"
+            label={t('probesPage.detail.pendingCommand')}
             value={
               <span className="text-yellow-400 flex items-center gap-1">
                 <AlertTriangle size={13} /> {probe.pendingCommand}
@@ -328,7 +335,7 @@ export function ProbeDetailPage() {
         )}
         {probe.updatingSince && (
           <InfoRow
-            label="Updating since"
+            label={t('probesPage.detail.updatingSince')}
             value={new Date(probe.updatingSince).toLocaleString()}
           />
         )}
@@ -337,13 +344,15 @@ export function ProbeDetailPage() {
       {/* Settings card */}
       <div className="bg-bg-card border border-border rounded-xl p-5">
         <h2 className="text-sm font-semibold text-text-primary mb-4 flex items-center gap-2">
-          <Activity size={15} className="text-accent" /> Scan Settings
+          <Activity size={15} className="text-accent" /> {t('probesPage.detail.scanSettings')}
         </h2>
 
         <div className="space-y-5">
           {/* Display name */}
           <div>
-            <label className="text-sm text-text-muted block mb-2">Display name</label>
+            <label className="text-sm text-text-muted block mb-2">
+              {t('probesPage.detail.displayName')}
+            </label>
             <input
               type="text"
               value={name}
@@ -356,8 +365,10 @@ export function ProbeDetailPage() {
           {/* Scan interval */}
           <div>
             <label className="text-sm text-text-muted block mb-2">
-              Scan interval: <span className="text-text-primary font-medium">{scanInterval}s</span>
-              {' '}({Math.round(scanInterval / 60)}m)
+              {t('probesPage.detail.scanInterval', {
+                seconds: scanInterval,
+                minutes: Math.round(scanInterval / 60),
+              })}
             </label>
             <input
               type="range"
@@ -378,7 +389,7 @@ export function ProbeDetailPage() {
 
           {/* Excluded subnets */}
           <SubnetListEditor
-            label="Excluded subnets (never scan)"
+            label={t('probesPage.detail.excludedSubnets')}
             value={scanConfig.excludedSubnets}
             onChange={(v) => setScanConfig((c) => ({ ...c, excludedSubnets: v }))}
             placeholder="10.0.0.0/8"
@@ -386,7 +397,7 @@ export function ProbeDetailPage() {
 
           {/* Extra subnets */}
           <SubnetListEditor
-            label="Extra subnets (scan in addition to auto-detected)"
+            label={t('probesPage.detail.extraSubnets')}
             value={scanConfig.extraSubnets}
             onChange={(v) => setScanConfig((c) => ({ ...c, extraSubnets: v }))}
             placeholder="172.16.50.0/24"
@@ -399,7 +410,7 @@ export function ProbeDetailPage() {
               className="btn-primary flex items-center gap-1.5 text-sm disabled:opacity-50"
             >
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-              Save changes
+              {t('probesPage.detail.saveChanges')}
             </button>
           </div>
         </div>
@@ -408,29 +419,29 @@ export function ProbeDetailPage() {
       {/* Commands card */}
       <div className="bg-bg-card border border-border rounded-xl p-5">
         <h2 className="text-sm font-semibold text-text-primary mb-4 flex items-center gap-2">
-          <Globe size={15} className="text-accent" /> Commands
+          <Globe size={15} className="text-accent" /> {t('probesPage.detail.commands')}
         </h2>
         <p className="text-text-muted text-xs mb-4">
-          Commands are queued and delivered on the probe&apos;s next push (within one scan interval).
+          {t('probesPage.detail.commandsDesc')}
         </p>
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => void handleCommand('rescan')}
             className="btn-secondary flex items-center gap-1.5 text-sm"
           >
-            <RefreshCw size={14} /> Force rescan
+            <RefreshCw size={14} /> {t('probesPage.detail.forceRescan')}
           </button>
           <button
             onClick={() => void handleCommand('update')}
             className="btn-secondary flex items-center gap-1.5 text-sm"
           >
-            <RefreshCw size={14} /> Update probe
+            <RefreshCw size={14} /> {t('probesPage.detail.updateProbe')}
           </button>
           <button
             onClick={() => void handleCommand('uninstall')}
             className="btn-secondary flex items-center gap-1.5 text-sm text-red-400 border-red-500/30 hover:bg-red-500/10"
           >
-            <Trash2 size={14} /> Uninstall
+            <Trash2 size={14} /> {t('probesPage.detail.uninstall')}
           </button>
         </div>
       </div>
@@ -438,20 +449,18 @@ export function ProbeDetailPage() {
       {/* Danger zone */}
       <div className="bg-bg-card border border-red-500/20 rounded-xl p-5">
         <h2 className="text-sm font-semibold text-red-400 mb-3 flex items-center gap-2">
-          <AlertTriangle size={15} /> Danger zone
+          <AlertTriangle size={15} /> {t('probesPage.detail.dangerZone')}
         </h2>
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-text-primary text-sm font-medium">Delete probe record</p>
-            <p className="text-text-muted text-xs">
-              Removes the probe from Oblimap. Discovered devices remain in their site.
-            </p>
+            <p className="text-text-primary text-sm font-medium">{t('probesPage.detail.deleteRecord')}</p>
+            <p className="text-text-muted text-xs">{t('probesPage.detail.deleteRecordDesc')}</p>
           </div>
           <button
             onClick={() => void handleDelete()}
             className="btn-secondary text-sm text-red-400 border-red-500/30 hover:bg-red-500/10 flex items-center gap-1.5 shrink-0"
           >
-            <Trash2 size={14} /> Delete probe
+            <Trash2 size={14} /> {t('probesPage.detail.deleteBtn')}
           </button>
         </div>
       </div>

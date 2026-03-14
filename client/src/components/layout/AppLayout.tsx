@@ -4,7 +4,7 @@ import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { DesktopUpdateBanner } from './DesktopUpdateBanner';
 import { LiveAlerts } from './LiveAlerts';
-import { GlobalAddAgentModal } from './GlobalAddAgentModal';
+import { GlobalAddProbeModal } from './GlobalAddProbeModal';
 import { useUiStore } from '@/store/uiStore';
 import { useSocket } from '@/hooks/useSocket';
 import { cn } from '@/utils/cn';
@@ -156,7 +156,7 @@ export function AppLayout() {
       <LiveAlerts />
 
       {/* Global Add Probe modal (triggered from sidebar / dashboard) */}
-      <GlobalAddAgentModal />
+      <GlobalAddProbeModal />
     </div>
   );
 }

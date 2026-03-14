@@ -43,7 +43,7 @@ export const slackPlugin: NotificationPlugin = {
       monitorName: 'Test Monitor',
       oldStatus: 'up',
       newStatus: 'down',
-      message: 'This is a test notification from Obliview',
+      message: 'This is a test notification from Oblimap',
       timestamp: new Date().toISOString(),
     });
   },

@@ -8,7 +8,7 @@ import type { MonitorGroup, LiveAlertData } from '@oblimap/shared';
 
 /** Dispatch a sound notification to the native desktop app overlay. */
 function notifyNative(type: 'probe_down' | 'probe_up' | 'agent_alert' | 'agent_fixed') {
-  window.dispatchEvent(new CustomEvent('obliview:notify', { detail: { type } }));
+  window.dispatchEvent(new CustomEvent('oblimap:notify', { detail: { type } }));
 }
 
 export function useSocket() {
@@ -18,7 +18,7 @@ export function useSocket() {
   // Track previous agent statuses to detect transitions (alert↔ok) for native sounds.
   const agentStatusRef = useRef<Map<number, string>>(new Map());
 
-  const isNativeApp = typeof window !== 'undefined' && !!(window as Window & { __obliview_is_native_app?: boolean }).__obliview_is_native_app;
+  const isNativeApp = typeof window !== 'undefined' && !!(window as Window & { __oblimap_is_native_app?: boolean }).__oblimap_is_native_app;
 
   useEffect(() => {
     if (!user) return;
@@ -49,22 +49,25 @@ export function useSocket() {
       fetchTree();
     });
 
-    // ── Agent status — native sounds ─────────────────────────────────────────
-    socket.on(SOCKET_EVENTS.AGENT_STATUS_CHANGED, (data: {
-      deviceId: number;
+    // ── Probe status — native sounds ──────────────────────────────────────────
+    socket.on(SOCKET_EVENTS.PROBE_STATUS_CHANGED, (data: {
+      probeId: number;
       status: string;
     }) => {
-      const prev = agentStatusRef.current.get(data.deviceId);
+      const prev = agentStatusRef.current.get(data.probeId);
 
       if (isNativeApp) {
-        if (data.status === 'alert' && prev !== 'alert') {
-          notifyNative('agent_alert');
-        } else if (prev === 'alert' && data.status !== 'alert') {
-          notifyNative('agent_fixed');
+        // Probe went offline → alert sound
+        if (data.status === 'offline' && prev !== 'offline') {
+          notifyNative('probe_down');
+        }
+        // Probe recovered (was offline, now sending data again)
+        else if (prev === 'offline' && data.status !== 'offline') {
+          notifyNative('probe_up');
         }
       }
 
-      agentStatusRef.current.set(data.deviceId, data.status);
+      agentStatusRef.current.set(data.probeId, data.status);
     });
 
     return () => {
@@ -73,7 +76,7 @@ export function useSocket() {
       socket.off(SOCKET_EVENTS.GROUP_UPDATED);
       socket.off(SOCKET_EVENTS.GROUP_DELETED);
       socket.off(SOCKET_EVENTS.GROUP_MOVED);
-      socket.off(SOCKET_EVENTS.AGENT_STATUS_CHANGED);
+      socket.off(SOCKET_EVENTS.PROBE_STATUS_CHANGED);
     };
   }, [user, addGroup, updateGroup, removeGroup, fetchTree, isNativeApp]);
 }

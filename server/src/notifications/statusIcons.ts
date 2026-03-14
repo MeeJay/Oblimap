@@ -2,47 +2,47 @@
  * Shared status icon/color helpers used across notification plugins.
  */
 
-/** Emoji icon for each monitor status */
+/** Emoji icon for each device/probe status */
 export function statusIcon(status: string): string {
   switch (status) {
-    case 'up':           return '✅';
-    case 'down':         return '🔴';
-    case 'alert':        return '🟠';
-    case 'ssl_warning':  return '⚠️';
-    case 'ssl_expired':  return '🔴';
-    case 'inactive':     return '⚫';
-    case 'value_changed':return '🔄';
-    case 'paused':       return '⏸️';
-    case 'pending':      return '🔵';
-    case 'maintenance':  return '🔧';
-    default:             return '❓';
+    case 'online':        return '✅';
+    case 'offline':       return '🔴';
+    case 'alert':         return '🟠';
+    case 'new_device':    return '🆕';
+    case 'ip_changed':    return '🔄';
+    case 'conflict':      return '⚠️';
+    case 'probe_down':    return '🔴';
+    case 'probe_up':      return '✅';
+    case 'pending':       return '🔵';
+    case 'inactive':      return '⚫';
+    default:              return '❓';
   }
 }
 
 /** Hex colour for Discord embeds */
 export const STATUS_COLORS_HEX: Record<string, number> = {
-  up:            0x2ecc71,
-  down:          0xe74c3c,
-  alert:         0xe67e22, // orange
-  ssl_warning:   0xf39c12,
-  ssl_expired:   0xe74c3c,
-  inactive:      0x95a5a6,
-  value_changed: 0x3498db,
-  pending:       0xf39c12,
-  maintenance:   0x3498db,
-  paused:        0x95a5a6,
+  online:       0x2ecc71,
+  offline:      0xe74c3c,
+  alert:        0xe67e22,
+  new_device:   0x3498db,
+  ip_changed:   0x3498db,
+  conflict:     0xf39c12,
+  probe_down:   0xe74c3c,
+  probe_up:     0x2ecc71,
+  pending:      0xf39c12,
+  inactive:     0x95a5a6,
 };
 
 /** CSS hex colour string for Slack attachments */
 export const STATUS_COLORS_CSS: Record<string, string> = {
-  up:            '#2ecc71',
-  down:          '#e74c3c',
-  alert:         '#e67e22',
-  ssl_warning:   '#f39c12',
-  ssl_expired:   '#e74c3c',
-  inactive:      '#95a5a6',
-  value_changed: '#3498db',
-  pending:       '#f39c12',
-  maintenance:   '#3498db',
-  paused:        '#95a5a6',
+  online:       '#2ecc71',
+  offline:      '#e74c3c',
+  alert:        '#e67e22',
+  new_device:   '#3498db',
+  ip_changed:   '#3498db',
+  conflict:     '#f39c12',
+  probe_down:   '#e74c3c',
+  probe_up:     '#2ecc71',
+  pending:      '#f39c12',
+  inactive:     '#95a5a6',
 };

@@ -8,26 +8,20 @@ import { useTranslation } from 'react-i18next';
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type Section =
-  | 'monitorGroups'
-  | 'monitors'
+  | 'siteGroups'
+  | 'sites'
   | 'settings'
   | 'notificationChannels'
-  | 'agentGroups'
-  | 'teams'
-  | 'remediationActions'
-  | 'remediationBindings';
+  | 'teams';
 
 type ConflictStrategy = 'update' | 'generateNew' | 'ignore';
 
 const ALL_SECTIONS: Section[] = [
-  'monitorGroups',
-  'monitors',
+  'siteGroups',
+  'sites',
   'settings',
   'notificationChannels',
-  'agentGroups',
   'teams',
-  'remediationActions',
-  'remediationBindings',
 ];
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -87,14 +81,11 @@ function SectionSelector({
   const { t } = useTranslation();
 
   const SECTION_LABELS: Record<Section, string> = {
-    monitorGroups:       t('importExport.monitorGroups'),
-    monitors:            t('importExport.monitors'),
-    settings:            t('importExport.settingsSection'),
-    notificationChannels:t('importExport.notificationChannels'),
-    agentGroups:         t('importExport.agentGroups'),
-    teams:               t('importExport.teams'),
-    remediationActions:  t('importExport.remediationActions'),
-    remediationBindings: t('importExport.remediationBindings'),
+    siteGroups:           t('importExport.siteGroups'),
+    sites:                t('importExport.sites'),
+    settings:             t('importExport.settingsSection'),
+    notificationChannels: t('importExport.notificationChannels'),
+    teams:                t('importExport.teams'),
   };
 
   const allOn  = sections.length > 0 && sections.every(s => enabled.has(s));
@@ -139,19 +130,11 @@ export function ImportExportPage() {
   const { t } = useTranslation();
 
   const SECTION_LABELS: Record<Section, string> = {
-    monitorGroups:       t('importExport.monitorGroups'),
-    monitors:            t('importExport.monitors'),
-    settings:            t('importExport.settingsSection'),
-    notificationChannels:t('importExport.notificationChannels'),
-    agentGroups:         t('importExport.agentGroups'),
-    teams:               t('importExport.teams'),
-    remediationActions:  t('importExport.remediationActions'),
-    remediationBindings: t('importExport.remediationBindings'),
-  };
-
-  const SECTION_DESCRIPTIONS: Partial<Record<Section, string>> = {
-    remediationActions:  t('importExport.remediationActionsDesc'),
-    remediationBindings: t('importExport.remediationBindingsDesc'),
+    siteGroups:           t('importExport.siteGroups'),
+    sites:                t('importExport.sites'),
+    settings:             t('importExport.settingsSection'),
+    notificationChannels: t('importExport.notificationChannels'),
+    teams:                t('importExport.teams'),
   };
 
   const CONFLICT_OPTIONS: { value: ConflictStrategy; label: string; description: string }[] = [
@@ -173,18 +156,17 @@ export function ImportExportPage() {
   ];
 
   // ── Export state ──
-  const [exportSections,       setExportSections]       = useState<Set<Section>>(new Set(ALL_SECTIONS));
-  const [exporting,            setExporting]            = useState(false);
-  const [includeSSHCredentials,setIncludeSSHCredentials]= useState(false);
+  const [exportSections, setExportSections] = useState<Set<Section>>(new Set(ALL_SECTIONS));
+  const [exporting,      setExporting]      = useState(false);
 
   // ── Import state ──
-  const [importFile,       setImportFile]       = useState<File | null>(null);
-  const [importData,       setImportData]       = useState<Record<string, unknown> | null>(null);
-  const [availableSections,setAvailableSections]= useState<Section[]>([]);
-  const [importSections,   setImportSections]   = useState<Set<Section>>(new Set());
-  const [conflictStrategy, setConflictStrategy] = useState<ConflictStrategy>('update');
-  const [importing,        setImporting]        = useState(false);
-  const [importResults,    setImportResults]    = useState<
+  const [importFile,        setImportFile]        = useState<File | null>(null);
+  const [importData,        setImportData]        = useState<Record<string, unknown> | null>(null);
+  const [availableSections, setAvailableSections] = useState<Section[]>([]);
+  const [importSections,    setImportSections]    = useState<Set<Section>>(new Set());
+  const [conflictStrategy,  setConflictStrategy]  = useState<ConflictStrategy>('update');
+  const [importing,         setImporting]         = useState(false);
+  const [importResults,     setImportResults]     = useState<
     Record<string, { created: number; updated: number; skipped: number }> | null
   >(null);
 
@@ -213,11 +195,8 @@ export function ImportExportPage() {
     setExporting(true);
     try {
       const sections = [...exportSections].join(',');
-      const sshParam = exportSections.has('remediationActions') && includeSSHCredentials
-        ? '&includeSSHCredentials=true'
-        : '';
       const res = await apiClient.get(
-        `/admin/export?sections=${encodeURIComponent(sections)}${sshParam}`,
+        `/admin/export?sections=${encodeURIComponent(sections)}`,
         { responseType: 'blob' },
       );
       const url = URL.createObjectURL(res.data as Blob);
@@ -232,7 +211,7 @@ export function ImportExportPage() {
     } finally {
       setExporting(false);
     }
-  }, [exportSections, includeSSHCredentials, t]);
+  }, [exportSections, t]);
 
   // ── Import handlers ──────────────────────────────────────────────────────
 
@@ -372,23 +351,6 @@ export function ImportExportPage() {
           enabled={exportSections}
           onToggle={toggleExportSection}
           onToggleAll={toggleAllExport}
-          descriptions={SECTION_DESCRIPTIONS}
-          extra={
-            exportSections.has('remediationActions') && (
-              <div className="ml-4 mt-1 flex items-center justify-between gap-4 rounded-lg border border-border bg-bg-tertiary px-3 py-2.5">
-                <div>
-                  <span className="text-sm text-text-secondary">{t('importExport.includeSsh')}</span>
-                  <p className="text-[11px] text-text-muted mt-0.5">
-                    {t('importExport.includeSshDesc')}
-                  </p>
-                </div>
-                <Toggle
-                  checked={includeSSHCredentials}
-                  onChange={setIncludeSSHCredentials}
-                />
-              </div>
-            )
-          }
         />
 
         <div className="mt-5 flex justify-end">
@@ -467,7 +429,6 @@ export function ImportExportPage() {
                 enabled={importSections}
                 onToggle={toggleImportSection}
                 onToggleAll={toggleAllImport}
-                descriptions={SECTION_DESCRIPTIONS}
               />
             </div>
 
