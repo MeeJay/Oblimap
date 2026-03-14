@@ -28,17 +28,27 @@ import { db } from '../db';
 const router = Router();
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Helper: Bearer auth check against the configured Obliguard shared secret
+// Helper: Bearer auth — accept the shared API key from ANY configured source
+// (Obliguard, Obliview, or Obliance) so all three can call validate-token.
 // ─────────────────────────────────────────────────────────────────────────────
 async function requireSsoBearer(req: Request, res: Response): Promise<boolean> {
-  const cfg = await appConfigService.getObliguardConfig();
-  if (!cfg?.apiKey) {
+  const [obliguardCfg, obliviewCfg, oblianceCfg] = await Promise.all([
+    appConfigService.getObliguardConfig(),
+    appConfigService.getObliviewConfig(),
+    appConfigService.getOblianceConfig(),
+  ]);
+
+  const validKeys = [obliguardCfg?.apiKey, obliviewCfg?.apiKey, oblianceCfg?.apiKey]
+    .filter((k): k is string => !!k);
+
+  if (validKeys.length === 0) {
     res.status(503).json({ success: false, error: 'SSO not configured' });
     return false;
   }
+
   const auth = req.headers.authorization ?? '';
-  const token = auth.startsWith('Bearer ') ? auth.slice(7) : '';
-  if (!token || token !== cfg.apiKey) {
+  const bearer = auth.startsWith('Bearer ') ? auth.slice(7) : '';
+  if (!bearer || !validKeys.includes(bearer)) {
     res.status(401).json({ success: false, error: 'Unauthorized' });
     return false;
   }
@@ -168,7 +178,8 @@ router.get('/users', async (req: Request, res: Response, next: NextFunction): Pr
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/sso/exchange  { token: string, from: string }
-// Called BY Oblimap's OWN client after the user arrives from the other app.
+// Called BY Oblimap's OWN client after the user arrives from another app.
+// Supports Obliguard, Obliview, and Obliance as source apps.
 // No session auth — this IS the authentication step.
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/exchange', async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -178,31 +189,44 @@ router.post('/exchange', async (req: Request, res: Response, next: NextFunction)
     const { token, from } = req.body as { token?: string; from?: string };
     if (!token || !from) throw new AppError(400, 'token and from are required');
 
-    // Security: validate that `from` matches the configured Obliguard URL
-    const cfg = await appConfigService.getObliguardConfig();
-    if (!cfg?.url || !cfg?.apiKey) throw new AppError(503, 'SSO not configured');
-
     const normalise = (u: string) => u.replace(/\/$/, '').toLowerCase();
-    if (normalise(from) !== normalise(cfg.url)) {
+    const fromNorm = normalise(from);
+
+    // Resolve which source app this token came from
+    const [obliguardCfg, obliviewCfg, oblianceCfg] = await Promise.all([
+      appConfigService.getObliguardConfig(),
+      appConfigService.getObliviewConfig(),
+      appConfigService.getOblianceConfig(),
+    ]);
+
+    type SourceEntry = { name: string; url: string; apiKey: string };
+    const sources: SourceEntry[] = [];
+    if (obliguardCfg?.url && obliguardCfg?.apiKey) sources.push({ name: 'obliguard', url: obliguardCfg.url, apiKey: obliguardCfg.apiKey });
+    if (obliviewCfg?.url  && obliviewCfg?.apiKey)  sources.push({ name: 'obliview',  url: obliviewCfg.url,  apiKey: obliviewCfg.apiKey  });
+    if (oblianceCfg?.url  && oblianceCfg?.apiKey)  sources.push({ name: 'obliance',  url: oblianceCfg.url,  apiKey: oblianceCfg.apiKey  });
+
+    const source = sources.find((s) => normalise(s.url) === fromNorm);
+    if (!source) {
+      console.warn(`[sso exchange] Unknown SSO source: from=${from}, known urls=${sources.map((s) => s.url).join(', ')}`);
       throw new AppError(403, 'Unknown SSO source');
     }
 
-    // Call Obliguard's validate-token endpoint (symmetric path: both apps use /api/sso/validate-token).
-    const base = cfg.url.replace(/\/$/, '');
+    // Call the source app's validate-token endpoint
+    const base = source.url.replace(/\/$/, '');
     let fetchRes: Awaited<ReturnType<typeof fetch>>;
     try {
       fetchRes = await fetch(`${base}/api/sso/validate-token?token=${encodeURIComponent(token)}`, {
-        headers: { Authorization: `Bearer ${cfg.apiKey}` },
+        headers: { Authorization: `Bearer ${source.apiKey}` },
         signal: AbortSignal.timeout(8000),
       });
     } catch (fetchErr) {
-      console.error('[sso exchange] Network error calling Obliguard:', fetchErr);
+      console.error(`[sso exchange] Network error calling ${source.name}:`, fetchErr);
       throw new AppError(502, 'Could not reach SSO source');
     }
 
     if (!fetchRes.ok) {
       const text = await fetchRes.text().catch(() => '');
-      console.error(`[sso exchange] Source returned HTTP ${fetchRes.status}: ${text}`);
+      console.error(`[sso exchange] ${source.name} returned HTTP ${fetchRes.status}: ${text}`);
       throw new AppError(401, 'Invalid or expired SSO token');
     }
 
@@ -219,7 +243,7 @@ router.post('/exchange', async (req: Request, res: Response, next: NextFunction)
     let isFirstLogin: boolean;
     try {
       const result = await authService.findOrCreateForeignUser(
-        'obliguard',
+        source.name,
         foreignId,
         base,
         { username, email },
@@ -232,7 +256,7 @@ router.post('/exchange', async (req: Request, res: Response, next: NextFunction)
         const linkToken = crypto.randomBytes(32).toString('hex');
         await db('sso_link_tokens').insert({
           link_token: linkToken,
-          foreign_source: 'obliguard',
+          foreign_source: source.name,
           foreign_id: foreignId,
           foreign_source_url: base,
           foreign_username: username,
