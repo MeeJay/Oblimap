@@ -32,7 +32,9 @@ const DEFAULT_NOTIFICATION_TYPES: NotificationTypeConfig = {
 };
 
 const AGENT_GLOBAL_CONFIG_KEY = 'agent_global_config';
-const OBLIGUARD_CONFIG_KEY = 'obliguard_config';
+const OBLIGUARD_CONFIG_KEY  = 'obliguard_config';
+const OBLIVIEW_CONFIG_KEY   = 'obliview_config';
+const OBLIANCE_CONFIG_KEY   = 'obliance_config';
 
 export const appConfigService = {
   async get(key: string): Promise<string | null> {
@@ -51,21 +53,23 @@ export const appConfigService = {
     const rows = await db('app_config').select('key', 'value');
     const map = Object.fromEntries(rows.map((r: { key: string; value: string }) => [r.key, r.value]));
 
-    // Parse obliguard URL (but NOT the apiKey — never expose that via getAll)
-    let obliguard_url: string | null = null;
-    if (map[OBLIGUARD_CONFIG_KEY]) {
-      try {
-        const cfg = JSON.parse(map[OBLIGUARD_CONFIG_KEY]) as ObliguardConfig;
-        obliguard_url = cfg.url || null;
-      } catch { /* ignore */ }
-    }
+    // Parse integration URLs (but NOT the apiKeys — never expose those via getAll)
+    const parseUrl = (key: string): string | null => {
+      if (!map[key]) return null;
+      try { return (JSON.parse(map[key]) as { url?: string }).url || null; }
+      catch { return null; }
+    };
 
     return {
       allow_2fa: map['allow_2fa'] === 'true',
       force_2fa: map['force_2fa'] === 'true',
       otp_smtp_server_id: map['otp_smtp_server_id'] ? parseInt(map['otp_smtp_server_id'], 10) : null,
-      obliguardUrl: obliguard_url,
-      enable_foreign_sso: map['enable_foreign_sso'] === 'true',
+      obliguardUrl: parseUrl(OBLIGUARD_CONFIG_KEY),
+      obliviewUrl:  parseUrl(OBLIVIEW_CONFIG_KEY),
+      oblianceUrl:  parseUrl(OBLIANCE_CONFIG_KEY),
+      enable_foreign_sso:  map['enable_foreign_sso']  === 'true',
+      enable_obliview_sso: map['enable_obliview_sso'] === 'true',
+      enable_obliance_sso: map['enable_obliance_sso'] === 'true',
     };
   },
 
@@ -83,6 +87,32 @@ export const appConfigService = {
   /** Save Obliguard integration config */
   async setObliguardConfig(cfg: ObliguardConfig): Promise<void> {
     await this.set(OBLIGUARD_CONFIG_KEY, JSON.stringify(cfg));
+  },
+
+  // ── Obliview Integration ──────────────────────────────────────────────────
+
+  async getObliviewConfig(): Promise<{ url?: string; apiKey?: string } | null> {
+    const raw = await this.get(OBLIVIEW_CONFIG_KEY);
+    if (!raw) return null;
+    try { return JSON.parse(raw) as { url?: string; apiKey?: string }; }
+    catch { return null; }
+  },
+
+  async setObliviewConfig(cfg: { url: string; apiKey: string }): Promise<void> {
+    await this.set(OBLIVIEW_CONFIG_KEY, JSON.stringify(cfg));
+  },
+
+  // ── Obliance Integration ──────────────────────────────────────────────────
+
+  async getOblianceConfig(): Promise<{ url?: string; apiKey?: string } | null> {
+    const raw = await this.get(OBLIANCE_CONFIG_KEY);
+    if (!raw) return null;
+    try { return JSON.parse(raw) as { url?: string; apiKey?: string }; }
+    catch { return null; }
+  },
+
+  async setOblianceConfig(cfg: { url: string; apiKey: string }): Promise<void> {
+    await this.set(OBLIANCE_CONFIG_KEY, JSON.stringify(cfg));
   },
 
   /** Get global agent defaults from app_config */

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   Radar, Plus, Trash2, CheckCircle, XCircle, Key,
   ChevronDown, RefreshCw, Eye, Copy, AlertCircle, Loader2,
+  Terminal,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
@@ -53,6 +54,141 @@ function formatLastSeen(ts: string | null) {
   if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
   if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
   return new Date(ts).toLocaleDateString();
+}
+
+// ─── Add Probe Modal ──────────────────────────────────────────────────────────
+
+function CopyBlock({ label, code }: { label: string; code: string }) {
+  const { t } = useTranslation();
+  function copy() {
+    navigator.clipboard.writeText(code)
+      .then(() => toast.success(t('common.copied')))
+      .catch(() => undefined);
+  }
+  return (
+    <div>
+      <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5">
+        {label}
+      </p>
+      <div className="relative group bg-bg-elevated border border-border rounded-lg px-3 py-3 pr-10">
+        <code className="text-xs text-text-primary break-all leading-relaxed whitespace-pre-wrap font-mono">
+          {code}
+        </code>
+        <button
+          onClick={copy}
+          className="absolute top-2 right-2 p-1 text-text-muted hover:text-text-primary transition-colors opacity-0 group-hover:opacity-100"
+          title={t('common.copy')}
+        >
+          <Copy size={13} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AddProbeModal({
+  onClose,
+  apiKeys,
+  onManageKeys,
+}: {
+  onClose: () => void;
+  apiKeys: ProbeApiKey[];
+  onManageKeys: () => void;
+}) {
+  const { t } = useTranslation();
+  const [selectedKeyId, setSelectedKeyId] = useState<number | null>(
+    apiKeys.length > 0 ? apiKeys[0].id : null,
+  );
+
+  const serverUrl = window.location.origin;
+  const selectedKey = apiKeys.find((k) => k.id === selectedKeyId);
+  const apiKey = selectedKey?.key ?? '';
+
+  const linuxCmd =
+    `curl -fsSL "${serverUrl}/api/probe/installer/linux?key=${apiKey}" | bash`;
+
+  const macosCmd = (arch: string) =>
+    `sudo bash -c "$(curl -fsSL '${serverUrl}/api/probe/installer/macos?key=${apiKey}&arch=${arch}')"`;
+
+  const windowsCmd =
+    `$m="$env:TEMP\\oblimap-probe.msi"; ` +
+    `Invoke-WebRequest "${serverUrl}/api/probe/installer/windows.msi" -OutFile $m -UseBasicParsing; ` +
+    `Start-Process msiexec -ArgumentList "/i \`"$m\`" SERVERURL=\`"${serverUrl}\`" APIKEY=\`"${apiKey}\`" /quiet" ` +
+    `-Wait -Verb RunAs; Remove-Item $m`;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+      <div className="bg-bg-card border border-border rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
+          <div className="flex items-center gap-2">
+            <Terminal size={18} className="text-accent" />
+            <span className="font-semibold text-text-primary">Add Probe</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-text-muted hover:text-text-primary transition-colors text-xl leading-none"
+          >
+            &times;
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-5 overflow-y-auto space-y-5">
+          {/* Key selector */}
+          {apiKeys.length === 0 ? (
+            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 text-sm text-yellow-300">
+              No API keys yet.{' '}
+              <button
+                onClick={onManageKeys}
+                className="underline hover:text-yellow-200"
+              >
+                Create one first
+              </button>{' '}
+              to generate install commands.
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <label className="text-sm text-text-muted shrink-0">API Key</label>
+              <select
+                value={selectedKeyId ?? ''}
+                onChange={(e) => setSelectedKeyId(Number(e.target.value))}
+                className="flex-1 bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent"
+              >
+                {apiKeys.map((k) => (
+                  <option key={k.id} value={k.id}>
+                    {k.name} — {k.key.slice(0, 8)}…{k.key.slice(-4)}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={onManageKeys}
+                className="btn-secondary text-xs flex items-center gap-1"
+              >
+                <Key size={12} /> {t('probesPage.apiKeys.title')}
+              </button>
+            </div>
+          )}
+
+          {selectedKey && (
+            <div className="space-y-4">
+              <CopyBlock label="Linux" code={linuxCmd} />
+              <CopyBlock label="macOS — Apple Silicon (M1 / M2 / M3 / M4)" code={macosCmd('arm64')} />
+              <CopyBlock label="macOS — Intel (x86_64)" code={macosCmd('amd64')} />
+              <CopyBlock label="Windows (PowerShell, Admin)" code={windowsCmd} />
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-4 border-t border-border shrink-0">
+          <button onClick={onClose} className="w-full btn-secondary text-sm py-2">
+            {t('common.close')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─── API Key Modal ────────────────────────────────────────────────────────────
@@ -341,6 +477,7 @@ export function AdminProbePage() {
   const [keys, setKeys] = useState<ProbeApiKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [showKeys, setShowKeys] = useState(false);
+  const [showAddProbe, setShowAddProbe] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkMenu, setBulkMenu] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -463,6 +600,13 @@ export function AdminProbePage() {
             <Key size={14} />
             {t('probesPage.apiKeys.title')} ({keys.length})
           </button>
+          <button
+            onClick={() => setShowAddProbe(true)}
+            className="btn-primary flex items-center gap-1.5 text-sm"
+          >
+            <Plus size={14} />
+            Add Probe
+          </button>
         </div>
       </div>
 
@@ -584,6 +728,14 @@ export function AdminProbePage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {showAddProbe && (
+        <AddProbeModal
+          onClose={() => setShowAddProbe(false)}
+          apiKeys={keys}
+          onManageKeys={() => { setShowAddProbe(false); setShowKeys(true); }}
+        />
       )}
 
       {showKeys && (

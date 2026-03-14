@@ -3,11 +3,13 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   Radar, ArrowLeft, CheckCircle, XCircle, Trash2, Plus,
   X, Save, Loader2, AlertTriangle, Monitor, RefreshCw,
-  Activity, Globe,
+  Activity, Globe, ArrowLeftRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { probeApi } from '../api/probe.api';
+import { appConfigApi } from '../api/appConfig.api';
+import { ssoApi } from '../api/sso.api';
 import type { Probe, ProbeScanConfig } from '@oblimap/shared';
 import { clsx } from 'clsx';
 
@@ -123,6 +125,11 @@ export function ProbeDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  // Cross-app links (resolved once probe loads)
+  const [obliguardUrl, setObliguardUrl] = useState<string | null>(null);
+  const [obliviewUrl, setObliviewUrl]   = useState<string | null>(null);
+  const [oblianceUrl, setOblianceUrl]   = useState<string | null>(null);
+
   // Editable state
   const [name, setName] = useState('');
   const [scanInterval, setScanInterval] = useState(300);
@@ -148,6 +155,17 @@ export function ProbeDetailPage() {
   }, [probeId, t]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // Resolve cross-app links for this probe (once uuid is known)
+  useEffect(() => {
+    if (!probe?.uuid) return;
+    setObliguardUrl(null);
+    setObliviewUrl(null);
+    setOblianceUrl(null);
+    appConfigApi.proxyObliguardLink(probe.uuid).then((url) => setObliguardUrl(url)).catch(() => {});
+    appConfigApi.proxyObliviewLink(probe.uuid).then((url) => setObliviewUrl(url)).catch(() => {});
+    appConfigApi.proxyOblianceLink(probe.uuid).then((url) => setOblianceUrl(url)).catch(() => {});
+  }, [probe?.uuid]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSave() {
     setSaving(true);
@@ -265,6 +283,73 @@ export function ProbeDetailPage() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <StatusBadge status={probe.status} />
+          {/* Cross-app switch buttons */}
+          {obliguardUrl && (
+            <button
+              type="button"
+              onClick={() => {
+                ssoApi.generateSwitchToken()
+                  .then((token) => {
+                    const from = window.location.origin;
+                    try {
+                      const url = new URL(obliguardUrl);
+                      window.location.href = `${url.origin}/auth/foreign?token=${encodeURIComponent(token)}&from=${encodeURIComponent(from)}&source=oblimap&redirect=${encodeURIComponent(url.pathname)}`;
+                    } catch { window.location.href = obliguardUrl; }
+                  })
+                  .catch(() => { window.location.href = obliguardUrl; });
+              }}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all
+                text-[#fb923c] bg-[#431407]/40 border-[#c2410c]/50
+                hover:text-white hover:bg-[#431407]/60 hover:border-[#ea580c]"
+            >
+              <ArrowLeftRight size={12} />
+              Obliguard
+            </button>
+          )}
+          {obliviewUrl && (
+            <button
+              type="button"
+              onClick={() => {
+                ssoApi.generateSwitchToken()
+                  .then((token) => {
+                    const from = window.location.origin;
+                    try {
+                      const url = new URL(obliviewUrl);
+                      window.location.href = `${url.origin}/auth/foreign?token=${encodeURIComponent(token)}&from=${encodeURIComponent(from)}&source=oblimap&redirect=${encodeURIComponent(url.pathname)}`;
+                    } catch { window.location.href = obliviewUrl; }
+                  })
+                  .catch(() => { window.location.href = obliviewUrl; });
+              }}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all
+                text-[#58a6ff] bg-[#0c1929]/40 border-[#1d4ed8]/50
+                hover:text-white hover:bg-[#0c1929]/60 hover:border-[#3b82f6]"
+            >
+              <ArrowLeftRight size={12} />
+              Obliview
+            </button>
+          )}
+          {oblianceUrl && (
+            <button
+              type="button"
+              onClick={() => {
+                ssoApi.generateSwitchToken()
+                  .then((token) => {
+                    const from = window.location.origin;
+                    try {
+                      const url = new URL(oblianceUrl);
+                      window.location.href = `${url.origin}/auth/foreign?token=${encodeURIComponent(token)}&from=${encodeURIComponent(from)}&source=oblimap&redirect=${encodeURIComponent(url.pathname)}`;
+                    } catch { window.location.href = oblianceUrl; }
+                  })
+                  .catch(() => { window.location.href = oblianceUrl; });
+              }}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all
+                text-[#a78bfa] bg-[#2e1065]/40 border-[#7c3aed]/50
+                hover:text-white hover:bg-[#2e1065]/60 hover:border-[#8b5cf6]"
+            >
+              <ArrowLeftRight size={12} />
+              Obliance
+            </button>
+          )}
           {probe.status === 'pending' && (
             <>
               <button

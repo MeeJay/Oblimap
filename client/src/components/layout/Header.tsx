@@ -22,11 +22,18 @@ export function Header() {
   const { toggleSidebar, sidebarFloating } = useUiStore();
   const { status: socketStatus } = useSocketStore();
   const [obliguardUrl, setObliguardUrl] = useState<string | null>(null);
+  const [obliviewUrl, setObliviewUrl]   = useState<string | null>(null);
+  const [oblianceUrl, setOblianceUrl]   = useState<string | null>(null);
   const [, startSsoTransition] = useTransition();
 
   useEffect(() => {
     appConfigApi.getConfig()
-      .then((cfg) => setObliguardUrl((cfg.obliguard_url as string | null) ?? null))
+      .then((cfg) => {
+        // server returns camelCase keys for integration URLs
+        setObliguardUrl((cfg.obliguardUrl as string | null) ?? null);
+        setObliviewUrl((cfg.obliviewUrl  as string | null) ?? null);
+        setOblianceUrl((cfg.oblianceUrl  as string | null) ?? null);
+      })
       .catch(() => {});
   }, []);
 
@@ -53,7 +60,7 @@ export function Header() {
         {/* Tenant switcher — hidden when single-tenant (tenants.length <= 1) */}
         <TenantSwitcher />
 
-        {/* Obliguard switch — shown in header only when sidebar is floating */}
+        {/* Cross-app switch buttons — shown in header only when sidebar is floating */}
         {sidebarFloating && obliguardUrl && (
           <button
             type="button"
@@ -64,9 +71,7 @@ export function Header() {
                     const from = window.location.origin;
                     window.location.href = `${obliguardUrl}/auth/foreign?token=${encodeURIComponent(token)}&from=${encodeURIComponent(from)}&source=oblimap`;
                   })
-                  .catch(() => {
-                    window.location.href = obliguardUrl;
-                  });
+                  .catch(() => { window.location.href = obliguardUrl; });
               });
             }}
             className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold border transition-all
@@ -75,6 +80,48 @@ export function Header() {
           >
             <ArrowLeftRight size={12} />
             Obliguard
+          </button>
+        )}
+        {sidebarFloating && obliviewUrl && (
+          <button
+            type="button"
+            onClick={() => {
+              startSsoTransition(() => {
+                ssoApi.generateSwitchToken()
+                  .then((token) => {
+                    const from = window.location.origin;
+                    window.location.href = `${obliviewUrl}/auth/foreign?token=${encodeURIComponent(token)}&from=${encodeURIComponent(from)}&source=oblimap`;
+                  })
+                  .catch(() => { window.location.href = obliviewUrl; });
+              });
+            }}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold border transition-all
+              text-[#58a6ff] bg-[#0c1929]/40 border-[#1d4ed8]/50
+              hover:text-white hover:bg-[#0c1929]/60 hover:border-[#3b82f6]"
+          >
+            <ArrowLeftRight size={12} />
+            Obliview
+          </button>
+        )}
+        {sidebarFloating && oblianceUrl && (
+          <button
+            type="button"
+            onClick={() => {
+              startSsoTransition(() => {
+                ssoApi.generateSwitchToken()
+                  .then((token) => {
+                    const from = window.location.origin;
+                    window.location.href = `${oblianceUrl}/auth/foreign?token=${encodeURIComponent(token)}&from=${encodeURIComponent(from)}&source=oblimap`;
+                  })
+                  .catch(() => { window.location.href = oblianceUrl; });
+              });
+            }}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold border transition-all
+              text-[#a78bfa] bg-[#2e1065]/40 border-[#7c3aed]/50
+              hover:text-white hover:bg-[#2e1065]/60 hover:border-[#8b5cf6]"
+          >
+            <ArrowLeftRight size={12} />
+            Obliance
           </button>
         )}
       </div>

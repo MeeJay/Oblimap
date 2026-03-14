@@ -16,6 +16,8 @@ import appConfigRoutes from './appConfig.routes';
 import twoFactorRoutes from './twoFactor.routes';
 import { liveAlertRouter } from './liveAlert.routes';
 import obliguardRoutes from './obliguard.routes';
+import obliviewRoutes from './obliview.routes';
+import oblianceRoutes from './obliance.routes';
 import ssoRoutes from './sso.routes';
 import siteRoutes from './site.routes';
 import vendorRulesRoutes from './vendorRules.routes';
@@ -28,6 +30,8 @@ router.use('/auth', authRoutes);
 router.use('/probe', probeRoutes);           // probe push (API-key auth) + admin
 router.use('/admin/config', appConfigRoutes);
 router.use('/obliguard', obliguardRoutes);   // SSO cross-app
+router.use('/obliview', obliviewRoutes);    // Obliview cross-app link
+router.use('/obliance', oblianceRoutes);    // Obliance cross-app link
 router.use('/sso', ssoRoutes);
 router.use('/profile/2fa', twoFactorRoutes);
 
