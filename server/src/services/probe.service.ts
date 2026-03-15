@@ -491,7 +491,7 @@ class ProbeService {
       return {
         httpStatus: 401,
         status: 'unauthorized',
-        config: { scanIntervalSeconds: 300, excludedSubnets: [], extraSubnets: [] },
+        config: { scanIntervalSeconds: 300, excludedSubnets: [], extraSubnets: [], portScanEnabled: false, portScanPorts: [] },
         latestVersion: null,
         command: null,
       };
