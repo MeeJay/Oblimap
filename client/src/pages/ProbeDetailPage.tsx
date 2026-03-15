@@ -10,7 +10,8 @@ import { useTranslation } from 'react-i18next';
 import { probeApi } from '../api/probe.api';
 import { appConfigApi } from '../api/appConfig.api';
 import { ssoApi } from '../api/sso.api';
-import type { Probe, ProbeScanConfig } from '@oblimap/shared';
+import { siteApi } from '../api/site.api';
+import type { Probe, ProbeScanConfig, Site } from '@oblimap/shared';
 import { clsx } from 'clsx';
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -130,9 +131,13 @@ export function ProbeDetailPage() {
   const [obliviewUrl, setObliviewUrl]   = useState<string | null>(null);
   const [oblianceUrl, setOblianceUrl]   = useState<string | null>(null);
 
+  // Sites list (for assignment)
+  const [sites, setSites] = useState<Site[]>([]);
+
   // Editable state
   const [name, setName] = useState('');
   const [scanInterval, setScanInterval] = useState(300);
+  const [selectedSiteId, setSelectedSiteId] = useState<number | null>(null);
   const [scanConfig, setScanConfig] = useState<ProbeScanConfig>({
     excludedSubnets: [],
     extraSubnets: [],
@@ -146,6 +151,7 @@ export function ProbeDetailPage() {
       setProbe(p);
       setName(p.name ?? p.hostname);
       setScanInterval(p.scanIntervalSeconds);
+      setSelectedSiteId(p.siteId ?? null);
       setScanConfig(p.scanConfig);
     } catch {
       toast.error(t('probesPage.failedLoad'));
@@ -155,6 +161,11 @@ export function ProbeDetailPage() {
   }, [probeId, t]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // Load sites once
+  useEffect(() => {
+    siteApi.list().then(({ sites: s }) => setSites(s)).catch(() => {});
+  }, []);
 
   // Resolve cross-app links for this probe (once uuid is known)
   useEffect(() => {
@@ -173,6 +184,7 @@ export function ProbeDetailPage() {
       await probeApi.update(probeId, {
         name: name.trim() || undefined,
         scanIntervalSeconds: scanInterval,
+        siteId: selectedSiteId,
         scanConfig,
       });
       toast.success(t('probesPage.updated'));
@@ -406,7 +418,11 @@ export function ProbeDetailPage() {
         />
         <InfoRow
           label={t('probesPage.detail.assignedSite')}
-          value={probe.siteId ? `Site #${probe.siteId}` : t('probesPage.detail.noSite')}
+          value={
+            probe.siteId
+              ? (sites.find((s) => s.id === probe.siteId)?.name ?? `Site #${probe.siteId}`)
+              : '—'
+          }
         />
         {probe.pendingCommand && (
           <InfoRow
@@ -445,6 +461,23 @@ export function ProbeDetailPage() {
               className="w-full bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent"
               placeholder={probe.hostname}
             />
+          </div>
+
+          {/* Site assignment */}
+          <div>
+            <label className="text-sm text-text-muted block mb-2">
+              {t('probesPage.detail.assignedSite')}
+            </label>
+            <select
+              value={selectedSiteId ?? ''}
+              onChange={(e) => setSelectedSiteId(e.target.value ? parseInt(e.target.value, 10) : null)}
+              className="w-full bg-bg-tertiary border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent"
+            >
+              <option value="">{t('probesPage.detail.noSite')}</option>
+              {sites.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
           </div>
 
           {/* Scan interval */}

@@ -85,6 +85,27 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    Base styles
    ───────────────────────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────────
+   Component shorthands — aliases used across many pages
+   ───────────────────────────────────────────────────────────────────────────── */
+@layer components {
+  /* Background aliases */
+  .bg-bg-card    { @apply bg-bg-secondary; }
+  .bg-bg-page    { @apply bg-bg-primary; }
+  .bg-bg-input   { @apply bg-bg-tertiary; }
+  .bg-bg-elevated{ @apply bg-bg-tertiary; }
+
+  /* Button variants */
+  .btn-primary {
+    @apply px-3 py-1.5 rounded-lg bg-accent text-white text-sm font-medium
+           hover:bg-accent-hover transition-colors cursor-pointer inline-flex items-center;
+  }
+  .btn-secondary {
+    @apply px-3 py-1.5 rounded-lg border border-border bg-bg-tertiary text-text-secondary text-sm
+           hover:bg-bg-hover transition-colors cursor-pointer inline-flex items-center;
+  }
+}
+
 @layer base {
   body {
     @apply bg-bg-primary text-text-primary antialiased;
