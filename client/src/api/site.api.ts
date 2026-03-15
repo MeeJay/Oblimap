@@ -5,7 +5,7 @@ import type { AxiosResponse } from 'axios';
 export const siteApi = {
   // ── Sites ─────────────────────────────────────────────────────────────────
 
-  list: (params?: { groupId?: number }): Promise<{ sites: Site[] }> =>
+  list: (params?: { groupId?: number; ungrouped?: boolean }): Promise<{ sites: Site[] }> =>
     apiClient.get('/sites', { params }).then((r: AxiosResponse) => r.data as { sites: Site[] }),
 
   get: (id: number): Promise<{ site: Site }> =>

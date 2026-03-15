@@ -9,7 +9,8 @@ export const siteController = {
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const groupId = req.query.groupId !== undefined ? parseInt(req.query.groupId as string, 10) : undefined;
-      const sites = await siteService.getSites(req.tenantId, { groupId });
+      const ungrouped = req.query.ungrouped === 'true';
+      const sites = await siteService.getSites(req.tenantId, { groupId, ungrouped });
       res.json({ sites });
     } catch (err) { next(err); }
   },

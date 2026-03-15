@@ -63,11 +63,12 @@ function rowToReservation(row: Record<string, unknown>): IpReservation {
 class SiteService {
   // ── Sites ─────────────────────────────────────────────────────────────────
 
-  async getSites(tenantId: number, opts?: { groupId?: number }): Promise<Site[]> {
+  async getSites(tenantId: number, opts?: { groupId?: number; ungrouped?: boolean }): Promise<Site[]> {
     const rows = await db('sites as s')
       .where('s.tenant_id', tenantId)
       .modify((q) => {
         if (opts?.groupId !== undefined) q.where('s.group_id', opts.groupId);
+        if (opts?.ungrouped) q.whereNull('s.group_id');
       })
       .leftJoin(
         db('site_items')

@@ -18,7 +18,10 @@ import {
   PanelLeft,
   PanelLeftClose,
   Plus,
+  Inbox,
 } from 'lucide-react';
+import type { Site } from '@oblimap/shared';
+import { siteApi } from '@/api/site.api';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/utils/cn';
 import { useAuthStore } from '@/store/authStore';
@@ -90,6 +93,7 @@ export function Sidebar() {
   const [, startSsoTransition] = useTransition();
   const [search, setSearch] = useState('');
   const [adminMenuOpen, setAdminMenuOpen] = usePersisted<boolean>('sidebar:admin-open', true);
+  const [ungroupedSites, setUngroupedSites] = useState<Site[]>([]);
 
   const admin = isAdmin();
 
@@ -98,6 +102,19 @@ export function Sidebar() {
     appConfigApi.getConfig()
       .then((cfg) => setObliguardUrl((cfg.obliguard_url as string | null) ?? null))
       .catch(() => {});
+  }, []);
+
+  // Load ungrouped sites (sites with no group assigned)
+  useEffect(() => {
+    siteApi.list({ ungrouped: true })
+      .then(({ sites }) => setUngroupedSites(sites))
+      .catch(() => {});
+    const interval = setInterval(() => {
+      siteApi.list({ ungrouped: true })
+        .then(({ sites }) => setUngroupedSites(sites))
+        .catch(() => {});
+    }, 60000);
+    return () => clearInterval(interval);
   }, []);
 
   const renderNavLink = (item: NavItem) => {
@@ -197,8 +214,42 @@ export function Sidebar() {
       </nav>
 
       {/* Group tree — shows group hierarchy for navigating to sites within groups */}
-      <div className="flex-1 overflow-y-auto px-2 min-h-0">
+      <div className="flex-1 overflow-y-auto px-2 min-h-0 flex flex-col gap-0">
         <GroupTree searchQuery={search} />
+
+        {/* Ungrouped sites — sites with no group assigned */}
+        {ungroupedSites.length > 0 && (() => {
+          const filtered = search
+            ? ungroupedSites.filter(s => s.name.toLowerCase().includes(search.toLowerCase()))
+            : ungroupedSites;
+          if (filtered.length === 0) return null;
+          return (
+            <div className="mt-1">
+              <div className="flex items-center gap-1.5 px-2 py-1 text-xs text-text-muted">
+                <Inbox size={11} />
+                <span className="uppercase tracking-wide font-medium">Ungrouped</span>
+              </div>
+              {filtered.map((site) => {
+                const isActive = location.pathname === `/sites/${site.id}`;
+                return (
+                  <Link
+                    key={site.id}
+                    to={`/sites/${site.id}`}
+                    className={cn(
+                      'flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors',
+                      isActive
+                        ? 'bg-bg-active text-text-primary'
+                        : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary',
+                    )}
+                  >
+                    <MapPin size={13} className="shrink-0 text-accent" />
+                    <span className="truncate flex-1">{site.name}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Admin section collapsible */}

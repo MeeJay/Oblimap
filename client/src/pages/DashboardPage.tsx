@@ -241,6 +241,7 @@ export function DashboardPage() {
                 return (
                   <div
                     key={site.id}
+                    data-status={offline > 0 ? 'down' : total > 0 ? 'up' : 'inactive'}
                     className={clsx(
                       'flex items-center gap-4 px-4 py-3 hover:bg-bg-elevated/50 transition-colors',
                       idx > 0 && 'border-t border-border',
@@ -323,6 +324,7 @@ export function DashboardPage() {
                   return (
                     <div
                       key={probe.id}
+                      data-status={online ? 'up' : 'down'}
                       className={clsx(
                         'flex items-center gap-3 px-4 py-3 hover:bg-bg-elevated/50 transition-colors',
                         idx > 0 && 'border-t border-border',
