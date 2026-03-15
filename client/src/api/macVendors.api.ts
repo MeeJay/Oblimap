@@ -41,4 +41,9 @@ export const macVendorsApi = {
     apiClient
       .delete(`/mac-vendors/${encodeURIComponent(prefix)}/override`)
       .then(() => undefined),
+
+  seed: (): Promise<{ inserted: number }> =>
+    apiClient
+      .post('/mac-vendors/seed')
+      .then((r: AxiosResponse) => r.data as { inserted: number }),
 };

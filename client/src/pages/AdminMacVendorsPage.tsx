@@ -8,7 +8,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, Edit2, Check, X, Trash2, Database, Tag } from 'lucide-react';
+import { Search, Edit2, Check, X, Trash2, Database, Tag, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import type { MacVendor } from '@oblimap/shared';
 import { macVendorsApi } from '@/api/macVendors.api';
@@ -137,6 +137,7 @@ export function AdminMacVendorsPage() {
   const [search, setSearch]             = useState('');
   const [overrideOnly, setOverrideOnly] = useState(false);
   const [stats, setStats]               = useState<{ total: number; overrides: number; lastUpdated: string | null } | null>(null);
+  const [seeding, setSeeding]           = useState(false);
 
   // Debounce search
   const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -183,18 +184,45 @@ export function AdminMacVendorsPage() {
     macVendorsApi.stats().then(setStats).catch(() => {});
   };
 
+  const handleSeed = async () => {
+    setSeeding(true);
+    const toastId = toast.loading('Downloading IEEE OUI database…');
+    try {
+      const { inserted } = await macVendorsApi.seed();
+      toast.success(`Seeded ${inserted.toLocaleString()} entries from IEEE`, { id: toastId });
+      // Refresh stats and list
+      macVendorsApi.stats().then(setStats).catch(() => {});
+      void load();
+    } catch {
+      toast.error('Failed to seed vendor database', { id: toastId });
+    } finally {
+      setSeeding(false);
+    }
+  };
+
   return (
     <div className="p-6 max-w-6xl mx-auto">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-text-primary flex items-center gap-2">
-          <Database size={22} className="text-accent" />
-          MAC Vendor Database
-        </h1>
-        <p className="text-sm text-text-muted mt-1">
-          Browse the IEEE OUI database and override vendor names for specific MAC prefixes.
-          Custom names are used when identifying devices on sites.
-        </p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-text-primary flex items-center gap-2">
+            <Database size={22} className="text-accent" />
+            MAC Vendor Database
+          </h1>
+          <p className="text-sm text-text-muted mt-1">
+            Browse the IEEE OUI database and override vendor names for specific MAC prefixes.
+            Custom names are used when identifying devices on sites.
+          </p>
+        </div>
+        <button
+          onClick={() => { void handleSeed(); }}
+          disabled={seeding}
+          className="flex shrink-0 items-center gap-2 rounded-lg border border-border bg-bg-tertiary px-3 py-2 text-sm text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-50"
+          title="Download the latest IEEE OUI CSV and upsert all entries. Custom overrides are preserved."
+        >
+          <RefreshCw size={14} className={seeding ? 'animate-spin' : ''} />
+          {seeding ? 'Seeding…' : 'Refresh from IEEE'}
+        </button>
       </div>
 
       {/* Stats bar */}
@@ -347,8 +375,9 @@ export function AdminMacVendorsPage() {
         <strong className="text-text-secondary">How overrides work:</strong>{' '}
         When a probe discovers a device, the first 3 octets of the MAC address are looked up here.
         If you set a custom override, that name is shown in the site device list and used in vendor-based
-        type classification rules. The IEEE database can be reseeded from the server CLI without
-        affecting your overrides.
+        type classification rules.{' '}
+        <strong className="text-text-secondary">Refresh from IEEE</strong>{' '}
+        downloads the latest OUI CSV (~30 000 entries) and upserts everything — your custom overrides are always preserved.
       </div>
     </div>
   );
