@@ -600,10 +600,10 @@ class ProbeService {
       });
     }
 
-    const versionRow = await db('app_config')
-      .where({ key: 'probe_latest_version' })
-      .first();
-    const latestVersion = (versionRow?.value as string | null) ?? null;
+    // Read the version from probe/VERSION (or probe/main.go as fallback) — same
+    // source as the GET /api/probe/version endpoint, so the probe always gets the
+    // real current version instead of a stale/missing DB value.
+    const latestVersion = this.getProbeVersion().version;
 
     return {
       httpStatus: probeStatus === 'pending' ? 202 : 200,
