@@ -77,11 +77,11 @@ export function GlobalAddProbeModal() {
             keys.map((apiKey) => {
               const expanded = expandedKeys.has(apiKey.id);
 
-              // One-liners for each platform
-              const linuxAmd64 = `curl -fsSL "${origin}/downloads/probe/oblimap-probe-linux-amd64" -o /usr/local/bin/oblimap-probe && chmod +x /usr/local/bin/oblimap-probe && oblimap-probe --server ${origin} --key ${apiKey.key} install`;
-              const linuxArm64 = `curl -fsSL "${origin}/downloads/probe/oblimap-probe-linux-arm64" -o /usr/local/bin/oblimap-probe && chmod +x /usr/local/bin/oblimap-probe && oblimap-probe --server ${origin} --key ${apiKey.key} install`;
-              const macosCmd   = `curl -fsSL "${origin}/downloads/probe/oblimap-probe-darwin-arm64" -o /usr/local/bin/oblimap-probe && chmod +x /usr/local/bin/oblimap-probe && sudo oblimap-probe --server ${origin} --key ${apiKey.key} install`;
-              const windowsCmd = `$f="$env:TEMP\\oblimap-probe.exe"; Invoke-WebRequest "${origin}/downloads/probe/oblimap-probe-windows-amd64.exe" -OutFile $f; Start-Process $f -ArgumentList "--server ${origin} --key ${apiKey.key} install" -Verb RunAs -Wait`;
+              // Install commands — matching Obliview's agent pattern exactly
+              const linuxCmd  = `${origin}/api/probe/installer/linux?key=${apiKey.key}`;
+              const macosCmd  = `${origin}/api/probe/installer/macos?key=${apiKey.key}`;
+              const msiUrl    = `${origin}/api/probe/installer/windows.msi`;
+              const windowsCmd = `$m="$env:TEMP\\oblimap-probe.msi"; Invoke-WebRequest "${msiUrl}" -OutFile $m -UseBasicParsing; Start-Process msiexec -ArgumentList "/i \`"$m\`" SERVERURL=\`"${origin}\`" APIKEY=\`"${apiKey.key}\`" /quiet" -Wait -Verb RunAs; Remove-Item $m`;
 
               return (
                 <div key={apiKey.id} className="rounded-lg border border-border bg-bg-secondary">
@@ -102,9 +102,8 @@ export function GlobalAddProbeModal() {
                   {expanded && (
                     <div className="px-4 pb-4 space-y-3 border-t border-border">
                       {[
-                        { label: 'Linux — amd64 (x86_64)', cmd: linuxAmd64 },
-                        { label: 'Linux — arm64', cmd: linuxArm64 },
-                        { label: 'macOS — Apple Silicon', cmd: macosCmd },
+                        { label: 'Linux (amd64 / arm64)', cmd: `curl -fsSL "${linuxCmd}" | bash` },
+                        { label: 'macOS (Apple Silicon / Intel)', cmd: `sudo bash -c "$(curl -fsSL '${macosCmd}')"` },
                         { label: 'Windows — PowerShell (admin)', cmd: windowsCmd },
                       ].map(({ label, cmd }) => (
                         <div key={label}>

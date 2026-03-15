@@ -5,13 +5,15 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"text/template"
+	"time"
 )
 
 func runAsService(mainFn func()) {
@@ -226,25 +228,50 @@ func performUninstall(serverURL string) {
 }
 
 func applyUpdate(latestVersion string) {
+	notifyUpdating()
+
 	exePath, err := os.Executable()
 	if err != nil {
-		log.Printf("ERROR: get executable path: %v", err)
+		log.Printf("Auto-update: cannot resolve executable path: %v", err)
 		return
 	}
 
-	arch := runtime.GOARCH
-	platform := runtime.GOOS
-	filename := fmt.Sprintf("oblimap-probe-%s-%s", platform, arch)
-	if strings.Contains(filename, "windows") {
-		filename += ".exe"
+	filename := fmt.Sprintf("oblimap-probe-%s-%s", runtime.GOOS, runtime.GOARCH)
+	url := fmt.Sprintf("%s/api/probe/download/%s", cfg.ServerURL, filename)
+	log.Printf("Auto-update: downloading %s → v%s", filename, latestVersion)
+
+	client := &http.Client{Timeout: 120 * time.Second}
+	dlResp, err := client.Get(url)
+	if err != nil {
+		log.Printf("Auto-update: download request failed: %v", err)
+		return
+	}
+	defer dlResp.Body.Close()
+	if dlResp.StatusCode != 200 {
+		log.Printf("Auto-update: download failed (HTTP %d)", dlResp.StatusCode)
+		return
 	}
 
-	url := fmt.Sprintf("%s/api/probe/download/%s", cfg.ServerURL, filename)
-	log.Printf("Downloading update from %s", url)
+	tmpPath := exePath + ".new"
+	f, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0755)
+	if err != nil {
+		log.Printf("Auto-update: cannot write temp file: %v", err)
+		return
+	}
+	if _, err := io.Copy(f, dlResp.Body); err != nil {
+		f.Close()
+		os.Remove(tmpPath)
+		log.Printf("Auto-update: download write error: %v", err)
+		return
+	}
+	f.Close()
 
-	// TODO: implement binary download + atomic replace + restart
-	_ = latestVersion
-	_ = url
-	_ = exePath
-	log.Printf("Update download not yet implemented on this platform")
+	if err := os.Rename(tmpPath, exePath); err != nil {
+		os.Remove(tmpPath)
+		log.Printf("Auto-update: rename failed: %v", err)
+		return
+	}
+
+	log.Printf("Auto-update: updated to v%s, restarting...", latestVersion)
+	restartWithNewBinary(exePath)
 }

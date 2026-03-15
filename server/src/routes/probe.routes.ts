@@ -1,12 +1,36 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth';
 import { requireTenant } from '../middleware/tenant';
-import { probeController } from '../controllers/probe.controller';
+import {
+  probeController,
+  probeVersion,
+  probeDownload,
+  probeInstallerLinux,
+  probeInstallerMacos,
+  probeInstallerWindowsMsi,
+  probeNotifyingUpdate,
+} from '../controllers/probe.controller';
 
 const router = Router();
 
-// ── Probe Push — API-key authenticated, no session required ──────────────────
+// ── Public routes (no session auth required) ─────────────────────────────────
+
+// Probe push — API-key authenticated
 router.post('/push', probeController.push);
+
+// Pre-update notification — probe calls this before self-updating
+router.post('/notifying-update', probeNotifyingUpdate);
+
+// Auto-update endpoints
+router.get('/version', probeVersion);
+router.get('/download/:filename', probeDownload);
+
+// Installer scripts (with API key injected server-side)
+router.get('/installer/linux', probeInstallerLinux);
+router.get('/installer/macos', probeInstallerMacos);
+
+// Pre-built Windows MSI (static, SERVERURL + APIKEY passed via msiexec properties)
+router.get('/installer/windows.msi', probeInstallerWindowsMsi);
 
 // ── Tenant-scoped admin endpoints — session + tenant required ─────────────────
 router.use(requireAuth);

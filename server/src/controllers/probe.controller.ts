@@ -1,6 +1,101 @@
+import path from 'path';
+import fs from 'fs';
 import type { Request, Response, NextFunction } from 'express';
 import { probeService } from '../services/probe.service';
 import { AppError } from '../middleware/errorHandler';
+
+// ── Public: version + download + installer + notifying-update ────────────────
+
+export function probeVersion(_req: Request, res: Response): void {
+  try {
+    const info = probeService.getProbeVersion();
+    res.json(info);
+  } catch {
+    res.status(503).json({ error: 'Probe version info unavailable' });
+  }
+}
+
+const ALLOWED_PROBE_BINARIES: Record<string, string> = {
+  'oblimap-probe.msi':          'oblimap-probe.msi',
+  'oblimap-probe.exe':          'oblimap-probe.exe',
+  'oblimap-probe-linux-amd64':  'oblimap-probe-linux-amd64',
+  'oblimap-probe-linux-arm64':  'oblimap-probe-linux-arm64',
+  'oblimap-probe-darwin-amd64': 'oblimap-probe-darwin-amd64',
+  'oblimap-probe-darwin-arm64': 'oblimap-probe-darwin-arm64',
+};
+
+export function probeDownload(req: Request, res: Response): void {
+  const { filename } = req.params;
+  const binaryName = ALLOWED_PROBE_BINARIES[filename];
+  if (!binaryName) { res.status(404).json({ error: 'Not found' }); return; }
+  const filePath = path.resolve(__dirname, '../../../../probe/dist', binaryName);
+  if (!fs.existsSync(filePath)) {
+    res.status(404).json({ error: 'Probe binary not available' });
+    return;
+  }
+  res.setHeader('Content-Type', 'application/octet-stream');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.sendFile(filePath);
+}
+
+export function probeInstallerLinux(req: Request, res: Response): void {
+  const apiKey = req.query.key as string | undefined;
+  const scriptPath = path.resolve(__dirname, '../../../../probe/installer/install.sh');
+  if (!fs.existsSync(scriptPath)) { res.status(404).json({ error: 'Installer not available' }); return; }
+  let script = fs.readFileSync(scriptPath, 'utf-8');
+  const serverUrl = `${req.protocol}://${req.get('host')}`;
+  script = script.replace('__SERVER_URL__', serverUrl);
+  if (apiKey) script = script.replace('__API_KEY__', apiKey);
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="install.sh"');
+  res.send(script);
+}
+
+export function probeInstallerMacos(req: Request, res: Response): void {
+  const apiKey = req.query.key as string | undefined;
+  const scriptPath = path.resolve(__dirname, '../../../../probe/installer/install-macos.sh');
+  if (!fs.existsSync(scriptPath)) { res.status(404).json({ error: 'macOS installer not available' }); return; }
+  let script = fs.readFileSync(scriptPath, 'utf-8');
+  const serverUrl = `${req.protocol}://${req.get('host')}`;
+  script = script.replace('__SERVER_URL__', serverUrl);
+  if (apiKey) script = script.replace('__API_KEY__', apiKey);
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="install-macos.sh"');
+  res.send(script);
+}
+
+export function probeInstallerWindowsMsi(_req: Request, res: Response): void {
+  const msiPath = path.resolve(__dirname, '../../../../probe/dist/oblimap-probe.msi');
+  if (!fs.existsSync(msiPath)) {
+    res.status(404).json({ error: 'MSI installer not available (not yet built)' });
+    return;
+  }
+  res.setHeader('Content-Type', 'application/x-msi');
+  res.setHeader('Content-Disposition', 'attachment; filename="oblimap-probe.msi"');
+  res.sendFile(msiPath);
+}
+
+export async function probeNotifyingUpdate(req: Request, res: Response): Promise<void> {
+  try {
+    const apiKey = req.headers['x-api-key'] as string | undefined;
+    const probeUuid = req.headers['x-probe-uuid'] as string | undefined;
+    if (!apiKey || !probeUuid) {
+      res.status(400).json({ error: 'X-API-Key and X-Probe-UUID headers required' });
+      return;
+    }
+    const keyId = await probeService.getApiKeyIdByKey(apiKey);
+    const probe = await probeService.getProbeByUuid(probeUuid);
+    if (!keyId || !probe || probe.api_key_id !== keyId) {
+      res.status(404).json({ error: 'Probe not found' });
+      return;
+    }
+    await probeService.setProbeUpdating(probeUuid);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
 
 export const probeController = {
   // ── Probe Push (API-key auth, no session required) ────────────────────────

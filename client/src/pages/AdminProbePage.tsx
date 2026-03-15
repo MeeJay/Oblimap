@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Radar, Plus, Trash2, CheckCircle, XCircle, Key,
+  Radar, Plus, Trash2, CheckCircle, XCircle, Key, Monitor,
   ChevronDown, RefreshCw, Eye, Copy, AlertCircle, Loader2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -462,41 +462,29 @@ export function AdminProbePage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-border mb-6">
+      <div className="flex items-center gap-1 mb-6 rounded-lg bg-bg-secondary p-1 border border-border w-fit">
         <button
           onClick={() => setActiveTab('probes')}
-          className={clsx(
-            'px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px flex items-center gap-2',
-            activeTab === 'probes'
-              ? 'border-accent text-accent'
-              : 'border-transparent text-text-muted hover:text-text-secondary',
-          )}
+          className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+            activeTab === 'probes' ? 'bg-accent text-white' : 'text-text-muted hover:text-text-primary'
+          }`}
         >
+          <Monitor size={13} className="inline mr-1.5" />
           {t('probesPage.tabDevices')}
-          <span className={clsx(
-            'text-xs rounded-full px-1.5 py-0.5 font-semibold',
-            activeTab === 'probes' ? 'bg-accent/20 text-accent' : 'bg-bg-elevated text-text-muted',
-          )}>
-            {probes.length}
-          </span>
+          {probes.filter(p => p.status === 'pending').length > 0 && (
+            <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-yellow-500 text-white text-[10px] font-bold">
+              {probes.filter(p => p.status === 'pending').length}
+            </span>
+          )}
         </button>
         <button
           onClick={() => setActiveTab('keys')}
-          className={clsx(
-            'px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px flex items-center gap-2',
-            activeTab === 'keys'
-              ? 'border-accent text-accent'
-              : 'border-transparent text-text-muted hover:text-text-secondary',
-          )}
+          className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+            activeTab === 'keys' ? 'bg-accent text-white' : 'text-text-muted hover:text-text-primary'
+          }`}
         >
-          <Key size={14} />
+          <Key size={13} className="inline mr-1.5" />
           {t('probesPage.tabApiKeys')}
-          <span className={clsx(
-            'text-xs rounded-full px-1.5 py-0.5 font-semibold',
-            activeTab === 'keys' ? 'bg-accent/20 text-accent' : 'bg-bg-elevated text-text-muted',
-          )}>
-            {keys.length}
-          </span>
         </button>
       </div>
 

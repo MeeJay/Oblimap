@@ -1,3 +1,5 @@
+import path from 'path';
+import fs from 'fs';
 import { Server as SocketIOServer } from 'socket.io';
 import { db } from '../db';
 import { logger } from '../utils/logger';
@@ -733,6 +735,50 @@ class ProbeService {
     if (count > 0) {
       logger.info({ count }, 'Cleared stuck-updating probes');
     }
+  }
+
+  // ── Version + installer helpers ──────────────────────────────────────────
+
+  getProbeVersion(): { version: string } {
+    // 1. Try probe/VERSION (plain text "X.Y.Z\n") — present in prod Docker image
+    try {
+      const versionFilePath = path.resolve(__dirname, '../../../../probe/VERSION');
+      const v = fs.readFileSync(versionFilePath, 'utf-8').trim();
+      if (v) return { version: v };
+    } catch { /* not found, try next */ }
+
+    // 2. Dev fallback: parse `var ProbeVersion = "x.y.z"` from probe/main.go
+    try {
+      const mainGoPath = path.resolve(__dirname, '../../../../probe/main.go');
+      const content = fs.readFileSync(mainGoPath, 'utf-8');
+      const match = content.match(/var\s+ProbeVersion\s*=\s*"([^"]+)"/);
+      if (match?.[1] && match[1] !== 'dev') return { version: match[1] };
+    } catch { /* not found */ }
+
+    return { version: '0.0.0' };
+  }
+
+  /**
+   * Mark a probe as "updating" — called when the probe notifies us it is
+   * about to self-update. Sets updating_since to NOW().
+   */
+  async setProbeUpdating(probeUuid: string): Promise<void> {
+    await db('probes')
+      .where({ uuid: probeUuid })
+      .update({ updating_since: new Date(), updated_at: new Date() });
+    logger.info(`Probe ${probeUuid} is self-updating.`);
+  }
+
+  async getProbeByUuid(uuid: string): Promise<{ id: number; api_key_id: number } | null> {
+    const row = await db('probes').where({ uuid }).select('id', 'api_key_id').first() as
+      { id: number; api_key_id: number } | undefined;
+    return row ?? null;
+  }
+
+  async getApiKeyIdByKey(rawKey: string): Promise<number | null> {
+    const row = await db('probe_api_keys').where({ key: rawKey }).select('id').first() as
+      { id: number } | undefined;
+    return row?.id ?? null;
   }
 }
 

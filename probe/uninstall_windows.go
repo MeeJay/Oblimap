@@ -4,31 +4,71 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
 )
 
+func downloadFile(url, dest string) error {
+	client := &http.Client{Timeout: 120 * time.Second}
+	resp, err := client.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	f, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(f, resp.Body)
+	f.Close()
+	return err
+}
+
 func performUninstall(serverURL string) {
-	// Download MSI and run msiexec /x via a detached batch script
-	// (so the process can exit before msiexec runs)
+	// Download the MSI and use msiexec /x to uninstall cleanly
 	msiURL := fmt.Sprintf("%s/api/probe/download/oblimap-probe.msi", serverURL)
 	msiPath := filepath.Join(os.TempDir(), "oblimap-probe-uninstall.msi")
 
-	// Try to download the MSI (best-effort)
-	_ = msiURL
-	_ = msiPath
-
-	// Write a detached batch script that uninstalls after a short delay
-	script := fmt.Sprintf(`@echo off
+	if err := downloadFile(msiURL, msiPath); err != nil {
+		log.Printf("WARN: could not download MSI for uninstall (%v) — falling back to sc delete", err)
+		// Fallback: stop + delete service directly
+		script := fmt.Sprintf(`@echo off
 ping 127.0.0.1 -n 3 > nul
 sc stop %s 2>nul
 sc delete %s 2>nul
 rmdir /s /q "%%ProgramFiles%%\OblimapProbe" 2>nul
 del /f /q "%%~f0"
 `, serviceName, serviceName)
+		batchPath := filepath.Join(os.TempDir(), "oblimap-uninstall.bat")
+		if err2 := os.WriteFile(batchPath, []byte(script), 0644); err2 != nil {
+			log.Printf("ERROR: write uninstall batch: %v", err2)
+			return
+		}
+		cmd := exec.Command("cmd.exe", "/c", "start", "", "/b", batchPath)
+		cmd.Dir = os.TempDir()
+		if err2 := cmd.Start(); err2 != nil {
+			log.Printf("ERROR: start uninstall batch: %v", err2)
+		}
+		_ = cmd.Process.Release()
+		time.Sleep(500 * time.Millisecond)
+		return
+	}
+
+	// MSI uninstall via detached batch script (process must exit first)
+	script := fmt.Sprintf(`@echo off
+ping 127.0.0.1 -n 3 > nul
+msiexec /x "%s" /quiet /norestart
+del /f /q "%s"
+del /f /q "%%~f0"
+`, msiPath, msiPath)
 
 	batchPath := filepath.Join(os.TempDir(), "oblimap-uninstall.bat")
 	if err := os.WriteFile(batchPath, []byte(script), 0644); err != nil {
@@ -43,34 +83,31 @@ del /f /q "%%~f0"
 		return
 	}
 	_ = cmd.Process.Release()
-
 	time.Sleep(500 * time.Millisecond)
 }
 
 func applyUpdate(latestVersion string) {
 	notifyUpdating()
 
-	exePath, err := os.Executable()
-	if err != nil {
-		log.Printf("ERROR: get exe path: %v", err)
-		return
-	}
-
 	// Download new MSI
 	msiURL := fmt.Sprintf("%s/api/probe/download/oblimap-probe.msi", cfg.ServerURL)
 	msiPath := filepath.Join(os.TempDir(), "oblimap-probe-update.msi")
 
-	_ = msiURL
-	_ = msiPath
-	_ = exePath
-	_ = latestVersion
+	log.Printf("Auto-update: downloading MSI → v%s", latestVersion)
+	if err := downloadFile(msiURL, msiPath); err != nil {
+		log.Printf("Auto-update: MSI download failed: %v", err)
+		return
+	}
 
-	// Write update batch
+	// Launch msiexec via a detached batch script — the script outlives the
+	// service process. msiexec stops the service, installs the new version,
+	// then restarts it.
 	script := fmt.Sprintf(`@echo off
 ping 127.0.0.1 -n 3 > nul
-msiexec /i "%s" /quiet /norestart
+msiexec /i "%s" /quiet /norestart SERVERURL="%s" APIKEY="%s"
+del /f /q "%s"
 del /f /q "%%~f0"
-`, msiPath)
+`, msiPath, cfg.ServerURL, cfg.APIKey, msiPath)
 
 	batchPath := filepath.Join(os.TempDir(), "oblimap-update.bat")
 	if err := os.WriteFile(batchPath, []byte(script), 0644); err != nil {
@@ -84,5 +121,7 @@ del /f /q "%%~f0"
 		return
 	}
 	_ = cmd.Process.Release()
+
+	log.Printf("Auto-update: MSI update to v%s initiated — service will restart shortly...", latestVersion)
 	os.Exit(0)
 }
