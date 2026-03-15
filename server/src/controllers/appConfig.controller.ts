@@ -48,59 +48,64 @@ export const appConfigController = {
     } catch (err) { next(err); }
   },
 
-  /** GET /admin/config/obliguard — returns full config incl. apiKey (admin only) */
+  /** GET /admin/config/obliguard — returns { url, apiKeySet } (admin only) */
   async getObliguardConfig(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const cfg = await appConfigService.getObliguardConfig();
-      res.json({ success: true, data: cfg ?? { url: '', apiKey: '' } });
+      res.json({ success: true, data: cfg });
     } catch (err) { next(err); }
   },
 
-  /** PUT /admin/config/obliguard — save url + apiKey (admin only) */
+  /** PUT /admin/config/obliguard — partial update: url and/or apiKey (admin only) */
   async setObliguardConfig(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { url, apiKey } = req.body as { url?: string; apiKey?: string };
-      if (typeof url !== 'string' || typeof apiKey !== 'string') {
-        throw new AppError(400, 'url and apiKey are required');
-      }
-      await appConfigService.setObliguardConfig({ url: url.trim(), apiKey: apiKey.trim() });
-      res.json({ success: true });
+      const patch: { url?: string | null; apiKey?: string | null } = {};
+      if ('url' in req.body) patch.url = (req.body as { url?: string | null }).url?.trim() || null;
+      if ('apiKey' in req.body) patch.apiKey = (req.body as { apiKey?: string | null }).apiKey?.trim() || null;
+      const updated = await appConfigService.patchObliguardConfig(patch);
+      res.json({ success: true, data: updated });
     } catch (err) { next(err); }
   },
 
   // ── Obliview ──────────────────────────────────────────────────────────────
 
+  /** GET /admin/config/obliview — returns { url, apiKeySet } (admin only) */
   async getObliviewConfig(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const cfg = await appConfigService.getObliviewConfig();
-      res.json({ success: true, data: cfg ?? { url: '', apiKey: '' } });
+      res.json({ success: true, data: cfg });
     } catch (err) { next(err); }
   },
 
+  /** PUT /admin/config/obliview — partial update (admin only) */
   async setObliviewConfig(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { url, apiKey } = req.body as { url?: string; apiKey?: string };
-      if (typeof url !== 'string' || typeof apiKey !== 'string') throw new AppError(400, 'url and apiKey are required');
-      await appConfigService.setObliviewConfig({ url: url.trim(), apiKey: apiKey.trim() });
-      res.json({ success: true });
+      const patch: { url?: string | null; apiKey?: string | null } = {};
+      if ('url' in req.body) patch.url = (req.body as { url?: string | null }).url?.trim() || null;
+      if ('apiKey' in req.body) patch.apiKey = (req.body as { apiKey?: string | null }).apiKey?.trim() || null;
+      const updated = await appConfigService.patchObliviewConfig(patch);
+      res.json({ success: true, data: updated });
     } catch (err) { next(err); }
   },
 
   // ── Obliance ──────────────────────────────────────────────────────────────
 
+  /** GET /admin/config/obliance — returns { url, apiKeySet } (admin only) */
   async getOblianceConfig(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const cfg = await appConfigService.getOblianceConfig();
-      res.json({ success: true, data: cfg ?? { url: '', apiKey: '' } });
+      res.json({ success: true, data: cfg });
     } catch (err) { next(err); }
   },
 
+  /** PUT /admin/config/obliance — partial update (admin only) */
   async setOblianceConfig(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { url, apiKey } = req.body as { url?: string; apiKey?: string };
-      if (typeof url !== 'string' || typeof apiKey !== 'string') throw new AppError(400, 'url and apiKey are required');
-      await appConfigService.setOblianceConfig({ url: url.trim(), apiKey: apiKey.trim() });
-      res.json({ success: true });
+      const patch: { url?: string | null; apiKey?: string | null } = {};
+      if ('url' in req.body) patch.url = (req.body as { url?: string | null }).url?.trim() || null;
+      if ('apiKey' in req.body) patch.apiKey = (req.body as { apiKey?: string | null }).apiKey?.trim() || null;
+      const updated = await appConfigService.patchOblianceConfig(patch);
+      res.json({ success: true, data: updated });
     } catch (err) { next(err); }
   },
 };

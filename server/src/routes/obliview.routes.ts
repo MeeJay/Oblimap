@@ -23,7 +23,7 @@ router.get('/link', async (req: Request, res: Response, next: NextFunction): Pro
       return;
     }
 
-    const cfg = await appConfigService.getObliviewConfig();
+    const cfg = await appConfigService.getObliviewRaw();
     if (!cfg?.apiKey || token !== cfg.apiKey) {
       res.status(401).json({ success: false, error: 'Unauthorized' });
       return;
@@ -61,7 +61,7 @@ router.get('/link', async (req: Request, res: Response, next: NextFunction): Pro
  */
 router.get('/proxy-link', requireAuth, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const cfg = await appConfigService.getObliviewConfig();
+    const cfg = await appConfigService.getObliviewRaw();
     if (!cfg?.url || !cfg.apiKey) {
       res.json({ success: true, data: { obliviewUrl: null } });
       return;

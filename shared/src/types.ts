@@ -568,9 +568,9 @@ export type AgentDisplayConfig = any;
 export type AgentGroupConfig = Record<string, unknown>;
 export type AgentGlobalConfig = Record<string, unknown>;
 export type NotificationTypeConfig = Record<string, boolean | null>;
-export type ObliguardConfig  = { url?: string; ssoSecret?: string; obliviewUrl?: string; apiKey?: string; [key: string]: unknown };
-export type ObliviewConfig   = { url?: string; apiKey?: string; [key: string]: unknown };
-export type OblianceConfig   = { url?: string; apiKey?: string; [key: string]: unknown };
+export type ObliguardConfig  = { url?: string | null; ssoSecret?: string; obliviewUrl?: string; apiKey?: string; apiKeySet?: boolean; [key: string]: unknown };
+export type ObliviewConfig   = { url?: string | null; apiKey?: string; apiKeySet?: boolean; [key: string]: unknown };
+export type OblianceConfig   = { url?: string | null; apiKey?: string; apiKeySet?: boolean; [key: string]: unknown };
 
 export const DEFAULT_NOTIFICATION_TYPES: NotificationTypeConfig = {};
 export const DEFAULT_AGENT_THRESHOLDS: AgentThresholds = {};

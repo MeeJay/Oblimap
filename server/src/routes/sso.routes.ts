@@ -33,9 +33,9 @@ const router = Router();
 // ─────────────────────────────────────────────────────────────────────────────
 async function requireSsoBearer(req: Request, res: Response): Promise<boolean> {
   const [obliguardCfg, obliviewCfg, oblianceCfg] = await Promise.all([
-    appConfigService.getObliguardConfig(),
-    appConfigService.getObliviewConfig(),
-    appConfigService.getOblianceConfig(),
+    appConfigService.getObliguardRaw(),
+    appConfigService.getObliviewRaw(),
+    appConfigService.getOblianceRaw(),
   ]);
 
   const validKeys = [obliguardCfg?.apiKey, obliviewCfg?.apiKey, oblianceCfg?.apiKey]
@@ -194,9 +194,9 @@ router.post('/exchange', async (req: Request, res: Response, next: NextFunction)
 
     // Resolve which source app this token came from
     const [obliguardCfg, obliviewCfg, oblianceCfg] = await Promise.all([
-      appConfigService.getObliguardConfig(),
-      appConfigService.getObliviewConfig(),
-      appConfigService.getOblianceConfig(),
+      appConfigService.getObliguardRaw(),
+      appConfigService.getObliviewRaw(),
+      appConfigService.getOblianceRaw(),
     ]);
 
     type SourceEntry = { name: string; url: string; apiKey: string };

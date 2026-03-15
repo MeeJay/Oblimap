@@ -125,12 +125,30 @@ export const authService = {
       }
     }
 
-    // If the username belongs to ANY existing account (local or already linked to another source),
-    // require password confirmation to link them together.
+    // Check for username collision with any existing account.
     const anyCollision = await db('users')
       .where({ username: info.username })
-      .first();
-    if (anyCollision) throw new AccountLinkRequiredError(info.username);
+      .first() as (UserRow & { password_hash: string | null }) | undefined;
+
+    if (anyCollision) {
+      if (!anyCollision.password_hash) {
+        // The existing account is a password-less SSO account (created via another source).
+        // Auto-link this new source — no password proof needed since the account has no secret.
+        await db('sso_foreign_users')
+          .insert({ foreign_source: foreignSource, foreign_user_id: foreignId, local_user_id: anyCollision.id })
+          .onConflict(['foreign_source', 'foreign_user_id'])
+          .merge({ local_user_id: anyCollision.id });
+        await db('users').where({ id: anyCollision.id }).update({
+          email: info.email ?? anyCollision.email,
+          foreign_source_url: foreignSourceUrl,
+          updated_at: new Date(),
+        });
+        const updated = await db<UserRow>('users').where({ id: anyCollision.id }).first() as UserRow;
+        return { user: rowToUser(updated), isFirstLogin: false };
+      }
+      // The existing account has a password (local account) — require the user to prove ownership.
+      throw new AccountLinkRequiredError(info.username);
+    }
 
     // Create new foreign user (no password, enrollment pending)
     const [row] = await db<UserRow>('users')

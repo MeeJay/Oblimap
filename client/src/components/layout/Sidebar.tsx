@@ -17,6 +17,7 @@ import {
   ChevronDown,
   PanelLeft,
   PanelLeftClose,
+  Plus,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/utils/cn';
@@ -83,7 +84,7 @@ export function Sidebar() {
     { label: t('nav.settings'),      path: '/settings',      icon: <Settings size={18} />, adminOnly: true },
   ];
 
-  const { sidebarFloating, toggleSidebarFloating } = useUiStore();
+  const { sidebarFloating, toggleSidebarFloating, openAddProbeModal } = useUiStore();
 
   const [obliguardUrl, setObliguardUrl] = useState<string | null>(null);
   const [, startSsoTransition] = useTransition();
@@ -165,6 +166,19 @@ export function Sidebar() {
           </button>
         </div>
       </div>
+
+      {/* Add Probe button */}
+      {admin && (
+        <div className="px-3 pb-1 pt-2">
+          <button
+            onClick={openAddProbeModal}
+            className="flex w-full items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+          >
+            <Plus size={14} />
+            {t('nav.addProbe')}
+          </button>
+        </div>
+      )}
 
       {/* Search */}
       <div className="px-3 py-3">

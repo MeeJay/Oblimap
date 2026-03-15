@@ -17,11 +17,15 @@ interface NotificationTypeConfig {
   update: boolean;
 }
 
-interface ObliguardConfig {
-  url?: string;
-  apiKey?: string;
-  ssoSecret?: string;
+/** Public shape returned to clients — never exposes the raw apiKey */
+interface IntegrationConfigPublic {
+  url: string | null;
+  apiKeySet: boolean;
 }
+
+type ObliguardConfig = IntegrationConfigPublic;
+type ObliviewConfig  = IntegrationConfigPublic;
+type OblianceConfig  = IntegrationConfigPublic;
 
 const DEFAULT_NOTIFICATION_TYPES: NotificationTypeConfig = {
   global: true,
@@ -73,46 +77,107 @@ export const appConfigService = {
     };
   },
 
-  /** Get Obliguard integration config (includes API key — admin only) */
-  async getObliguardConfig(): Promise<ObliguardConfig | null> {
+  /** Get Obliguard integration config — returns public shape (no raw key) */
+  async getObliguardConfig(): Promise<ObliguardConfig> {
     const raw = await this.get(OBLIGUARD_CONFIG_KEY);
-    if (!raw) return null;
+    if (!raw) return { url: null, apiKeySet: false };
     try {
-      return JSON.parse(raw) as ObliguardConfig;
+      const cfg = JSON.parse(raw) as { url?: string; apiKey?: string };
+      return { url: cfg.url ?? null, apiKeySet: !!cfg.apiKey };
     } catch {
-      return null;
+      return { url: null, apiKeySet: false };
     }
   },
 
-  /** Save Obliguard integration config */
-  async setObliguardConfig(cfg: ObliguardConfig): Promise<void> {
-    await this.set(OBLIGUARD_CONFIG_KEY, JSON.stringify(cfg));
+  /** Get Obliguard integration config raw (includes API key — for internal use only) */
+  async getObliguardRaw(): Promise<{ url: string | null; apiKey: string | null }> {
+    const raw = await this.get(OBLIGUARD_CONFIG_KEY);
+    if (!raw) return { url: null, apiKey: null };
+    try {
+      const cfg = JSON.parse(raw) as { url?: string; apiKey?: string };
+      return { url: cfg.url ?? null, apiKey: cfg.apiKey ?? null };
+    } catch {
+      return { url: null, apiKey: null };
+    }
+  },
+
+  /** Patch Obliguard integration config (partial update) */
+  async patchObliguardConfig(patch: { url?: string | null; apiKey?: string | null }): Promise<ObliguardConfig> {
+    const existing = await this.getObliguardRaw();
+    const merged = {
+      url: 'url' in patch ? (patch.url ?? null) : existing.url,
+      apiKey: ('apiKey' in patch && patch.apiKey) ? patch.apiKey : existing.apiKey,
+    };
+    await this.set(OBLIGUARD_CONFIG_KEY, JSON.stringify(merged));
+    return { url: merged.url, apiKeySet: !!merged.apiKey };
   },
 
   // ── Obliview Integration ──────────────────────────────────────────────────
 
-  async getObliviewConfig(): Promise<{ url?: string; apiKey?: string } | null> {
+  async getObliviewConfig(): Promise<ObliviewConfig> {
     const raw = await this.get(OBLIVIEW_CONFIG_KEY);
-    if (!raw) return null;
-    try { return JSON.parse(raw) as { url?: string; apiKey?: string }; }
-    catch { return null; }
+    if (!raw) return { url: null, apiKeySet: false };
+    try {
+      const cfg = JSON.parse(raw) as { url?: string; apiKey?: string };
+      return { url: cfg.url ?? null, apiKeySet: !!cfg.apiKey };
+    } catch {
+      return { url: null, apiKeySet: false };
+    }
   },
 
-  async setObliviewConfig(cfg: { url: string; apiKey: string }): Promise<void> {
-    await this.set(OBLIVIEW_CONFIG_KEY, JSON.stringify(cfg));
+  async getObliviewRaw(): Promise<{ url: string | null; apiKey: string | null }> {
+    const raw = await this.get(OBLIVIEW_CONFIG_KEY);
+    if (!raw) return { url: null, apiKey: null };
+    try {
+      const cfg = JSON.parse(raw) as { url?: string; apiKey?: string };
+      return { url: cfg.url ?? null, apiKey: cfg.apiKey ?? null };
+    } catch {
+      return { url: null, apiKey: null };
+    }
+  },
+
+  async patchObliviewConfig(patch: { url?: string | null; apiKey?: string | null }): Promise<ObliviewConfig> {
+    const existing = await this.getObliviewRaw();
+    const merged = {
+      url: 'url' in patch ? (patch.url ?? null) : existing.url,
+      apiKey: ('apiKey' in patch && patch.apiKey) ? patch.apiKey : existing.apiKey,
+    };
+    await this.set(OBLIVIEW_CONFIG_KEY, JSON.stringify(merged));
+    return { url: merged.url, apiKeySet: !!merged.apiKey };
   },
 
   // ── Obliance Integration ──────────────────────────────────────────────────
 
-  async getOblianceConfig(): Promise<{ url?: string; apiKey?: string } | null> {
+  async getOblianceConfig(): Promise<OblianceConfig> {
     const raw = await this.get(OBLIANCE_CONFIG_KEY);
-    if (!raw) return null;
-    try { return JSON.parse(raw) as { url?: string; apiKey?: string }; }
-    catch { return null; }
+    if (!raw) return { url: null, apiKeySet: false };
+    try {
+      const cfg = JSON.parse(raw) as { url?: string; apiKey?: string };
+      return { url: cfg.url ?? null, apiKeySet: !!cfg.apiKey };
+    } catch {
+      return { url: null, apiKeySet: false };
+    }
   },
 
-  async setOblianceConfig(cfg: { url: string; apiKey: string }): Promise<void> {
-    await this.set(OBLIANCE_CONFIG_KEY, JSON.stringify(cfg));
+  async getOblianceRaw(): Promise<{ url: string | null; apiKey: string | null }> {
+    const raw = await this.get(OBLIANCE_CONFIG_KEY);
+    if (!raw) return { url: null, apiKey: null };
+    try {
+      const cfg = JSON.parse(raw) as { url?: string; apiKey?: string };
+      return { url: cfg.url ?? null, apiKey: cfg.apiKey ?? null };
+    } catch {
+      return { url: null, apiKey: null };
+    }
+  },
+
+  async patchOblianceConfig(patch: { url?: string | null; apiKey?: string | null }): Promise<OblianceConfig> {
+    const existing = await this.getOblianceRaw();
+    const merged = {
+      url: 'url' in patch ? (patch.url ?? null) : existing.url,
+      apiKey: ('apiKey' in patch && patch.apiKey) ? patch.apiKey : existing.apiKey,
+    };
+    await this.set(OBLIANCE_CONFIG_KEY, JSON.stringify(merged));
+    return { url: merged.url, apiKeySet: !!merged.apiKey };
   },
 
   /** Get global agent defaults from app_config */

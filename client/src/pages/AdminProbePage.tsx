@@ -3,13 +3,13 @@ import { Link } from 'react-router-dom';
 import {
   Radar, Plus, Trash2, CheckCircle, XCircle, Key,
   ChevronDown, RefreshCw, Eye, Copy, AlertCircle, Loader2,
-  Terminal,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { probeApi } from '../api/probe.api';
 import type { Probe, ProbeApiKey } from '@oblimap/shared';
 import { clsx } from 'clsx';
+import { useUiStore } from '@/store/uiStore';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -56,150 +56,13 @@ function formatLastSeen(ts: string | null) {
   return new Date(ts).toLocaleDateString();
 }
 
-// ─── Add Probe Modal ──────────────────────────────────────────────────────────
+// ─── API Keys Tab ─────────────────────────────────────────────────────────────
 
-function CopyBlock({ label, code }: { label: string; code: string }) {
-  const { t } = useTranslation();
-  function copy() {
-    navigator.clipboard.writeText(code)
-      .then(() => toast.success(t('common.copied')))
-      .catch(() => undefined);
-  }
-  return (
-    <div>
-      <p className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-1.5">
-        {label}
-      </p>
-      <div className="relative group bg-bg-elevated border border-border rounded-lg px-3 py-3 pr-10">
-        <code className="text-xs text-text-primary break-all leading-relaxed whitespace-pre-wrap font-mono">
-          {code}
-        </code>
-        <button
-          onClick={copy}
-          className="absolute top-2 right-2 p-1 text-text-muted hover:text-text-primary transition-colors opacity-0 group-hover:opacity-100"
-          title={t('common.copy')}
-        >
-          <Copy size={13} />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function AddProbeModal({
-  onClose,
-  apiKeys,
-  onManageKeys,
-}: {
-  onClose: () => void;
-  apiKeys: ProbeApiKey[];
-  onManageKeys: () => void;
-}) {
-  const { t } = useTranslation();
-  const [selectedKeyId, setSelectedKeyId] = useState<number | null>(
-    apiKeys.length > 0 ? apiKeys[0].id : null,
-  );
-
-  const serverUrl = window.location.origin;
-  const selectedKey = apiKeys.find((k) => k.id === selectedKeyId);
-  const apiKey = selectedKey?.key ?? '';
-
-  const linuxCmd =
-    `curl -fsSL "${serverUrl}/api/probe/installer/linux?key=${apiKey}" | bash`;
-
-  const macosCmd = (arch: string) =>
-    `sudo bash -c "$(curl -fsSL '${serverUrl}/api/probe/installer/macos?key=${apiKey}&arch=${arch}')"`;
-
-  const windowsCmd =
-    `$m="$env:TEMP\\oblimap-probe.msi"; ` +
-    `Invoke-WebRequest "${serverUrl}/api/probe/installer/windows.msi" -OutFile $m -UseBasicParsing; ` +
-    `Start-Process msiexec -ArgumentList "/i \`"$m\`" SERVERURL=\`"${serverUrl}\`" APIKEY=\`"${apiKey}\`" /quiet" ` +
-    `-Wait -Verb RunAs; Remove-Item $m`;
-
-  return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-      <div className="bg-bg-card border border-border rounded-xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
-          <div className="flex items-center gap-2">
-            <Terminal size={18} className="text-accent" />
-            <span className="font-semibold text-text-primary">Add Probe</span>
-          </div>
-          <button
-            onClick={onClose}
-            className="text-text-muted hover:text-text-primary transition-colors text-xl leading-none"
-          >
-            &times;
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="p-5 overflow-y-auto space-y-5">
-          {/* Key selector */}
-          {apiKeys.length === 0 ? (
-            <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 text-sm text-yellow-300">
-              No API keys yet.{' '}
-              <button
-                onClick={onManageKeys}
-                className="underline hover:text-yellow-200"
-              >
-                Create one first
-              </button>{' '}
-              to generate install commands.
-            </div>
-          ) : (
-            <div className="flex items-center gap-3">
-              <label className="text-sm text-text-muted shrink-0">API Key</label>
-              <select
-                value={selectedKeyId ?? ''}
-                onChange={(e) => setSelectedKeyId(Number(e.target.value))}
-                className="flex-1 bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent"
-              >
-                {apiKeys.map((k) => (
-                  <option key={k.id} value={k.id}>
-                    {k.name} — {k.key.slice(0, 8)}…{k.key.slice(-4)}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={onManageKeys}
-                className="btn-secondary text-xs flex items-center gap-1"
-              >
-                <Key size={12} /> {t('probesPage.apiKeys.title')}
-              </button>
-            </div>
-          )}
-
-          {selectedKey && (
-            <div className="space-y-4">
-              <CopyBlock label="Linux" code={linuxCmd} />
-              <CopyBlock label="macOS — Apple Silicon (M1 / M2 / M3 / M4)" code={macosCmd('arm64')} />
-              <CopyBlock label="macOS — Intel (x86_64)" code={macosCmd('amd64')} />
-              <CopyBlock label="Windows (PowerShell, Admin)" code={windowsCmd} />
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="px-5 py-4 border-t border-border shrink-0">
-          <button onClick={onClose} className="w-full btn-secondary text-sm py-2">
-            {t('common.close')}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── API Key Modal ────────────────────────────────────────────────────────────
-
-function ApiKeyModal({
-  onClose,
-  tenantKeys,
+function ApiKeysTab({
+  keys,
   onRefresh,
 }: {
-  onClose: () => void;
-  tenantKeys: ProbeApiKey[];
+  keys: ProbeApiKey[];
   onRefresh: () => void;
 }) {
   const { t } = useTranslation();
@@ -242,99 +105,92 @@ function ApiKeyModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
-      <div className="bg-bg-card border border-border rounded-xl w-full max-w-lg shadow-2xl">
-        <div className="flex items-center justify-between p-5 border-b border-border">
-          <div className="flex items-center gap-2 text-text-primary font-semibold">
-            <Key size={18} className="text-accent" />
-            {t('probesPage.apiKeys.title')}
-          </div>
+    <div className="max-w-2xl space-y-4">
+      {/* Create form */}
+      <div className="bg-bg-card border border-border rounded-xl p-5">
+        <h3 className="text-sm font-medium text-text-primary mb-3">{t('probesPage.apiKeys.create')}</h3>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            placeholder={t('probesPage.apiKeys.namePlaceholder')}
+            value={newKeyName}
+            onChange={(e) => setNewKeyName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') void handleCreate(); }}
+            className="flex-1 bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent"
+          />
           <button
-            onClick={onClose}
-            className="text-text-muted hover:text-text-primary transition-colors text-xl leading-none"
+            onClick={() => void handleCreate()}
+            disabled={creating || !newKeyName.trim()}
+            className="btn-primary flex items-center gap-1.5 text-sm px-3 py-2 disabled:opacity-50"
           >
-            &times;
+            {creating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
+            {t('probesPage.apiKeys.create')}
           </button>
         </div>
 
-        <div className="p-5 space-y-4">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder={t('probesPage.apiKeys.namePlaceholder')}
-              value={newKeyName}
-              onChange={(e) => setNewKeyName(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') void handleCreate(); }}
-              className="flex-1 bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent"
-            />
-            <button
-              onClick={() => void handleCreate()}
-              disabled={creating || !newKeyName.trim()}
-              className="btn-primary flex items-center gap-1.5 text-sm px-3 py-2 disabled:opacity-50"
-            >
-              {creating ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-              {t('probesPage.apiKeys.create')}
-            </button>
-          </div>
-
-          {newlyCreated && (
-            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3">
-              <p className="text-xs text-emerald-400 font-medium mb-1">
-                {t('probesPage.apiKeys.keyCreated')}
-              </p>
-              <div className="flex items-center gap-2">
-                <code className="text-xs text-text-primary flex-1 break-all">{newlyCreated.key}</code>
-                <button
-                  onClick={() => copyKey(newlyCreated.key)}
-                  className="text-accent hover:text-accent-hover p-1"
-                >
-                  <Copy size={14} />
-                </button>
-              </div>
+        {newlyCreated && (
+          <div className="mt-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3">
+            <p className="text-xs text-emerald-400 font-medium mb-1">
+              {t('probesPage.apiKeys.keyCreated')}
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="text-xs text-text-primary flex-1 break-all">{newlyCreated.key}</code>
+              <button
+                onClick={() => copyKey(newlyCreated.key)}
+                className="text-accent hover:text-accent-hover p-1"
+              >
+                <Copy size={14} />
+              </button>
             </div>
-          )}
-
-          <div className="space-y-2 max-h-72 overflow-y-auto">
-            {tenantKeys.length === 0 ? (
-              <p className="text-text-muted text-sm text-center py-4">{t('probesPage.apiKeys.noKeys')}</p>
-            ) : (
-              tenantKeys.map((k) => (
-                <div
-                  key={k.id}
-                  className="flex items-center justify-between gap-3 bg-bg-elevated border border-border rounded-lg px-3 py-2.5"
-                >
-                  <div>
-                    <p className="text-sm text-text-primary font-medium">{k.name}</p>
-                    <p className="text-xs text-text-muted font-mono">
-                      {k.key.slice(0, 8)}••••••••••••••••••••••••••••
-                    </p>
-                    {k.lastUsedAt && (
-                      <p className="text-xs text-text-muted">
-                        {t('probesPage.apiKeys.lastUsed', { date: new Date(k.lastUsedAt).toLocaleString() })}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={() => copyKey(k.key)}
-                      className="p-1.5 text-text-muted hover:text-text-primary rounded transition-colors"
-                      title={t('probesPage.apiKeys.copyKey')}
-                    >
-                      <Copy size={14} />
-                    </button>
-                    <button
-                      onClick={() => void handleDelete(k.id)}
-                      className="p-1.5 text-text-muted hover:text-red-400 rounded transition-colors"
-                      title={t('probesPage.apiKeys.deleteKey')}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
           </div>
-        </div>
+        )}
+      </div>
+
+      {/* Keys list */}
+      <div className="bg-bg-card border border-border rounded-xl overflow-hidden">
+        {keys.length === 0 ? (
+          <div className="p-8 text-center">
+            <Key size={28} className="mx-auto mb-2 text-text-muted" />
+            <p className="text-sm text-text-muted">{t('probesPage.apiKeys.noKeys')}</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-border">
+            {keys.map((k) => (
+              <div
+                key={k.id}
+                className="flex items-center justify-between gap-3 px-4 py-3"
+              >
+                <div>
+                  <p className="text-sm text-text-primary font-medium">{k.name}</p>
+                  <p className="text-xs text-text-muted font-mono">
+                    {k.key.slice(0, 8)}••••••••••••••••••••••••••••
+                  </p>
+                  {k.lastUsedAt && (
+                    <p className="text-xs text-text-muted">
+                      {t('probesPage.apiKeys.lastUsed', { date: new Date(k.lastUsedAt).toLocaleString() })}
+                    </p>
+                  )}
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => copyKey(k.key)}
+                    className="p-1.5 text-text-muted hover:text-text-primary rounded transition-colors"
+                    title={t('probesPage.apiKeys.copyKey')}
+                  >
+                    <Copy size={14} />
+                  </button>
+                  <button
+                    onClick={() => void handleDelete(k.id)}
+                    className="p-1.5 text-text-muted hover:text-red-400 rounded transition-colors"
+                    title={t('probesPage.apiKeys.deleteKey')}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -473,11 +329,11 @@ function ProbeRow({
 
 export function AdminProbePage() {
   const { t } = useTranslation();
+  const { openAddProbeModal } = useUiStore();
+  const [activeTab, setActiveTab] = useState<'probes' | 'keys'>('probes');
   const [probes, setProbes] = useState<Probe[]>([]);
   const [keys, setKeys] = useState<ProbeApiKey[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showKeys, setShowKeys] = useState(false);
-  const [showAddProbe, setShowAddProbe] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkMenu, setBulkMenu] = useState(false);
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -575,6 +431,8 @@ export function AdminProbePage() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
+
+      {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <Radar size={24} className="text-accent" />
@@ -594,156 +452,182 @@ export function AdminProbePage() {
             <RefreshCw size={16} />
           </button>
           <button
-            onClick={() => setShowKeys(true)}
-            className="btn-secondary flex items-center gap-1.5 text-sm"
-          >
-            <Key size={14} />
-            {t('probesPage.apiKeys.title')} ({keys.length})
-          </button>
-          <button
-            onClick={() => setShowAddProbe(true)}
+            onClick={openAddProbeModal}
             className="btn-primary flex items-center gap-1.5 text-sm"
           >
             <Plus size={14} />
-            Add Probe
+            {t('probesPage.addProbe')}
           </button>
         </div>
       </div>
 
-      {/* Filter + bulk toolbar */}
-      <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          {['all', 'pending', 'approved', 'refused'].map((s) => (
-            <button
-              key={s}
-              onClick={() => setFilterStatus(s)}
-              className={clsx(
-                'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
-                filterStatus === s
-                  ? 'bg-accent text-white'
-                  : 'text-text-muted hover:text-text-primary hover:bg-bg-elevated',
-              )}
-            >
-              {filterLabels[s] ?? s}
-              {s === 'pending' && pendingCount > 0 && (
-                <span className="ml-1.5 bg-yellow-500 text-black text-xs rounded-full px-1.5">
-                  {pendingCount}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-
-        {selected.size > 0 && (
-          <div className="relative flex items-center gap-2">
-            <span className="text-sm text-text-muted">
-              {t('probesPage.selected', { count: selected.size })}
-            </span>
-            <div className="relative">
-              <button
-                onClick={() => setBulkMenu(!bulkMenu)}
-                className="btn-secondary flex items-center gap-1 text-sm"
-              >
-                {t('probesPage.actions')} <ChevronDown size={14} />
-              </button>
-              {bulkMenu && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setBulkMenu(false)} />
-                  <div className="absolute right-0 top-full mt-1 bg-bg-card border border-border rounded-lg shadow-lg py-1 z-20 min-w-[150px]">
-                    <button
-                      onClick={() => void handleBulk('approve')}
-                      className="w-full text-left px-3 py-2 text-sm text-emerald-400 hover:bg-bg-elevated flex items-center gap-2"
-                    >
-                      <CheckCircle size={14} /> {t('probesPage.approveAll')}
-                    </button>
-                    <button
-                      onClick={() => void handleBulk('uninstall')}
-                      className="w-full text-left px-3 py-2 text-sm text-text-primary hover:bg-bg-elevated flex items-center gap-2"
-                    >
-                      <Trash2 size={14} /> {t('probesPage.uninstallAll')}
-                    </button>
-                    <div className="border-t border-border my-1" />
-                    <button
-                      onClick={() => void handleBulk('delete')}
-                      className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-bg-elevated flex items-center gap-2"
-                    >
-                      <Trash2 size={14} /> {t('probesPage.deleteAll')}
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        )}
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-border mb-6">
+        <button
+          onClick={() => setActiveTab('probes')}
+          className={clsx(
+            'px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px flex items-center gap-2',
+            activeTab === 'probes'
+              ? 'border-accent text-accent'
+              : 'border-transparent text-text-muted hover:text-text-secondary',
+          )}
+        >
+          {t('probesPage.tabDevices')}
+          <span className={clsx(
+            'text-xs rounded-full px-1.5 py-0.5 font-semibold',
+            activeTab === 'probes' ? 'bg-accent/20 text-accent' : 'bg-bg-elevated text-text-muted',
+          )}>
+            {probes.length}
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveTab('keys')}
+          className={clsx(
+            'px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px flex items-center gap-2',
+            activeTab === 'keys'
+              ? 'border-accent text-accent'
+              : 'border-transparent text-text-muted hover:text-text-secondary',
+          )}
+        >
+          <Key size={14} />
+          {t('probesPage.tabApiKeys')}
+          <span className={clsx(
+            'text-xs rounded-full px-1.5 py-0.5 font-semibold',
+            activeTab === 'keys' ? 'bg-accent/20 text-accent' : 'bg-bg-elevated text-text-muted',
+          )}>
+            {keys.length}
+          </span>
+        </button>
       </div>
 
-      {/* Table */}
-      {filtered.length === 0 ? (
-        <div className="bg-bg-card border border-border rounded-xl p-12 text-center">
-          <Radar size={40} className="text-text-muted mx-auto mb-3" />
-          <p className="text-text-primary font-medium mb-1">
-            {filterStatus !== 'all'
-              ? t('probesPage.noProbesFiltered', { status: filterStatus })
-              : t('probesPage.noProbes')}
-          </p>
-          <p className="text-text-muted text-sm">
-            {filterStatus === 'all'
-              ? t('probesPage.noProbesDesc')
-              : t('probesPage.tryFilter')}
-          </p>
-        </div>
-      ) : (
-        <div className="bg-bg-card border border-border rounded-xl overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-border text-text-muted text-xs uppercase tracking-wide">
-                <th className="px-4 py-3 w-10">
-                  <input
-                    type="checkbox"
-                    checked={allSelected}
-                    onChange={toggleAll}
-                    className="accent-accent"
-                  />
-                </th>
-                <th className="px-4 py-3 text-left">{t('probesPage.colProbe')}</th>
-                <th className="px-4 py-3 text-left hidden md:table-cell">{t('probesPage.colPlatform')}</th>
-                <th className="px-4 py-3 text-left hidden lg:table-cell">{t('probesPage.colSite')}</th>
-                <th className="px-4 py-3 text-left">{t('probesPage.colStatus')}</th>
-                <th className="px-4 py-3 text-left hidden sm:table-cell">{t('probesPage.colLastSeen')}</th>
-                <th className="px-4 py-3 text-right">{t('probesPage.colActions')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((probe) => (
-                <ProbeRow
-                  key={probe.id}
-                  probe={probe}
-                  selected={selected.has(probe.id)}
-                  onToggle={() => toggleOne(probe.id)}
-                  onApprove={handleApprove}
-                  onRefuse={handleRefuse}
-                  onDelete={handleDelete}
-                />
+      {/* Probes tab */}
+      {activeTab === 'probes' && (
+        <>
+          {/* Filter + bulk toolbar */}
+          <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              {['all', 'pending', 'approved', 'refused'].map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setFilterStatus(s)}
+                  className={clsx(
+                    'px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
+                    filterStatus === s
+                      ? 'bg-accent text-white'
+                      : 'text-text-muted hover:text-text-primary hover:bg-bg-elevated',
+                  )}
+                >
+                  {filterLabels[s] ?? s}
+                  {s === 'pending' && pendingCount > 0 && (
+                    <span className="ml-1.5 bg-yellow-500 text-black text-xs rounded-full px-1.5">
+                      {pendingCount}
+                    </span>
+                  )}
+                </button>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </div>
+
+            {selected.size > 0 && (
+              <div className="relative flex items-center gap-2">
+                <span className="text-sm text-text-muted">
+                  {t('probesPage.selected', { count: selected.size })}
+                </span>
+                <div className="relative">
+                  <button
+                    onClick={() => setBulkMenu(!bulkMenu)}
+                    className="btn-secondary flex items-center gap-1 text-sm"
+                  >
+                    {t('probesPage.actions')} <ChevronDown size={14} />
+                  </button>
+                  {bulkMenu && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setBulkMenu(false)} />
+                      <div className="absolute right-0 top-full mt-1 bg-bg-card border border-border rounded-lg shadow-lg py-1 z-20 min-w-[150px]">
+                        <button
+                          onClick={() => void handleBulk('approve')}
+                          className="w-full text-left px-3 py-2 text-sm text-emerald-400 hover:bg-bg-elevated flex items-center gap-2"
+                        >
+                          <CheckCircle size={14} /> {t('probesPage.approveAll')}
+                        </button>
+                        <button
+                          onClick={() => void handleBulk('uninstall')}
+                          className="w-full text-left px-3 py-2 text-sm text-text-primary hover:bg-bg-elevated flex items-center gap-2"
+                        >
+                          <Trash2 size={14} /> {t('probesPage.uninstallAll')}
+                        </button>
+                        <div className="border-t border-border my-1" />
+                        <button
+                          onClick={() => void handleBulk('delete')}
+                          className="w-full text-left px-3 py-2 text-sm text-red-400 hover:bg-bg-elevated flex items-center gap-2"
+                        >
+                          <Trash2 size={14} /> {t('probesPage.deleteAll')}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Table */}
+          {filtered.length === 0 ? (
+            <div className="bg-bg-card border border-border rounded-xl p-12 text-center">
+              <Radar size={40} className="text-text-muted mx-auto mb-3" />
+              <p className="text-text-primary font-medium mb-1">
+                {filterStatus !== 'all'
+                  ? t('probesPage.noProbesFiltered', { status: filterStatus })
+                  : t('probesPage.noProbes')}
+              </p>
+              <p className="text-text-muted text-sm">
+                {filterStatus === 'all'
+                  ? t('probesPage.noProbesDesc')
+                  : t('probesPage.tryFilter')}
+              </p>
+            </div>
+          ) : (
+            <div className="bg-bg-card border border-border rounded-xl overflow-hidden">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-border text-text-muted text-xs uppercase tracking-wide">
+                    <th className="px-4 py-3 w-10">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={toggleAll}
+                        className="accent-accent"
+                      />
+                    </th>
+                    <th className="px-4 py-3 text-left">{t('probesPage.colProbe')}</th>
+                    <th className="px-4 py-3 text-left hidden md:table-cell">{t('probesPage.colPlatform')}</th>
+                    <th className="px-4 py-3 text-left hidden lg:table-cell">{t('probesPage.colSite')}</th>
+                    <th className="px-4 py-3 text-left">{t('probesPage.colStatus')}</th>
+                    <th className="px-4 py-3 text-left hidden sm:table-cell">{t('probesPage.colLastSeen')}</th>
+                    <th className="px-4 py-3 text-right">{t('probesPage.colActions')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((probe) => (
+                    <ProbeRow
+                      key={probe.id}
+                      probe={probe}
+                      selected={selected.has(probe.id)}
+                      onToggle={() => toggleOne(probe.id)}
+                      onApprove={handleApprove}
+                      onRefuse={handleRefuse}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
 
-      {showAddProbe && (
-        <AddProbeModal
-          onClose={() => setShowAddProbe(false)}
-          apiKeys={keys}
-          onManageKeys={() => { setShowAddProbe(false); setShowKeys(true); }}
-        />
-      )}
-
-      {showKeys && (
-        <ApiKeyModal
-          onClose={() => setShowKeys(false)}
-          tenantKeys={keys}
-          onRefresh={() => void load()}
-        />
+      {/* API Keys tab */}
+      {activeTab === 'keys' && (
+        <ApiKeysTab keys={keys} onRefresh={() => void load()} />
       )}
     </div>
   );
