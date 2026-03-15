@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -68,6 +69,31 @@ func saveConfig() {
 	}
 }
 
+// checkForUpdate calls GET /api/probe/version at startup and applies any
+// available update immediately — before entering the main scan loop.
+// During normal operation the server also piggybacks the latest version on
+// every push response (handled in push.go), so this is only the startup check.
+func checkForUpdate() {
+	type versionResponse struct {
+		Version string `json:"version"`
+	}
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Get(cfg.ServerURL + "/api/probe/version")
+	if err != nil {
+		log.Printf("Auto-update: startup version check failed: %v", err)
+		return
+	}
+	defer resp.Body.Close()
+	var info versionResponse
+	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil || info.Version == "" {
+		return
+	}
+	if isStrictlyNewer(info.Version, ProbeVersion) {
+		log.Printf("Auto-update: new version %s available at startup, applying...", info.Version)
+		applyUpdate(info.Version)
+	}
+}
+
 func mainLoop() {
 	// Resolve device UUID
 	if cfg.DeviceUUID == "" {
@@ -75,6 +101,12 @@ func mainLoop() {
 		saveConfig()
 	}
 	log.Printf("Oblimap Probe %s starting (UUID: %s)", ProbeVersion, cfg.DeviceUUID)
+
+	// Check for a newer version before entering the scan loop.
+	// On Unix: atomic binary replace + re-exec (same PID).
+	// On Windows: downloads MSI, writes a detached batch script, exits — MSI
+	// stops the service, installs the new version, restarts the service.
+	checkForUpdate()
 
 	for {
 		// Backoff

@@ -4,33 +4,12 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"log"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
 )
-
-func downloadFile(url, dest string) error {
-	client := &http.Client{Timeout: 120 * time.Second}
-	resp, err := client.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("HTTP %d", resp.StatusCode)
-	}
-	f, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-	if err != nil {
-		return err
-	}
-	_, err = io.Copy(f, resp.Body)
-	f.Close()
-	return err
-}
 
 func performUninstall(serverURL string) {
 	// Download the MSI and use msiexec /x to uninstall cleanly
