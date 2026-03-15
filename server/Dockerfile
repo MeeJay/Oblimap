@@ -13,30 +13,30 @@ COPY server/tsconfig.json server/knexfile.ts ./server/
 COPY server/src/ ./server/src/
 RUN cd server && npm run build
 
-# ---- Go cross-compilation stage (Windows + Linux agent binaries) ----
-FROM golang:1.22-alpine AS go-agent-builder
+# ---- Go cross-compilation stage (all probe platform binaries) ----
+FROM golang:1.22-alpine AS go-probe-builder
 WORKDIR /build
 
 # Download dependencies first (layer cache)
-COPY agent/go.mod agent/go.sum* ./
+COPY probe/go.mod probe/go.sum* ./
 RUN go mod download 2>/dev/null || true
 
-COPY agent/ ./
+COPY probe/ ./
 RUN go mod tidy
 
 # All platforms — version injected from VERSION file (single source of truth).
-# agent/main.go uses `var agentVersion = "dev"` overridden here via -X ldflags.
+# probe/main.go uses `var ProbeVersion = "1.0.0"` overridden here via -X ldflags.
 RUN VERSION=$(cat VERSION) && \
     CGO_ENABLED=0 GOOS=windows GOARCH=amd64 \
-        go build -ldflags="-s -w -X main.agentVersion=${VERSION}" -o dist/obliview-agent.exe . && \
+        go build -ldflags="-s -w -X main.ProbeVersion=${VERSION}" -o dist/oblimap-probe.exe . && \
     CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-        go build -ldflags="-s -w -X main.agentVersion=${VERSION}" -o dist/obliview-agent-linux-amd64 . && \
+        go build -ldflags="-s -w -X main.ProbeVersion=${VERSION}" -o dist/oblimap-probe-linux-amd64 . && \
     CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
-        go build -ldflags="-s -w -X main.agentVersion=${VERSION}" -o dist/obliview-agent-linux-arm64 . && \
+        go build -ldflags="-s -w -X main.ProbeVersion=${VERSION}" -o dist/oblimap-probe-linux-arm64 . && \
     CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 \
-        go build -ldflags="-s -w -X main.agentVersion=${VERSION}" -o dist/obliview-agent-darwin-amd64 . && \
+        go build -ldflags="-s -w -X main.ProbeVersion=${VERSION}" -o dist/oblimap-probe-darwin-amd64 . && \
     CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 \
-        go build -ldflags="-s -w -X main.agentVersion=${VERSION}" -o dist/obliview-agent-darwin-arm64 .
+        go build -ldflags="-s -w -X main.ProbeVersion=${VERSION}" -o dist/oblimap-probe-darwin-arm64 .
 
 # ---- Production stage ----
 FROM node:24-alpine AS production
@@ -53,28 +53,28 @@ RUN cd server && npm install --omit=dev
 
 COPY --from=builder /app/server/dist/ ./server/dist/
 
-# Agent installer scripts + VERSION file (used by GET /api/agent/version)
-COPY agent/installer/ ./agent/installer/
-COPY agent/VERSION ./agent/
+# Probe installer scripts + VERSION file (used by GET /api/probe/version)
+COPY probe/installer/ ./probe/installer/
+COPY probe/VERSION ./probe/
 
-# Agent binaries from Go cross-compilation
-RUN mkdir -p ./agent/dist
-COPY --from=go-agent-builder /build/dist/obliview-agent.exe            ./agent/dist/
-COPY --from=go-agent-builder /build/dist/obliview-agent-linux-amd64   ./agent/dist/
-COPY --from=go-agent-builder /build/dist/obliview-agent-linux-arm64   ./agent/dist/
-COPY --from=go-agent-builder /build/dist/obliview-agent-darwin-amd64  ./agent/dist/
-COPY --from=go-agent-builder /build/dist/obliview-agent-darwin-arm64  ./agent/dist/
+# Probe binaries from Go cross-compilation
+RUN mkdir -p ./probe/dist
+COPY --from=go-probe-builder /build/dist/oblimap-probe.exe            ./probe/dist/
+COPY --from=go-probe-builder /build/dist/oblimap-probe-linux-amd64   ./probe/dist/
+COPY --from=go-probe-builder /build/dist/oblimap-probe-linux-arm64   ./probe/dist/
+COPY --from=go-probe-builder /build/dist/oblimap-probe-darwin-amd64  ./probe/dist/
+COPY --from=go-probe-builder /build/dist/oblimap-probe-darwin-arm64  ./probe/dist/
 
-# Pre-built Windows MSI (build on Windows: cd agent && build-msi.bat)
-# If absent, the /api/agent/installer/windows.msi endpoint returns 404.
-COPY agent/dist/ ./agent/dist/
+# Pre-built Windows MSI (build on Windows: cd probe && build-msi.bat)
+# If absent, the /api/probe/installer/windows.msi endpoint returns 404.
+COPY probe/dist/ ./probe/dist/
 
 # Desktop app VERSION file (read by GET /api/agent/desktop-version to drive the update banner).
 # Must be present — without it the endpoint returns 0.0.0 and the banner never fires.
 COPY desktop-app/VERSION ./desktop-app/
 
-# Desktop app release binaries (build on Windows: build_icon_and_obliview.ps1 → dist/Obliview.exe)
-#                              (build on macOS:   desktop-app/build-mac.sh   → dist/Obliview.zip)
+# Desktop app release binaries (build on Windows: build_icon_and_oblimap.ps1 → dist/Oblimap.exe)
+#                              (build on macOS:   desktop-app/build-mac.sh   → dist/Oblimap.zip)
 # If absent, the /downloads/:filename endpoint returns 404 (no hard failure).
 RUN mkdir -p ./desktop-app/dist
 COPY desktop-app/dist/ ./desktop-app/dist/
@@ -82,10 +82,10 @@ COPY desktop-app/dist/ ./desktop-app/dist/
 COPY server/docker-entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-EXPOSE 3001
+EXPOSE 3002
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:3001/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:3002/health || exit 1
 
 WORKDIR /app/server
 ENTRYPOINT ["/entrypoint.sh"]
