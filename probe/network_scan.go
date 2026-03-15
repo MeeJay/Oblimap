@@ -85,7 +85,14 @@ func scanSubnet(subnet *net.IPNet) []DiscoveredDevice {
 	// Step 3: Reverse DNS (concurrent)
 	hostnameMap := resolveHostnames(seenIPs)
 
-	// Step 4: Build device list
+	// Step 4 (optional): Full port scan for alive IPs
+	var portScanResults map[string][]int
+	if cachedPortScanEnabled && len(cachedPortScanPorts) > 0 {
+		log.Printf("  Port scanning %d alive hosts on %d ports…", len(aliveIPs), len(cachedPortScanPorts))
+		portScanResults = tcpScanPorts(aliveIPs, cachedPortScanPorts)
+	}
+
+	// Step 5: Build device list
 	var devices []DiscoveredDevice
 	for ipStr := range seenIPs {
 		d := DiscoveredDevice{
@@ -93,6 +100,13 @@ func scanSubnet(subnet *net.IPNet) []DiscoveredDevice {
 			MAC:      arpTable[ipStr],
 			Hostname: hostnameMap[ipStr],
 			IsOnline: aliveIPs[ipStr] || arpTable[ipStr] != "",
+		}
+		if portScanResults != nil {
+			if ports, ok := portScanResults[ipStr]; ok {
+				d.OpenPorts = ports
+			} else {
+				d.OpenPorts = []int{} // scanned but nothing open
+			}
 		}
 		devices = append(devices, d)
 	}
@@ -134,6 +148,48 @@ func tcpScan(ips []net.IP) map[string]bool {
 				}
 			}
 		}(cloneIP(ip))
+	}
+
+	wg.Wait()
+	return results
+}
+
+// ─── Full Port Scan ───────────────────────────────────────────────────────────
+
+// tcpScanPorts scans all given ports for each IP in the aliveIPs set.
+// Returns a map of ip → sorted list of open port numbers.
+// Only called when cachedPortScanEnabled is true.
+func tcpScanPorts(aliveIPs map[string]bool, ports []int) map[string][]int {
+	if len(ports) == 0 {
+		return nil
+	}
+	results := make(map[string][]int)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, pingConcurrency)
+
+	for ipStr := range aliveIPs {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(target string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			var open []int
+			for _, port := range ports {
+				addr := fmt.Sprintf("%s:%d", target, port)
+				conn, err := net.DialTimeout("tcp", addr, tcpTimeout)
+				if err == nil {
+					conn.Close()
+					open = append(open, port)
+				}
+			}
+			if len(open) > 0 {
+				mu.Lock()
+				results[target] = open
+				mu.Unlock()
+			}
+		}(ipStr)
 	}
 
 	wg.Wait()

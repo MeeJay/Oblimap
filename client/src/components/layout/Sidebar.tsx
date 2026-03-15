@@ -19,6 +19,7 @@ import {
   PanelLeftClose,
   Plus,
   Inbox,
+  Shuffle,
 } from 'lucide-react';
 import type { Site } from '@oblimap/shared';
 import { siteApi } from '@/api/site.api';
@@ -79,6 +80,7 @@ export function Sidebar() {
     { label: t('nav.users'),        path: '/admin/users',         icon: <Users size={18} />,      adminOnly: true },
     { label: t('tenant.pageTitle'), path: '/admin/tenants',       icon: <Building2 size={18} />,  adminOnly: true },
     { label: t('nav.macVendors'),   path: '/admin/mac-vendors',   icon: <Database size={18} />,   adminOnly: true },
+    { label: t('nav.vendorRules'),  path: '/admin/vendor-rules',  icon: <Shuffle size={18} />,    adminOnly: true },
     { label: t('nav.importExport'), path: '/admin/import-export', icon: <PackageOpen size={18} />, adminOnly: true },
   ];
 
@@ -231,6 +233,8 @@ export function Sidebar() {
               </div>
               {filtered.map((site) => {
                 const isActive = location.pathname === `/sites/${site.id}`;
+                const total = site.itemCount ?? 0;
+                const online = site.onlineCount ?? 0;
                 return (
                   <Link
                     key={site.id}
@@ -244,6 +248,20 @@ export function Sidebar() {
                   >
                     <MapPin size={13} className="shrink-0 text-accent" />
                     <span className="truncate flex-1">{site.name}</span>
+                    {total > 0 && (
+                      <span
+                        className={cn(
+                          'shrink-0 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
+                          online === total
+                            ? 'bg-status-up-bg text-status-up'
+                            : online > total * 0.5
+                              ? 'bg-yellow-500/10 text-yellow-500'
+                              : 'bg-status-down-bg text-status-down',
+                        )}
+                      >
+                        {online}/{total}
+                      </span>
+                    )}
                   </Link>
                 );
               })}

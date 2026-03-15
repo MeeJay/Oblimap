@@ -115,6 +115,76 @@ function SubnetListEditor({
   );
 }
 
+// ─── Port list editor ─────────────────────────────────────────────────────────
+
+const DEFAULT_PORT_SCAN_PORTS = [21, 22, 23, 25, 53, 80, 110, 143, 443, 445, 3389, 8080, 8443];
+
+function PortListEditor({
+  value,
+  onChange,
+}: {
+  value: number[];
+  onChange: (v: number[]) => void;
+}) {
+  const { t } = useTranslation();
+  const [input, setInput] = useState('');
+
+  function add() {
+    const port = parseInt(input.trim(), 10);
+    if (isNaN(port) || port < 1 || port > 65535 || value.includes(port)) return;
+    onChange([...value, port].sort((a, b) => a - b));
+    setInput('');
+  }
+
+  function remove(port: number) {
+    onChange(value.filter((p) => p !== port));
+  }
+
+  return (
+    <div>
+      <div className="flex gap-2 mb-2">
+        <input
+          type="number"
+          min={1}
+          max={65535}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') add(); }}
+          placeholder="e.g. 8080"
+          className="flex-1 bg-bg-input border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent"
+        />
+        <button
+          onClick={add}
+          disabled={!input.trim()}
+          className="btn-secondary flex items-center gap-1 text-sm disabled:opacity-50"
+        >
+          <Plus size={14} /> {t('common.apply')}
+        </button>
+      </div>
+      {value.length === 0 ? (
+        <p className="text-text-muted text-xs italic">{t('probesPage.detail.noPortsConfigured')}</p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5">
+          {value.map((port) => (
+            <span
+              key={port}
+              className="inline-flex items-center gap-1 bg-bg-elevated border border-border rounded px-2 py-1 text-xs font-mono text-text-primary"
+            >
+              {port}
+              <button
+                onClick={() => remove(port)}
+                className="text-text-muted hover:text-red-400 ml-0.5"
+              >
+                <X size={11} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export function ProbeDetailPage() {
@@ -520,6 +590,60 @@ export function ProbeDetailPage() {
             onChange={(v) => setScanConfig((c) => ({ ...c, extraSubnets: v }))}
             placeholder="172.16.50.0/24"
           />
+
+          {/* Port scan */}
+          <div className="border-t border-border pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-sm text-text-primary font-medium">{t('probesPage.detail.portScanEnabled')}</p>
+                <p className="text-xs text-text-muted mt-0.5">{t('probesPage.detail.portScanDesc')}</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={scanConfig.portScanEnabled ?? false}
+                onClick={() => {
+                  const enabling = !(scanConfig.portScanEnabled ?? false);
+                  setScanConfig((c) => ({
+                    ...c,
+                    portScanEnabled: enabling,
+                    portScanPorts: enabling && (!c.portScanPorts || c.portScanPorts.length === 0)
+                      ? DEFAULT_PORT_SCAN_PORTS
+                      : c.portScanPorts,
+                  }));
+                }}
+                className={clsx(
+                  'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none',
+                  (scanConfig.portScanEnabled ?? false) ? 'bg-accent' : 'bg-bg-elevated border border-border',
+                )}
+              >
+                <span
+                  className={clsx(
+                    'inline-block h-4 w-4 rounded-full bg-white shadow transition-transform',
+                    (scanConfig.portScanEnabled ?? false) ? 'translate-x-6' : 'translate-x-1',
+                  )}
+                />
+              </button>
+            </div>
+            {(scanConfig.portScanEnabled ?? false) && (
+              <div>
+                <label className="text-sm text-text-muted block mb-2">{t('probesPage.detail.portScanPorts')}</label>
+                <PortListEditor
+                  value={scanConfig.portScanPorts ?? []}
+                  onChange={(v) => setScanConfig((c) => ({ ...c, portScanPorts: v }))}
+                />
+                <div className="mt-2">
+                  <button
+                    type="button"
+                    onClick={() => setScanConfig((c) => ({ ...c, portScanPorts: DEFAULT_PORT_SCAN_PORTS }))}
+                    className="text-xs text-accent hover:underline"
+                  >
+                    {t('probesPage.detail.portScanReset')}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
           <div className="flex justify-end pt-2">
             <button

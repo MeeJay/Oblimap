@@ -38,6 +38,9 @@ function rowToItem(row: Record<string, unknown>): SiteItem {
     lastSeenAt: (row.last_seen_at as Date).toISOString(),
     createdAt: (row.created_at as Date).toISOString(),
     updatedAt: (row.updated_at as Date).toISOString(),
+    openPorts: row.open_ports != null
+      ? (typeof row.open_ports === 'string' ? JSON.parse(row.open_ports) : row.open_ports)
+      : null,
   };
 }
 
@@ -210,10 +213,9 @@ class SiteService {
     // Cross-reference reservations to mark conflicts
     const items = await db('site_items')
       .where({ site_id: siteId, tenant_id: tenantId })
-      .orderBy([
-        { column: 'status', order: 'asc' }, // online first
-        { column: 'ip', order: 'asc' },
-      ]);
+      // ip::inet casts to PostgreSQL's inet type for proper numeric sort (1,2,...,10,11,...,100)
+      // instead of lexicographic (1,10,100,...,11,...)
+      .orderByRaw("ip::inet ASC");
 
     const reservedIps = await db('ip_reservations')
       .where({ site_id: siteId, tenant_id: tenantId })
@@ -221,10 +223,30 @@ class SiteService {
 
     const reservedSet = new Set(reservedIps);
 
-    return items.map((row) => ({
-      ...rowToItem(row),
-      hasReservationConflict: reservedSet.has(row.ip as string),
-    }));
+    // Load probes assigned to this site so we can identify their own device entry
+    const siteProbes = await db('probes')
+      .where({ site_id: siteId, tenant_id: tenantId })
+      .select('id', 'ip', 'mac') as { id: number; ip: string | null; mac: string | null }[];
+
+    // Build lookup maps: ip → probeId  and  mac → probeId
+    const probeByIp = new Map<string, number>();
+    const probeByMac = new Map<string, number>();
+    for (const p of siteProbes) {
+      if (p.ip) probeByIp.set(p.ip, p.id);
+      if (p.mac) probeByMac.set(p.mac, p.id);
+    }
+
+    return items.map((row) => {
+      const itemIp = row.ip as string;
+      const itemMac = (row.mac as string | null) ?? null;
+      const probeId = probeByMac.get(itemMac ?? '') ?? probeByIp.get(itemIp) ?? null;
+      return {
+        ...rowToItem(row),
+        hasReservationConflict: reservedSet.has(itemIp),
+        isProbe: probeId !== null,
+        probeId,
+      };
+    });
   }
 
   async createManualItem(

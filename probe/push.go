@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"runtime"
 	"time"
@@ -25,12 +27,14 @@ type DiscoveredDevice struct {
 	Hostname       string  `json:"hostname,omitempty"`
 	ResponseTimeMs *int64  `json:"responseTimeMs,omitempty"`
 	IsOnline       bool    `json:"isOnline"`
+	OpenPorts      []int   `json:"openPorts,omitempty"`
 }
 
 type PushBody struct {
 	Hostname          string             `json:"hostname"`
 	ProbeVersion      string             `json:"probeVersion"`
 	OSInfo            OSInfo             `json:"osInfo"`
+	ProbeMac          string             `json:"probeMac,omitempty"`
 	DiscoveredDevices []DiscoveredDevice `json:"discoveredDevices"`
 	ScannedSubnets    []string           `json:"scannedSubnets"`
 	ScanDurationMs    int64              `json:"scanDurationMs"`
@@ -40,6 +44,8 @@ type ProbeResponseConfig struct {
 	ScanIntervalSeconds int      `json:"scanIntervalSeconds"`
 	ExcludedSubnets     []string `json:"excludedSubnets"`
 	ExtraSubnets        []string `json:"extraSubnets"`
+	PortScanEnabled     bool     `json:"portScanEnabled"`
+	PortScanPorts       []int    `json:"portScanPorts"`
 }
 
 type PushResponse struct {
@@ -66,6 +72,78 @@ func osInfo() OSInfo {
 		Platform: runtime.GOOS,
 		Arch:     runtime.GOARCH,
 	}
+}
+
+// probeMac returns the MAC address of the network interface used to reach the
+// configured server. It dials a UDP "connection" (no packets sent) to the
+// server host to let the OS pick the outbound interface, then finds the
+// interface whose IPv4 address matches the chosen local address.
+func probeMac() string {
+	// Extract host from ServerURL (e.g. "https://example.com:3002" → "example.com:80")
+	dialHost := "8.8.8.8:80"
+	if cfg.ServerURL != "" {
+		if u, err := url.Parse(cfg.ServerURL); err == nil && u.Hostname() != "" {
+			port := u.Port()
+			if port == "" {
+				if u.Scheme == "https" {
+					port = "443"
+				} else {
+					port = "80"
+				}
+			}
+			dialHost = u.Hostname() + ":" + port
+		}
+	}
+
+	conn, err := net.Dial("udp", dialHost)
+	if err != nil {
+		return ""
+	}
+	localAddr := conn.LocalAddr().(*net.UDPAddr).IP
+	conn.Close()
+
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return ""
+	}
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+			if ip != nil && ip.Equal(localAddr) {
+				if len(iface.HardwareAddr) > 0 {
+					return normalizeMacGo(iface.HardwareAddr.String())
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// normalizeMacGo converts a MAC from Go's default "aa:bb:cc:dd:ee:ff" to
+// uppercase "AA:BB:CC:DD:EE:FF" to match the server's normalization.
+func normalizeMacGo(mac string) string {
+	result := make([]byte, len(mac))
+	for i, b := range []byte(mac) {
+		if b >= 'a' && b <= 'f' {
+			result[i] = b - 32
+		} else {
+			result[i] = b
+		}
+	}
+	return string(result)
 }
 
 // doPush performs one full scan+push cycle. Returns the next interval in seconds.
@@ -97,6 +175,7 @@ func doPush() int {
 		Hostname:          hostname(),
 		ProbeVersion:      ProbeVersion,
 		OSInfo:            osInfo(),
+		ProbeMac:          probeMac(),
 		DiscoveredDevices: devices,
 		ScannedSubnets:    scannedSubnets,
 		ScanDurationMs:    scanDurationMs,
@@ -154,9 +233,13 @@ func doPush() int {
 	if pushResp.Config.ScanIntervalSeconds > 0 {
 		cfg.ScanIntervalSeconds = pushResp.Config.ScanIntervalSeconds
 	}
-	// Store excluded/extra subnets for next scan
+	// Store excluded/extra subnets and port scan config for next scan
 	cachedExcluded = pushResp.Config.ExcludedSubnets
 	cachedExtra = pushResp.Config.ExtraSubnets
+	cachedPortScanEnabled = pushResp.Config.PortScanEnabled
+	if pushResp.Config.PortScanPorts != nil {
+		cachedPortScanPorts = pushResp.Config.PortScanPorts
+	}
 	saveConfig()
 
 	// Check for update
@@ -175,6 +258,10 @@ func doPush() int {
 // Cached subnet config from last server response
 var cachedExcluded []string
 var cachedExtra []string
+
+// Cached port scan config from last server response
+var cachedPortScanEnabled bool
+var cachedPortScanPorts []int
 
 func isExcluded(subnet string) bool {
 	for _, ex := range cachedExcluded {

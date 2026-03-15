@@ -22,12 +22,14 @@ export interface DiscoveredDevice {
   hostname?: string | null;
   responseTimeMs?: number | null;
   isOnline: boolean;
+  openPorts?: number[] | null;
 }
 
 export interface ProbePushPayload {
   hostname: string;
   probeVersion: string;
   osInfo?: Record<string, unknown>;
+  probeMac?: string | null;
   discoveredDevices: DiscoveredDevice[];
   scannedSubnets: string[];
   scanDurationMs: number;
@@ -39,6 +41,8 @@ export interface ProbePushResponse {
     scanIntervalSeconds: number;
     excludedSubnets: string[];
     extraSubnets: string[];
+    portScanEnabled: boolean;
+    portScanPorts: number[];
   };
   latestVersion: string | null;
   command: string | null;
@@ -52,6 +56,7 @@ function rowToProbe(row: Record<string, unknown>): Probe {
     uuid: row.uuid as string,
     hostname: row.hostname as string,
     ip: (row.ip as string | null) ?? null,
+    mac: (row.mac as string | null) ?? null,
     osInfo: row.os_info != null
       ? (typeof row.os_info === 'string' ? JSON.parse(row.os_info) : row.os_info)
       : null,
@@ -254,6 +259,7 @@ async function processDevices(
   siteGroupId: number | null,
   siteName: string,
   devices: DiscoveredDevice[],
+  probeMac: string | null,
 ): Promise<void> {
   const now = new Date();
   const updatedItemIds: number[] = [];
@@ -291,6 +297,10 @@ async function processDevices(
           updated_at: now,
           discovered_by_probe_id: probeId,
         };
+        // Update open_ports if the probe ran a port scan (non-null array)
+        if (device.openPorts != null) {
+          updates.open_ports = JSON.stringify(device.openPorts);
+        }
 
         // MAC-based tracking: IP moved?
         if (mac && existingItem.ip !== ip) {
@@ -326,6 +336,11 @@ async function processDevices(
           .where({ id: existingItem.id as number })
           .update(updates);
 
+        // If this device IS the probe itself (MAC match), keep probe.ip in sync
+        if (probeMac && mac === probeMac) {
+          await db('probes').where({ id: probeId }).update({ ip, updated_at: now }).catch(() => {});
+        }
+
         updatedItemIds.push(existingItem.id as number);
 
         if (existingItem.status !== status) {
@@ -354,6 +369,7 @@ async function processDevices(
             device_type: deviceType,
             is_manual: false,
             discovered_by_probe_id: probeId,
+            open_ports: device.openPorts != null ? JSON.stringify(device.openPorts) : null,
             first_seen_at: now,
             last_seen_at: now,
             created_at: now,
@@ -367,6 +383,11 @@ async function processDevices(
         if (mac) {
           seenIpMacs.set(ip, mac);
           await recordIpHistory(mac, siteId, tenantId, ip, now);
+        }
+
+        // If this new device IS the probe itself, sync probe.ip
+        if (probeMac && mac === probeMac) {
+          await db('probes').where({ id: probeId }).update({ ip, updated_at: now }).catch(() => {});
         }
 
         _io
@@ -494,6 +515,7 @@ class ProbeService {
           uuid: probeUuid,
           hostname: payload.hostname,
           ip: null,
+          mac: payload.probeMac ? normalizeMac(payload.probeMac) : null,
           os_info: payload.osInfo ? JSON.stringify(payload.osInfo) : null,
           probe_version: payload.probeVersion,
           api_key_id: apiKey.id as number,
@@ -530,6 +552,7 @@ class ProbeService {
         updated_at: now,
       };
       if (payload.osInfo) updates.os_info = JSON.stringify(payload.osInfo);
+      if (payload.probeMac) updates.mac = normalizeMac(payload.probeMac);
       if (probe.api_key_id !== (apiKey.id as number)) updates.api_key_id = apiKey.id;
       // Clear updating_since if version changed
       if (probe.updating_since && probe.probe_version !== payload.probeVersion) {
@@ -562,6 +585,7 @@ class ProbeService {
         (site?.group_id as number | null) ?? null,
         (site?.name as string | null) ?? `Site #${probe.site_id as number}`,
         payload.discoveredDevices,
+        payload.probeMac ? normalizeMac(payload.probeMac) : null,
       ).catch((err) => logger.error({ err }, 'Device processing failed'));
     }
 
@@ -588,6 +612,8 @@ class ProbeService {
         scanIntervalSeconds: (probe.scan_interval_seconds as number) ?? 300,
         excludedSubnets: scanConfig.excludedSubnets ?? [],
         extraSubnets: scanConfig.extraSubnets ?? [],
+        portScanEnabled: scanConfig.portScanEnabled ?? false,
+        portScanPorts: scanConfig.portScanPorts ?? [],
       },
       latestVersion,
       command,

@@ -25,6 +25,7 @@ import { DownloadPage } from '@/pages/DownloadPage';
 import { ImportExportPage } from '@/pages/ImportExportPage';
 import { AdminTenantsPage } from '@/pages/AdminTenantsPage';
 import { AdminMacVendorsPage } from '@/pages/AdminMacVendorsPage';
+import { AdminVendorRulesPage } from '@/pages/AdminVendorRulesPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import '@/i18n';
 
@@ -67,6 +68,7 @@ export default function App() {
               <Route path="/admin/tenants" element={<AdminTenantsPage />} />
               <Route path="/admin/probes/:id" element={<ProbeDetailPage />} />
               <Route path="/admin/mac-vendors" element={<AdminMacVendorsPage />} />
+              <Route path="/admin/vendor-rules" element={<AdminVendorRulesPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
           </Route>

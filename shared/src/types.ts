@@ -282,6 +282,9 @@ export type DeviceType =
   | 'counter'
   | 'workstation'
   | 'phone'
+  | 'gsm'
+  | 'laptop'
+  | 'vm'
   | 'ap'
   | 'firewall'
   | 'nas'
@@ -332,6 +335,12 @@ export interface SiteItem {
   updatedAt: string;
   /** True if a reservation exists for this item's IP */
   hasReservationConflict?: boolean;
+  /** True if this item corresponds to a known probe (matched by IP or MAC) */
+  isProbe?: boolean;
+  /** The probe ID if this item is a probe, for linking to probe detail */
+  probeId?: number | null;
+  /** Open TCP ports discovered by the last port scan */
+  openPorts?: number[] | null;
 }
 
 export interface ItemIpHistory {
@@ -408,6 +417,8 @@ export interface ProbeApiKey {
 export interface ProbeScanConfig {
   excludedSubnets: string[];
   extraSubnets: string[];
+  portScanEnabled?: boolean;
+  portScanPorts?: number[];
 }
 
 export interface Probe {
@@ -415,6 +426,7 @@ export interface Probe {
   uuid: string;
   hostname: string;
   ip: string | null;
+  mac: string | null;
   osInfo: {
     platform: string;
     distro?: string;

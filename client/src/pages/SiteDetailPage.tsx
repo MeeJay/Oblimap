@@ -2,8 +2,12 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   MapPin, ArrowLeft, Plus, Pencil, Trash2, Loader2,
-  RefreshCw, AlertTriangle, Info, FileDown, FileSpreadsheet,
+  RefreshCw, AlertTriangle, Info, FileDown, FileSpreadsheet, Radar,
+  Network, GitBranch, Server, Printer, Cpu, Camera, Hash, Monitor,
+  Phone, Smartphone, Laptop, Box, Wifi, Shield, HardDrive, HelpCircle,
+  ExternalLink,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { siteApi } from '../api/site.api';
@@ -45,6 +49,77 @@ function formatTime(ts: string | null) {
   return new Date(ts).toLocaleDateString();
 }
 
+// ─── Device type icons ────────────────────────────────────────────────────────
+
+const DEVICE_TYPE_ICONS: Record<string, LucideIcon> = {
+  router:      Network,
+  switch:      GitBranch,
+  server:      Server,
+  printer:     Printer,
+  iot:         Cpu,
+  camera:      Camera,
+  counter:     Hash,
+  workstation: Monitor,
+  phone:       Phone,
+  gsm:         Smartphone,
+  laptop:      Laptop,
+  vm:          Box,
+  ap:          Wifi,
+  firewall:    Shield,
+  nas:         HardDrive,
+  unknown:     HelpCircle,
+};
+
+function DeviceTypeIcon({ type, size = 12 }: { type: string; size?: number }) {
+  const Icon = DEVICE_TYPE_ICONS[type] ?? HelpCircle;
+  return <Icon size={size} />;
+}
+
+// ─── Open ports badges ────────────────────────────────────────────────────────
+
+// Web ports that get a clickable http/https link
+const WEB_PORT_MAP: Record<number, 'http' | 'https'> = {
+  80: 'http', 443: 'https', 8080: 'http', 8443: 'https',
+};
+
+function PortBadges({ ip, ports }: { ip: string; ports: number[] | null | undefined }) {
+  if (!ports || ports.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1 mt-1">
+      {ports.map((port) => {
+        const scheme = WEB_PORT_MAP[port];
+        if (scheme) {
+          const url = port === 80 || port === 443
+            ? `${scheme}://${ip}`
+            : `${scheme}://${ip}:${port}`;
+          return (
+            <a
+              key={port}
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              title={`Open ${url}`}
+              className="inline-flex items-center gap-0.5 text-[10px] font-mono px-1.5 py-0.5 rounded border bg-blue-500/10 text-blue-400 border-blue-500/30 hover:bg-blue-500/20 transition-colors"
+            >
+              {port}
+              <ExternalLink size={8} />
+            </a>
+          );
+        }
+        return (
+          <span
+            key={port}
+            className="inline-flex items-center text-[10px] font-mono px-1.5 py-0.5 rounded border bg-bg-elevated text-text-secondary border-border"
+          >
+            {port}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Device Modal ─────────────────────────────────────────────────────────────
 
 function DeviceModal({
@@ -78,6 +153,9 @@ function DeviceModal({
     { value: 'camera',      label: t('deviceTypes.camera')      },
     { value: 'counter',     label: t('deviceTypes.counter')     },
     { value: 'phone',       label: t('deviceTypes.phone')       },
+    { value: 'gsm',         label: t('deviceTypes.gsm')         },
+    { value: 'laptop',      label: t('deviceTypes.laptop')      },
+    { value: 'vm',          label: t('deviceTypes.vm')          },
     { value: 'ap',          label: t('deviceTypes.ap')          },
     { value: 'firewall',    label: t('deviceTypes.firewall')    },
     { value: 'nas',         label: t('deviceTypes.nas')         },
@@ -238,6 +316,9 @@ function ReservationModal({
     { value: 'camera',      label: t('deviceTypes.camera')      },
     { value: 'counter',     label: t('deviceTypes.counter')     },
     { value: 'phone',       label: t('deviceTypes.phone')       },
+    { value: 'gsm',         label: t('deviceTypes.gsm')         },
+    { value: 'laptop',      label: t('deviceTypes.laptop')      },
+    { value: 'vm',          label: t('deviceTypes.vm')          },
     { value: 'ap',          label: t('deviceTypes.ap')          },
     { value: 'firewall',    label: t('deviceTypes.firewall')    },
     { value: 'nas',         label: t('deviceTypes.nas')         },
@@ -460,7 +541,10 @@ function DevicesTab({
                   return (
                     <tr
                       key={item.id}
-                      className="border-b border-border last:border-0 hover:bg-bg-elevated/50 transition-colors"
+                      className={clsx(
+                        'border-b border-border last:border-0 hover:bg-bg-elevated/50 transition-colors',
+                        item.status === 'offline' && 'opacity-50',
+                      )}
                     >
                       <td className="px-4 py-3">
                         <span
@@ -469,7 +553,7 @@ function DevicesTab({
                         />
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="text-sm font-mono text-text-primary">{item.ip}</span>
                           {item.hasReservationConflict && (
                             <span
@@ -479,12 +563,24 @@ function DevicesTab({
                               <AlertTriangle size={12} />
                             </span>
                           )}
+                          {item.isProbe && (
+                            <Link
+                              to={`/admin/probes/${item.probeId}`}
+                              title="This device is a probe"
+                              className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-accent/10 text-accent border-accent/30 hover:bg-accent/20 transition-colors"
+                              onClick={e => e.stopPropagation()}
+                            >
+                              <Radar size={9} />
+                              Probe
+                            </Link>
+                          )}
                           {item.isManual && (
                             <span className="text-xs text-text-muted bg-bg-elevated border border-border rounded px-1">
                               {t('siteDetail.device.manualBadge')}
                             </span>
                           )}
                         </div>
+                        <PortBadges ip={item.ip} ports={item.openPorts} />
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell">
                         <span className="text-xs font-mono text-text-secondary">
@@ -509,10 +605,11 @@ function DevicesTab({
                       <td className="px-4 py-3 hidden sm:table-cell">
                         <span
                           className={clsx(
-                            'text-xs font-medium px-2 py-0.5 rounded border',
+                            'inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded border',
                             statusBadge(item.status),
                           )}
                         >
+                          <DeviceTypeIcon type={item.deviceType} size={11} />
                           {deviceTypeLabel(item.deviceType)}
                         </span>
                       </td>
@@ -839,22 +936,26 @@ export function SiteDetailPage() {
         ))}
       </div>
 
-      {/* Tab content */}
-      {tab === 'devices' && (
-        <DevicesTab
-          siteId={siteId}
-          siteName={site.name}
-          items={items}
-          reservations={reservations}
-          onRefresh={() => void load()}
-        />
-      )}
-      {tab === 'reservations' && (
-        <ReservationsTab siteId={siteId} reservations={reservations} onRefresh={() => void load()} />
-      )}
-      {tab === 'heatmap' && (
-        <SubnetHeatmap items={items} reservations={reservations} />
-      )}
+      {/* Tab content — all panels rendered simultaneously in a grid stack so
+          the container's height equals max(all panels). Non-active panels are
+          invisible and non-interactive but still occupy vertical space. */}
+      <div style={{ display: 'grid' }}>
+        <div style={{ gridArea: '1/1' }} className={tab !== 'devices' ? 'invisible pointer-events-none' : ''}>
+          <DevicesTab
+            siteId={siteId}
+            siteName={site.name}
+            items={items}
+            reservations={reservations}
+            onRefresh={() => void load()}
+          />
+        </div>
+        <div style={{ gridArea: '1/1' }} className={tab !== 'reservations' ? 'invisible pointer-events-none' : ''}>
+          <ReservationsTab siteId={siteId} reservations={reservations} onRefresh={() => void load()} />
+        </div>
+        <div style={{ gridArea: '1/1' }} className={tab !== 'heatmap' ? 'invisible pointer-events-none' : ''}>
+          <SubnetHeatmap items={items} reservations={reservations} />
+        </div>
+      </div>
     </div>
   );
 }
