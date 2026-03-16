@@ -85,19 +85,19 @@ export function createApp() {
     res.json({ status: 'ok', version: serverVersion, timestamp: new Date().toISOString() });
   });
 
-  // Desktop app downloads — serves pre-built binaries from desktop-app/dist/.
+  // Obli.tools unified desktop app downloads — serves pre-built binaries from obli.tools/dist/.
   // Whitelist prevents directory traversal; graceful 404 if a file isn't built yet.
   const DESKTOP_FILES: Record<string, string> = {
-    'Oblimap.exe':          'Oblimap.exe',          // Windows binary (portable)
-    'OblimapSetup.msi':     'OblimapSetup.msi',     // Windows installer (Start Menu shortcut)
-    'Oblimap-arm64.zip':    'Oblimap-arm64.zip',    // macOS Apple Silicon — .app zipped
-    'Oblimap-amd64.zip':    'Oblimap-amd64.zip',    // macOS Intel — .app zipped
-    'Oblimap-arm64.dmg':    'Oblimap-arm64.dmg',    // macOS Apple Silicon — drag-to-Applications DMG
-    'Oblimap-amd64.dmg':    'Oblimap-amd64.dmg',    // macOS Intel — drag-to-Applications DMG
+    'ObliTools.exe':          'ObliTools.exe',          // Windows binary (portable)
+    'ObliToolsSetup.msi':     'ObliToolsSetup.msi',     // Windows installer (Start Menu shortcut)
+    'ObliTools-arm64.zip':    'ObliTools-arm64.zip',    // macOS Apple Silicon — .app zipped
+    'ObliTools-amd64.zip':    'ObliTools-amd64.zip',    // macOS Intel — .app zipped
+    'ObliTools-arm64.dmg':    'ObliTools-arm64.dmg',    // macOS Apple Silicon — drag-to-Applications DMG
+    'ObliTools-amd64.dmg':    'ObliTools-amd64.dmg',    // macOS Intel — drag-to-Applications DMG
   };
   // process.cwd() = server/ directory (both in dev with npx tsx and in production).
-  // Go one level up to reach the project root, then into desktop-app/dist.
-  const desktopDistDir = path.resolve(process.cwd(), '..', 'desktop-app', 'dist');
+  // Go one level up to reach the project root, then into obli.tools/dist.
+  const desktopDistDir = path.resolve(process.cwd(), '..', 'obli.tools', 'dist');
 
   app.get('/downloads/:filename', (req, res) => {
     const mapped = DESKTOP_FILES[req.params.filename];
