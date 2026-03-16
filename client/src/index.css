@@ -40,20 +40,20 @@
   --c-primary:               16 185 129;
 }
 
-/* ── Neon UI ──────────────────────────────────────────────────────────────── */
+/* ── Neon UI — fonds neutres (Obliguard-style) + accent émeraude ─────────── */
 [data-theme="neon"] {
-  --c-bg-primary:            7 10 15;
-  --c-bg-secondary:          13 17 23;
-  --c-bg-tertiary:           17 24 39;
-  --c-bg-hover:              26 31 46;
-  --c-bg-active:             31 37 55;
+  --c-bg-primary:            7 8 10;
+  --c-bg-secondary:          13 14 17;
+  --c-bg-tertiary:           19 20 24;
+  --c-bg-hover:              27 27 32;
+  --c-bg-active:             36 36 42;
 
-  --c-border:                28 42 63;
-  --c-border-light:          36 53 80;
+  --c-border:                50 51 57;
+  --c-border-light:          65 66 73;
 
-  --c-text-primary:          224 240 255;
-  --c-text-secondary:        120 153 184;
-  --c-text-muted:            74 106 136;
+  --c-text-primary:          240 234 226;
+  --c-text-secondary:        152 138 118;
+  --c-text-muted:            106 94 78;
 
   --c-status-up:             0 195 95;
   --c-status-up-bg:          0 26 16;
@@ -63,8 +63,8 @@
   --c-status-pending-bg:     32 21 0;
   --c-status-maintenance:    0 200 255;
   --c-status-maintenance-bg: 0 30 46;
-  --c-status-paused:         74 106 136;
-  --c-status-paused-bg:      17 24 39;
+  --c-status-paused:         114 88 52;
+  --c-status-paused-bg:      20 13 6;
   --c-accent:                0 210 140;
   --c-accent-hover:          52 230 160;
   --c-accent-dark:           0 160 105;
