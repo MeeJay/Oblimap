@@ -56,7 +56,9 @@ export const authController = {
       req.session.role = user.role;
       await setSessionTenant(req, user.id);
 
-      res.json({ success: true, data: { user } });
+      // Return sessionToken for ObliTools iframe context where cookies are blocked.
+      // The client stores this and sends it back as X-Auth-Token on every request.
+      res.json({ success: true, data: { user, sessionToken: req.sessionID } });
     } catch (err) {
       next(err);
     }

@@ -73,6 +73,31 @@ export function createApp() {
     }),
   );
 
+  // ObliTools iframe token auth — runs after session middleware.
+  // Chrome blocks cross-site cookies in iframes, so the ObliTools desktop shell
+  // sends the session ID as an X-Auth-Token header instead of relying on cookies.
+  // If the cookie session is already authenticated we skip this entirely.
+  app.use((req: express.Request, _res: express.Response, next: express.NextFunction) => {
+    if (req.session?.userId) return next(); // already authenticated via cookie
+    const token = req.headers['x-auth-token'];
+    if (!token || typeof token !== 'string') return next();
+    sessionStore.get(token, (err, sessionData) => {
+      if (!err && sessionData) {
+        const s = sessionData as Record<string, unknown>;
+        if (typeof s.userId === 'number') {
+          req.session.userId          = s.userId;
+          req.session.username        = (s.username as string)  ?? '';
+          req.session.role            = (s.role as string)      ?? 'user';
+          req.session.currentTenantId = (s.currentTenantId as number) ?? 1;
+          if (typeof s.twoFaVerified === 'boolean') {
+            (req.session as Record<string, unknown>).twoFaVerified = s.twoFaVerified;
+          }
+        }
+      }
+      next();
+    });
+  });
+
   // Rate limiting — runs after session so authenticated users can be skipped.
   // Only unauthenticated endpoints (login page, public health, etc.) are limited.
   app.use(apiLimiter);

@@ -2,8 +2,8 @@ import apiClient from './client';
 import type { User, UserPermissions, ApiResponse, LoginRequest } from '@oblimap/shared';
 
 export type LoginResult =
-  | { user: User; requires2fa?: never }
-  | { requires2fa: true; methods: { totp: boolean; email: boolean }; user?: never };
+  | { user: User; sessionToken?: string; requires2fa?: never }
+  | { requires2fa: true; methods: { totp: boolean; email: boolean }; user?: never; sessionToken?: never };
 
 export const authApi = {
   async login(data: LoginRequest): Promise<LoginResult> {

@@ -1,6 +1,6 @@
 {
   "name": "@oblimap/server",
-  "version": "2.1.22",
+  "version": "2.1.23",
   "private": true,
   "main": "dist/src/index.js",
   "scripts": {
