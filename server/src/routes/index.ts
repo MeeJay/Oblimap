@@ -20,6 +20,7 @@ import obliviewRoutes from './obliview.routes';
 import oblianceRoutes from './obliance.routes';
 import ssoRoutes from './sso.routes';
 import siteRoutes from './site.routes';
+import systemRoutes from './system.routes';
 import vendorRulesRoutes from './vendorRules.routes';
 import macVendorsRoutes from './macVendors.routes';
 
@@ -29,6 +30,7 @@ const router = Router();
 router.use('/auth', authRoutes);
 router.use('/probe', probeRoutes);           // probe push (API-key auth) + admin
 router.use('/admin/config', appConfigRoutes);
+router.use('/system', systemRoutes);         // system info / about (admin only, no tenant required)
 router.use('/obliguard', obliguardRoutes);   // SSO cross-app
 router.use('/obliview', obliviewRoutes);    // Obliview cross-app link
 router.use('/obliance', oblianceRoutes);    // Obliance cross-app link
