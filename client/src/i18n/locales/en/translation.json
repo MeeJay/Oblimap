@@ -57,7 +57,6 @@
     "email": "Email",
     "username": "Username"
   },
-
   "status": {
     "up": "UP",
     "down": "DOWN",
@@ -74,7 +73,6 @@
     "inactive": "Inactive",
     "disabled": "Disabled"
   },
-
   "nav": {
     "dashboard": "Dashboard",
     "sites": "Sites",
@@ -93,7 +91,6 @@
     "floatSidebar": "Float sidebar",
     "addProbe": "+ Probe"
   },
-
   "login": {
     "title": "IP Address Management",
     "username": "Username",
@@ -122,7 +119,6 @@
     "clientVersion": "client v{{version}}",
     "serverVersion": "server v{{version}}"
   },
-
   "forgotPassword": {
     "title": "Reset your password",
     "description": "Enter your email address and we'll send you a reset link.",
@@ -135,7 +131,6 @@
     "backToLogin": "Back to login",
     "invalidEmail": "Please enter a valid email address"
   },
-
   "resetPassword": {
     "title": "Set a new password",
     "newPassword": "New password",
@@ -152,7 +147,6 @@
     "invalidToken": "This reset link is invalid or has expired.",
     "failed": "Failed to reset password"
   },
-
   "enrollment": {
     "welcomeTitle": "Welcome to {{appName}}",
     "welcomeSubtitle": "Let's set up your account in a few quick steps.",
@@ -165,12 +159,10 @@
     "stepSecurity": "Security",
     "completing": "Completing…",
     "complete": "Finish setup",
-
     "language": {
       "title": "Choose your language",
       "subtitle": "Select the language for the Oblimap interface."
     },
-
     "profile": {
       "title": "Your profile",
       "subtitle": "Set your display name and email address.",
@@ -183,7 +175,6 @@
       "emailRequired": "Email address is required",
       "emailInvalid": "Please enter a valid email address"
     },
-
     "alerts": {
       "title": "Live alert notifications",
       "subtitle": "Choose how you want to be notified of status changes.",
@@ -196,12 +187,10 @@
       "topCenterDesc": "Latest alert only, auto-dismiss after 10 seconds.",
       "previewAlt": "Alert position preview"
     },
-
     "appearance": {
       "title": "Choose your theme",
       "subtitle": "Pick the interface style that suits you. You can change this anytime from your profile."
     },
-
     "password": {
       "title": "Set a password",
       "subtitleRequired": "Your account was created via SSO and has no password yet. Set one to be able to log in directly.",
@@ -217,7 +206,6 @@
       "required": "A password is required for your account.",
       "failed": "Failed to set password. Please try again."
     },
-
     "security": {
       "title": "Two-Factor Authentication",
       "subtitle": "Add an extra layer of security to your account.",
@@ -231,12 +219,10 @@
       "totpEnabled": "Authenticator app enabled",
       "setupLater": "You can set up 2FA later from your Profile."
     },
-
     "errors": {
       "failed": "Failed to complete setup. Please try again."
     }
   },
-
   "dashboard": {
     "title": "Dashboard",
     "noSites": "No sites yet",
@@ -255,288 +241,275 @@
     "pendingApproval_other": "{{count}} probes waiting for approval",
     "noApprovedProbes": "No approved probes yet"
   },
-
   "deviceTypes": {
-    "unknown":     "Unknown",
-    "router":      "Router",
-    "switch":      "Switch",
-    "server":      "Server",
+    "unknown": "Unknown",
+    "router": "Router",
+    "switch": "Switch",
+    "server": "Server",
     "workstation": "Workstation",
-    "printer":     "Printer",
-    "iot":         "IoT",
-    "camera":      "Camera",
-    "counter":     "Counter",
-    "phone":       "Phone",
-    "gsm":         "GSM / Mobile",
-    "laptop":      "Laptop",
-    "vm":          "Virtual Machine",
-    "ap":          "Access Point",
-    "firewall":    "Firewall",
-    "nas":         "NAS"
+    "printer": "Printer",
+    "iot": "IoT",
+    "camera": "Camera",
+    "counter": "Counter",
+    "phone": "Phone",
+    "gsm": "GSM / Mobile",
+    "laptop": "Laptop",
+    "vm": "Virtual Machine",
+    "ap": "Access Point",
+    "firewall": "Firewall",
+    "nas": "NAS"
   },
-
   "sites": {
-    "title":       "Sites",
-    "newSite":     "New Site",
-    "editSite":    "Edit Site",
-    "noSites":     "No sites yet",
+    "title": "Sites",
+    "newSite": "New Site",
+    "editSite": "Edit Site",
+    "noSites": "No sites yet",
     "noSitesDesc": "Sites are logical network locations. Create one to start tracking devices.",
     "createFirst": "Create your first site",
-    "noProbes":    "No probes",
-    "probeCount_one":   "{{count}} probe",
+    "noProbes": "No probes",
+    "probeCount_one": "{{count}} probe",
     "probeCount_other": "{{count}} probes",
-    "devices":  "Devices",
-    "online":   "Online",
-    "offline":  "Offline",
-    "viewBtn":  "View →",
+    "devices": "Devices",
+    "online": "Online",
+    "offline": "Offline",
+    "viewBtn": "View →",
     "confirmDelete": "Delete site \"{{name}}\"? This will also delete all its devices and reservations.",
-    "deleted":     "Site deleted",
-    "failedDelete":"Failed to delete site",
-    "created":     "Site created",
-    "updated":     "Site updated",
-    "failedCreate":"Failed to create site",
-    "failedUpdate":"Failed to update site",
-    "failedLoad":  "Failed to load sites",
+    "deleted": "Site deleted",
+    "failedDelete": "Failed to delete site",
+    "created": "Site created",
+    "updated": "Site updated",
+    "failedCreate": "Failed to create site",
+    "failedUpdate": "Failed to update site",
+    "failedLoad": "Failed to load sites",
     "form": {
-      "name":           "Name",
-      "namePlaceholder":"e.g. HQ Office, Warehouse A",
-      "description":    "Description",
-      "descPlaceholder":"Optional description",
-      "group":          "Group",
-      "groupNone":      "— No group —"
+      "name": "Name",
+      "namePlaceholder": "e.g. HQ Office, Warehouse A",
+      "description": "Description",
+      "descPlaceholder": "Optional description",
+      "group": "Group",
+      "groupNone": "— No group —"
     }
   },
-
   "siteDetail": {
-    "notFound":    "Site not found.",
+    "notFound": "Site not found.",
     "backToSites": "← Back to Sites",
-    "failedLoad":  "Failed to load site",
-    "tabDevices":      "Devices ({{count}})",
+    "failedLoad": "Failed to load site",
+    "tabDevices": "Devices ({{count}})",
     "tabReservations": "Reservations ({{count}})",
-    "tabHeatmap":      "Subnet Map",
-    "statDevices_one":      "{{count}} device",
-    "statDevices_other":    "{{count}} devices",
-    "statOnline":           "{{count}} online",
-    "statOffline":          "{{count}} offline",
-    "statReservations_one":   "{{count}} reservation",
+    "tabHeatmap": "Subnet Map",
+    "statDevices_one": "{{count}} device",
+    "statDevices_other": "{{count}} devices",
+    "statOnline": "{{count}} online",
+    "statOffline": "{{count}} offline",
+    "statReservations_one": "{{count}} reservation",
     "statReservations_other": "{{count}} reservations",
-
     "device": {
-      "addManually":         "Add manually",
-      "noDevices":           "No devices yet",
-      "noDevicesDesc":       "Assign a probe to this site to start discovering devices automatically, or add them manually.",
-      "colStatus":           "Status",
-      "colIp":               "IP",
-      "colMac":              "MAC",
-      "colName":             "Name",
-      "colVendor":           "Vendor",
-      "colType":             "Type",
-      "colLastSeen":         "Last seen",
-      "colActions":          "Actions",
-      "manualBadge":         "manual",
+      "addManually": "Add manually",
+      "noDevices": "No devices yet",
+      "noDevicesDesc": "Assign a probe to this site to start discovering devices automatically, or add them manually.",
+      "colStatus": "Status",
+      "colIp": "IP",
+      "colMac": "MAC",
+      "colName": "Name",
+      "colVendor": "Vendor",
+      "colType": "Type",
+      "colLastSeen": "Last seen",
+      "colActions": "Actions",
+      "manualBadge": "manual",
       "reservationConflict": "This IP has a reservation — verify assignment",
-      "confirmRemove":       "Remove device \"{{name}}\" from this site?",
-      "removed":             "Device removed",
-      "failedRemove":        "Failed to remove device",
-      "updated":             "Device updated",
-      "added":               "Device added",
-      "failedUpdate":        "Failed to update device",
-      "failedAdd":           "Failed to add device"
+      "confirmRemove": "Remove device \"{{name}}\" from this site?",
+      "removed": "Device removed",
+      "failedRemove": "Failed to remove device",
+      "updated": "Device updated",
+      "added": "Device added",
+      "failedUpdate": "Failed to update device",
+      "failedAdd": "Failed to add device"
     },
-
     "deviceModal": {
-      "editTitle":      "Edit Device",
-      "addTitle":       "Add Device Manually",
-      "ipLabel":        "IP Address",
-      "macLabel":       "MAC Address",
-      "nameLabel":      "Display Name",
-      "namePlaceholder":"e.g. Reception Printer",
-      "typeLabel":      "Device Type",
-      "notesLabel":     "Notes",
-      "notesPlaceholder":"Optional notes",
-      "saveBtn":        "Save",
-      "addBtn":         "Add Device"
+      "editTitle": "Edit Device",
+      "addTitle": "Add Device Manually",
+      "ipLabel": "IP Address",
+      "macLabel": "MAC Address",
+      "nameLabel": "Display Name",
+      "namePlaceholder": "e.g. Reception Printer",
+      "typeLabel": "Device Type",
+      "notesLabel": "Notes",
+      "notesPlaceholder": "Optional notes",
+      "saveBtn": "Save",
+      "addBtn": "Add Device"
     },
-
     "reservation": {
-      "newBtn":          "New Reservation",
-      "noReservations":  "No reservations",
+      "newBtn": "New Reservation",
+      "noReservations": "No reservations",
       "noReservationsDesc": "Reserve IPs to prevent DHCP conflicts and document expected devices.",
-      "colIp":           "IP",
-      "colName":         "Name",
-      "colDescription":  "Description",
-      "colType":         "Type",
-      "colStatus":       "Status",
-      "colActions":      "Actions",
-      "occupied":        "Occupied",
-      "free":            "Free",
-      "confirmRemove":   "Remove reservation for {{ip}} ({{name}})?",
-      "removed":         "Reservation removed",
-      "failedRemove":    "Failed to remove reservation",
-      "updated":         "Reservation updated",
-      "created":         "Reservation created",
-      "failedUpdate":    "Failed to update reservation",
-      "failedCreate":    "Failed to create reservation",
-      "count_one":       "{{count}} reservation",
-      "count_other":     "{{count}} reservations"
+      "colIp": "IP",
+      "colName": "Name",
+      "colDescription": "Description",
+      "colType": "Type",
+      "colStatus": "Status",
+      "colActions": "Actions",
+      "occupied": "Occupied",
+      "free": "Free",
+      "confirmRemove": "Remove reservation for {{ip}} ({{name}})?",
+      "removed": "Reservation removed",
+      "failedRemove": "Failed to remove reservation",
+      "updated": "Reservation updated",
+      "created": "Reservation created",
+      "failedUpdate": "Failed to update reservation",
+      "failedCreate": "Failed to create reservation",
+      "count_one": "{{count}} reservation",
+      "count_other": "{{count}} reservations"
     },
-
     "reservationModal": {
-      "editTitle":      "Edit Reservation",
-      "newTitle":       "New Reservation",
-      "ipLabel":        "IP Address",
-      "nameLabel":      "Name",
-      "namePlaceholder":"e.g. Main Printer",
-      "typeLabel":      "Device Type",
-      "typeAny":        "— Any —",
-      "descLabel":      "Description",
-      "descPlaceholder":"Optional description",
-      "saveBtn":        "Save",
-      "reserveBtn":     "Reserve"
+      "editTitle": "Edit Reservation",
+      "newTitle": "New Reservation",
+      "ipLabel": "IP Address",
+      "nameLabel": "Name",
+      "namePlaceholder": "e.g. Main Printer",
+      "typeLabel": "Device Type",
+      "typeAny": "— Any —",
+      "descLabel": "Description",
+      "descPlaceholder": "Optional description",
+      "saveBtn": "Save",
+      "reserveBtn": "Reserve"
     }
   },
-
   "probesPage": {
-    "title":       "Probes",
-    "backToProbes":"Back to Probes",
-    "notFound":    "Probe not found",
-    "backLink":    "Back to probes",
-    "filterAll":    "All",
-    "selected":    "{{count}} selected",
-    "actions":     "Actions",
-    "approveAll":  "Approve all",
-    "uninstallAll":"Uninstall all",
-    "deleteAll":   "Delete all",
-    "addProbe":    "Add Probe",
-    "tabDevices":  "Probes",
-    "tabApiKeys":  "API Keys",
-    "noProbes":    "No probes",
-    "noProbesFiltered":"No probes ({{status}})",
-    "noProbesDesc":"Install a probe on a network host — it will appear here after its first push.",
-    "tryFilter":   "Try a different filter.",
-    "colProbe":    "Probe",
+    "title": "Probes",
+    "backToProbes": "Back to Probes",
+    "notFound": "Probe not found",
+    "backLink": "Back to probes",
+    "filterAll": "All",
+    "selected": "{{count}} selected",
+    "actions": "Actions",
+    "approveAll": "Approve all",
+    "uninstallAll": "Uninstall all",
+    "deleteAll": "Delete all",
+    "addProbe": "Add Probe",
+    "tabDevices": "Probes",
+    "tabApiKeys": "API Keys",
+    "noProbes": "No probes",
+    "noProbesFiltered": "No probes ({{status}})",
+    "noProbesDesc": "Install a probe on a network host — it will appear here after its first push.",
+    "tryFilter": "Try a different filter.",
+    "colProbe": "Probe",
     "colPlatform": "Platform",
-    "colSite":     "Site",
-    "colStatus":   "Status",
+    "colSite": "Site",
+    "colStatus": "Status",
     "colLastSeen": "Last seen",
-    "colActions":  "Actions",
-    "statusPending":        "Pending",
-    "statusApproved":       "Approved",
-    "statusRefused":        "Refused",
-    "statusSuspended":      "Suspended",
-    "statusPendingApproval":"Pending Approval",
-    "approved":       "Probe approved",
-    "refused":        "Probe refused",
-    "deleted":        "Probe deleted",
-    "updated":        "Probe updated",
-    "failedApprove":  "Failed to approve probe",
-    "failedRefuse":   "Failed to refuse probe",
-    "failedDelete":   "Failed to delete probe",
-    "failedLoad":     "Failed to load probes",
-    "failedSave":     "Failed to save",
-    "confirmRefuse":  "Refuse this probe?",
-    "confirmDelete":  "Delete this probe?",
-    "confirmBulkDelete":"Delete {{count}} probe(s)?",
-    "bulkApproved":      "{{count}} probe(s) approved",
-    "bulkDeleted":       "{{count}} probe(s) deleted",
+    "colActions": "Actions",
+    "statusPending": "Pending",
+    "statusApproved": "Approved",
+    "statusRefused": "Refused",
+    "statusSuspended": "Suspended",
+    "statusPendingApproval": "Pending Approval",
+    "approved": "Probe approved",
+    "refused": "Probe refused",
+    "deleted": "Probe deleted",
+    "updated": "Probe updated",
+    "failedApprove": "Failed to approve probe",
+    "failedRefuse": "Failed to refuse probe",
+    "failedDelete": "Failed to delete probe",
+    "failedLoad": "Failed to load probes",
+    "failedSave": "Failed to save",
+    "confirmRefuse": "Refuse this probe?",
+    "confirmDelete": "Delete this probe?",
+    "confirmBulkDelete": "Delete {{count}} probe(s)?",
+    "bulkApproved": "{{count}} probe(s) approved",
+    "bulkDeleted": "{{count}} probe(s) deleted",
     "bulkCommandQueued": "Command queued for {{count}} probe(s)",
-    "bulkFailed":        "Bulk {{action}} failed",
-
+    "bulkFailed": "Bulk {{action}} failed",
     "apiKeys": {
-      "title":          "API Keys",
-      "namePlaceholder":"Key name (e.g. Production)",
-      "create":         "Create",
-      "noKeys":         "No API keys yet",
-      "created":        "API key created",
-      "copied":         "Copied!",
-      "keyCreated":     "✓ Key created — copy it now",
-      "copyKey":        "Copy key",
-      "deleteKey":      "Delete key",
-      "lastUsed":       "Last used: {{date}}",
-      "failedCreate":   "Failed to create API key",
-      "failedDelete":   "Failed to delete key",
-      "confirmDelete":  "Delete this API key? Any probes using it will stop authenticating."
+      "title": "API Keys",
+      "namePlaceholder": "Key name (e.g. Production)",
+      "create": "Create",
+      "noKeys": "No API keys yet",
+      "created": "API key created",
+      "copied": "Copied!",
+      "keyCreated": "✓ Key created — copy it now",
+      "copyKey": "Copy key",
+      "deleteKey": "Delete key",
+      "lastUsed": "Last used: {{date}}",
+      "failedCreate": "Failed to create API key",
+      "failedDelete": "Failed to delete key",
+      "confirmDelete": "Delete this API key? Any probes using it will stop authenticating."
     },
-
     "detail": {
-      "probeInfo":     "Probe Info",
-      "scanSettings":  "Scan Settings",
-      "commands":      "Commands",
-      "dangerZone":    "Danger zone",
-      "hostname":      "Hostname",
-      "platform":      "Platform",
-      "version":       "Version",
-      "lastSeen":      "Last seen",
-      "approvedAt":    "Approved",
-      "assignedSite":  "Assigned site",
-      "noSite":        "None (assign from settings below)",
-      "pendingCommand":"Pending command",
+      "probeInfo": "Probe Info",
+      "scanSettings": "Scan Settings",
+      "commands": "Commands",
+      "dangerZone": "Danger zone",
+      "hostname": "Hostname",
+      "platform": "Platform",
+      "version": "Version",
+      "lastSeen": "Last seen",
+      "approvedAt": "Approved",
+      "assignedSite": "Assigned site",
+      "noSite": "None (assign from settings below)",
+      "pendingCommand": "Pending command",
       "updatingSince": "Updating since",
-      "displayName":   "Display name",
-      "scanInterval":  "Scan interval: {{seconds}}s ({{minutes}}m)",
-      "excludedSubnets":"Excluded subnets (never scan)",
-      "extraSubnets":  "Extra subnets (scan in addition to auto-detected)",
-      "saveChanges":   "Save changes",
-      "noneSubnets":   "None",
+      "displayName": "Display name",
+      "scanInterval": "Scan interval: {{seconds}}s ({{minutes}}m)",
+      "excludedSubnets": "Excluded subnets (never scan)",
+      "extraSubnets": "Extra subnets (scan in addition to auto-detected)",
+      "saveChanges": "Save changes",
+      "noneSubnets": "None",
       "noPortsConfigured": "No ports configured",
-      "portScanEnabled":   "Port scanning",
-      "portScanDesc":      "Scan open TCP ports on discovered devices (increases scan time)",
-      "portScanPorts":     "Ports to scan",
-      "portScanReset":     "Reset to defaults",
-      "commandsDesc":  "Commands are queued and delivered on the probe's next push (within one scan interval).",
-      "forceRescan":   "Force rescan",
-      "updateProbe":   "Update probe",
-      "uninstall":     "Uninstall",
-      "deleteRecord":  "Delete probe record",
-      "deleteRecordDesc":"Removes the probe from Oblimap. Discovered devices remain in their site.",
-      "deleteBtn":     "Delete probe",
-      "confirmUninstall":"Queue uninstall command?",
+      "portScanEnabled": "Port scanning",
+      "portScanDesc": "Scan open TCP ports on discovered devices (increases scan time)",
+      "portScanPorts": "Ports to scan",
+      "portScanReset": "Reset to defaults",
+      "commandsDesc": "Commands are queued and delivered on the probe's next push (within one scan interval).",
+      "forceRescan": "Force rescan",
+      "updateProbe": "Update probe",
+      "uninstall": "Uninstall",
+      "deleteRecord": "Delete probe record",
+      "deleteRecordDesc": "Removes the probe from Oblimap. Discovered devices remain in their site.",
+      "deleteBtn": "Delete probe",
+      "confirmUninstall": "Queue uninstall command?",
       "confirmUpdate": "Queue update command?",
       "confirmRescan": "Queue rescan command?",
       "commandQueued": "Command \"{{command}}\" queued",
       "failedCommand": "Failed to send command",
-      "approve":       "Approve",
-      "refuse":        "Refuse",
-      "reApprove":     "Re-approve"
+      "approve": "Approve",
+      "refuse": "Refuse",
+      "reApprove": "Re-approve"
     }
   },
-
   "vendorRules": {
-    "title":       "Vendor → Device Type Rules",
+    "title": "Vendor → Device Type Rules",
     "description": "Automatically classify discovered devices based on their vendor name. Matching is case-insensitive substring. Higher priority wins.",
     "colVendorPattern": "Vendor Pattern",
-    "colDeviceType":    "Device Type",
+    "colDeviceType": "Device Type",
     "colLabelOverride": "Label Override",
-    "colPriority":      "Priority",
-    "noRules":          "No vendor rules yet. Add one below.",
-    "patternPlaceholder":    "Vendor substring (e.g. Cisco)",
-    "labelPlaceholder":      "Display name (optional)",
-    "editPatternPlaceholder":"e.g. Cisco, Vivotek, Hikvision",
-    "editLabelPlaceholder":  "Optional display name override",
-    "addBtn":       "Add",
-    "ruleAdded":    "Rule added",
-    "ruleUpdated":  "Rule updated",
-    "ruleDeleted":  "Rule deleted",
-    "failedAdd":    "Failed to add rule",
+    "colPriority": "Priority",
+    "noRules": "No vendor rules yet. Add one below.",
+    "patternPlaceholder": "Vendor substring (e.g. Cisco)",
+    "labelPlaceholder": "Display name (optional)",
+    "editPatternPlaceholder": "e.g. Cisco, Vivotek, Hikvision",
+    "editLabelPlaceholder": "Optional display name override",
+    "addBtn": "Add",
+    "ruleAdded": "Rule added",
+    "ruleUpdated": "Rule updated",
+    "ruleDeleted": "Rule deleted",
+    "failedAdd": "Failed to add rule",
     "failedUpdate": "Failed to update rule",
     "failedDelete": "Failed to delete rule",
-    "failedLoad":   "Failed to load vendor rules"
+    "failedLoad": "Failed to load vendor rules"
   },
-
   "heatmap": {
-    "legendOnline":   "Online",
-    "legendOffline":  "Offline",
+    "legendOnline": "Online",
+    "legendOffline": "Offline",
     "legendReserved": "Reserved",
-    "legendUnknown":  "Unknown",
+    "legendUnknown": "Unknown",
     "legendConflict": "IP Conflict",
-    "legendEmpty":    "Empty",
-    "hoverHint":      "Hover a cell to inspect",
-    "noData":         "No devices or reservations with valid IP addresses found.",
-    "used":           "/ 256 used",
-    "tooltipConflict":"IP conflict",
-    "tooltipReserved":"(reserved)"
+    "legendEmpty": "Empty",
+    "hoverHint": "Hover a cell to inspect",
+    "noData": "No devices or reservations with valid IP addresses found.",
+    "used": "/ 256 used",
+    "tooltipConflict": "IP conflict",
+    "tooltipReserved": "(reserved)"
   },
-
   "monitors": {
     "form": {
       "sectionGeneral": "General"
@@ -545,7 +518,6 @@
     "sectionNotifications": "Notification Channels",
     "sectionSettings": "Settings"
   },
-
   "groups": {
     "new": "New Group",
     "edit": "Edit Group",
@@ -571,7 +543,6 @@
     "failedOrder": "Failed to save order",
     "failedReorder": "Failed to reorder groups",
     "confirmDelete": "Delete group \"{{name}}\" and all its sub-groups? This cannot be undone.",
-
     "form": {
       "name": "Name",
       "namePlaceholder": "Group name",
@@ -586,7 +557,6 @@
       "moveUp": "Move up",
       "moveDown": "Move down"
     },
-
     "detail": {
       "totalProbes": "Total Probes",
       "totalDevices": "Total Devices",
@@ -601,7 +571,6 @@
       "saveSettings": "Save Settings"
     }
   },
-
   "notifications": {
     "title": "Notifications",
     "newChannel": "New Channel",
@@ -633,7 +602,6 @@
     "removeTenantAccess": "Remove workspace access",
     "failedTenantAssign": "Failed to update workspace access"
   },
-
   "settings": {
     "title": "Global Settings",
     "globalDesc": "These defaults apply to all groups and sites unless overridden at a lower level.",
@@ -693,7 +661,6 @@
     },
     "failedUpdate": "Failed to update setting"
   },
-
   "profile": {
     "title": "My Profile",
     "sectionProfile": "Display Name",
@@ -707,14 +674,12 @@
     "saveProfile": "Save Profile",
     "profileUpdated": "Profile updated",
     "failedProfile": "Failed to update profile",
-
     "appearance": {
       "title": "Appearance",
       "subtitle": "Select the visual theme for your interface.",
       "saved": "Theme saved",
       "failed": "Failed to save theme"
     },
-
     "password": {
       "title": "Change Password",
       "current": "Current Password",
@@ -729,7 +694,6 @@
       "changed": "Password changed successfully",
       "failed": "Failed to change password"
     },
-
     "alerts": {
       "title": "Live Alert Notifications",
       "enableLabel": "Enable live alerts",
@@ -743,7 +707,6 @@
       "preferencesSaved": "Preferences saved",
       "failedPreferences": "Failed to save preferences"
     },
-
     "security": {
       "title": "Security",
       "force2faWarning": "Your administrator requires Two-Factor Authentication. Please enable a method below.",
@@ -768,7 +731,6 @@
       "invalidCode": "Invalid code"
     }
   },
-
   "users": {
     "tabUsers": "Users",
     "tabTeams": "Teams",
@@ -792,7 +754,6 @@
     "changePasswordTitle": "Password: {{username}}",
     "newPassword": "New Password",
     "changePassword": "Change",
-
     "teams": {
       "noTeams": "No teams created yet",
       "newTeam": "New Team",
@@ -823,7 +784,6 @@
       "failedRemovePermission": "Failed to remove permission"
     }
   },
-
   "agents": {
     "tabKeys": "API Keys",
     "tabDevices": "Probes",
@@ -866,7 +826,6 @@
       "updateDesc": "Notify when the probe starts a self-update"
     }
   },
-
   "macVendors": {
     "pageTitle": "MAC Vendor Database",
     "pageDesc": "Browse the IEEE OUI database and set custom vendor name overrides.",
@@ -888,7 +847,6 @@
     "clearFailed": "Failed to clear override",
     "inputPlaceholder": "Custom vendor name…"
   },
-
   "importExport": {
     "title": "Import / Export",
     "description": "Export your configuration to a portable JSON file, or import a previously saved file.",
@@ -928,16 +886,13 @@
     "statUpdated": "{{count}} updated",
     "statSkipped": "{{count}} skipped"
   },
-
   "download": {
     "pageTitle": "Downloads",
     "pageDesc": "Download the Oblimap desktop app or network probe binary.",
-
     "tabDesktop": "Desktop App",
     "tabProbe": "Network Probe",
-
-    "title": "Oblimap Desktop",
-    "description": "A lightweight native wrapper for your Oblimap instance.\nGet system-level sound notifications and a distraction-free monitoring experience.",
+    "title": "Obli.tools",
+    "description": "A lightweight native interface that groups all your Obli apps into one window.\nGet sound notifications and a distraction-free monitoring experience.",
     "downloadFolder": "Download folder: ",
     "downloadFolderPlaceholder": "Will ask on first download",
     "changeFolder": "Change",
@@ -954,9 +909,9 @@
     "buildFromSource": "Build from source",
     "buildFromSourceDesc": "The desktop app lives in the desktop-app/ directory of the Oblimap repository.",
     "howItWorks": "How it works",
-    "step1": "On first launch, enter your Oblimap server URL. It is saved locally.",
-    "step2": "The app opens your Oblimap in a native window — no browser tabs, no address bar.",
-    "step3": "Sound notifications play when a probe goes offline or recovers.",
+    "step1": "On first launch, enter your Obliview server URL. Linked apps (Obliguard, Oblimap, Obliance) are discovered automatically.",
+    "step2": "Each app opens in its own native tab — no browser overhead, no address bar, sessions are preserved when switching tabs.",
+    "step3": "Sound notifications play when a probe goes down/up or an agent threshold is breached/cleared.",
     "step4": "Click the ⚙ gear icon (bottom-right corner) to change the server URL at any time.",
     "step5": "No rebuild is needed after Oblimap updates — the app always loads the latest web UI.",
     "features": {
@@ -966,7 +921,6 @@
       "remembersUrl": "Remembers your server URL",
       "alwaysUpToDate": "Always up-to-date — no rebuilds needed"
     },
-
     "probe": {
       "title": "Oblimap Network Probe",
       "description": "A lightweight scanner that discovers and monitors devices on a local network segment. Deploy one probe per subnet.",
@@ -995,13 +949,11 @@
       }
     }
   },
-
   "notFound": {
     "title": "404",
     "message": "Page not found",
     "goToDashboard": "Go to Dashboard"
   },
-
   "header": {
     "signedInAs": "Signed in as",
     "disableAlerts": "Disable live alerts",

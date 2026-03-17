@@ -19,6 +19,7 @@ import obliguardRoutes from './obliguard.routes';
 import obliviewRoutes from './obliview.routes';
 import oblianceRoutes from './obliance.routes';
 import ssoRoutes from './sso.routes';
+import oblitoolsRoutes from './oblitools.routes';
 import siteRoutes from './site.routes';
 import systemRoutes from './system.routes';
 import vendorRulesRoutes from './vendorRules.routes';
@@ -35,6 +36,7 @@ router.use('/obliguard', obliguardRoutes);   // SSO cross-app
 router.use('/obliview', obliviewRoutes);    // Obliview cross-app link
 router.use('/obliance', oblianceRoutes);    // Obliance cross-app link
 router.use('/sso', ssoRoutes);
+router.use('/oblitools', oblitoolsRoutes); // ObliTools desktop manifest (auth required)
 router.use('/profile/2fa', twoFactorRoutes);
 
 // ── Live alerts ──────────────────────────────────────────────────────────────

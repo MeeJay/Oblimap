@@ -8,7 +8,30 @@ import { db } from './db';
 export function createSocketServer(httpServer: HttpServer): SocketIOServer {
   const io = new SocketIOServer(httpServer, {
     cors: {
-      origin: config.clientOrigin,
+      // Accept the configured CLIENT_ORIGIN, or dynamically allow the same
+      // origin as the request (covers same-site deployments where the app
+      // connects to its own domain, e.g. inside ObliTools iframes).
+      origin: (origin, callback) => {
+        if (!origin) {
+          // No origin header (server-to-server or same-origin polling)
+          callback(null, true);
+          return;
+        }
+        if (origin === config.clientOrigin) {
+          callback(null, true);
+          return;
+        }
+        // Allow same-hostname connections regardless of protocol/port mismatch
+        try {
+          const reqHost  = new URL(origin).hostname;
+          const cfgHost  = new URL(config.clientOrigin).hostname;
+          if (reqHost === cfgHost) {
+            callback(null, true);
+            return;
+          }
+        } catch { /* ignore parse errors */ }
+        callback(new Error(`CORS: origin ${origin} not allowed`));
+      },
       credentials: true,
     },
     transports: ['websocket', 'polling'],
