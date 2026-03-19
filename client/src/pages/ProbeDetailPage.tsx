@@ -334,7 +334,7 @@ export function ProbeDetailPage() {
   const isOnline = lastSeenDiff !== null && lastSeenDiff < 5 * 60 * 1000;
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-6 space-y-6">
       {/* Back */}
       <Link
         to="/admin/probes"
