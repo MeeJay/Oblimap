@@ -285,9 +285,27 @@ async function processDevices(
 
       // 2. If no MAC match, try by IP
       if (!existingItem) {
-        existingItem = await db('site_items')
+        const ipItem = await db('site_items')
           .where({ site_id: siteId, ip })
           .first();
+
+        if (ipItem && mac && ipItem.mac && (ipItem.mac as string) !== mac) {
+          // IP takeover: the IP was previously held by a different MAC.
+          // Do NOT overwrite the old device — it keeps its customizations
+          // (custom_name, device_type, notes) and stays offline until its
+          // MAC reappears on a new IP.  Create the new device instead.
+          const oldName = (ipItem.custom_name as string) || (ipItem.hostname as string) || (ipItem.ip as string);
+          await liveAlertService.add(tenantId, {
+            severity: 'warning',
+            title: `IP Takeover: ${ip}`,
+            message: `${ip} was used by "${oldName}" (${ipItem.mac as string}) and is now claimed by a new device (${mac}).`,
+            navigateTo: `/site/${siteId}`,
+            stableKey: `ip-takeover:${siteId}:${ip}:${mac}`,
+          });
+          // Leave existingItem undefined so a new device row is created below
+        } else {
+          existingItem = ipItem;
+        }
       }
 
       if (existingItem) {
@@ -300,6 +318,12 @@ async function processDevices(
         // Update open_ports if the probe ran a port scan (non-null array)
         if (device.openPorts != null) {
           updates.open_ports = JSON.stringify(device.openPorts);
+        }
+
+        // Fill in MAC if the existing item had none (e.g. probe's own device
+        // was previously discovered via TCP scan without ARP entry)
+        if (mac && !existingItem.mac) {
+          updates.mac = mac;
         }
 
         // MAC-based tracking: IP moved?
