@@ -132,6 +132,32 @@ func probeMac() string {
 	return ""
 }
 
+// probeLocalIP returns the local IPv4 address of the outbound interface
+// (same interface that probeMac identifies).
+func probeLocalIP() string {
+	dialHost := "8.8.8.8:80"
+	if cfg.ServerURL != "" {
+		if u, err := url.Parse(cfg.ServerURL); err == nil && u.Hostname() != "" {
+			port := u.Port()
+			if port == "" {
+				if u.Scheme == "https" {
+					port = "443"
+				} else {
+					port = "80"
+				}
+			}
+			dialHost = u.Hostname() + ":" + port
+		}
+	}
+
+	conn, err := net.Dial("udp", dialHost)
+	if err != nil {
+		return ""
+	}
+	defer conn.Close()
+	return conn.LocalAddr().(*net.UDPAddr).IP.String()
+}
+
 // normalizeMacGo converts a MAC from Go's default "aa:bb:cc:dd:ee:ff" to
 // uppercase "AA:BB:CC:DD:EE:FF" to match the server's normalization.
 func normalizeMacGo(mac string) string {
@@ -168,6 +194,34 @@ func doPush() int {
 	}
 
 	scanDurationMs := time.Since(scanStart).Milliseconds()
+
+	// Inject the probe itself into the discovered devices list.
+	// The probe's own IP is never in its ARP table, so it would be missing
+	// or have no MAC — which breaks the isProbe matching on the server side.
+	myMac := probeMac()
+	if myMac != "" {
+		myIP := probeLocalIP()
+		if myIP != "" {
+			found := false
+			for i, d := range devices {
+				if d.IP == myIP {
+					devices[i].MAC = myMac
+					devices[i].IsOnline = true
+					found = true
+					break
+				}
+			}
+			if !found {
+				devices = append(devices, DiscoveredDevice{
+					IP:       myIP,
+					MAC:      myMac,
+					Hostname: hostname(),
+					IsOnline: true,
+				})
+			}
+		}
+	}
+
 	log.Printf("Scan complete: %d devices in %d subnets (%dms)",
 		len(devices), len(scannedSubnets), scanDurationMs)
 
@@ -175,7 +229,7 @@ func doPush() int {
 		Hostname:          hostname(),
 		ProbeVersion:      ProbeVersion,
 		OSInfo:            osInfo(),
-		ProbeMac:          probeMac(),
+		ProbeMac:          myMac,
 		DiscoveredDevices: devices,
 		ScannedSubnets:    scannedSubnets,
 		ScanDurationMs:    scanDurationMs,
