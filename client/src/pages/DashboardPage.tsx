@@ -347,7 +347,7 @@ export function DashboardPage() {
                       </div>
                       {probe.siteId && (
                         <span className="text-xs text-text-muted shrink-0">
-                          Site #{probe.siteId}
+                          {sites.find((s) => s.id === probe.siteId)?.name ?? `Site #${probe.siteId}`}
                         </span>
                       )}
                     </div>

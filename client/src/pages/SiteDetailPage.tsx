@@ -919,16 +919,16 @@ export function SiteDetailPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center gap-1 mb-6 border-b border-border">
+      <div className="flex items-center gap-1 mb-6 rounded-lg bg-bg-secondary p-1 border border-border w-fit">
         {tabs.map((tabItem) => (
           <button
             key={tabItem.id}
             onClick={() => setTab(tabItem.id)}
             className={clsx(
-              'px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px',
+              'px-4 py-2 text-sm font-medium rounded-md transition-colors',
               tab === tabItem.id
-                ? 'border-accent text-accent'
-                : 'border-transparent text-text-muted hover:text-text-primary',
+                ? 'bg-accent text-white'
+                : 'text-text-muted hover:text-text-primary',
             )}
           >
             {tabItem.label}

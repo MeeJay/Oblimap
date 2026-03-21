@@ -49,22 +49,7 @@ services:
       server:
         condition: service_healthy
     ports:
-      - "${LISTEN_PORT:-3000}:80"
-
-  # ─── Watchtower (optional) ────────────────────────────────────────────────
-  # Automatically pulls & restarts containers when a new image is pushed.
-  # Works per image tag: set OBLIMAP_VERSION=latest/dev/stable etc.
-  # Enable: docker compose --profile watchtower up -d
-  # Or add COMPOSE_PROFILES=watchtower to your .env
-  watchtower:
-    image: containrrr/watchtower
-    profiles: ["watchtower"]
-    restart: unless-stopped
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    environment:
-      WATCHTOWER_CLEANUP: "true"
-      WATCHTOWER_POLL_INTERVAL: ${WATCHTOWER_INTERVAL:-3600}
+      - "${LISTEN_PORT:-3002}:80"
 
 volumes:
   postgres_data:

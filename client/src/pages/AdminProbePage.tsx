@@ -7,7 +7,8 @@ import {
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { probeApi } from '../api/probe.api';
-import type { Probe, ProbeApiKey } from '@oblimap/shared';
+import { siteApi } from '../api/site.api';
+import type { Probe, ProbeApiKey, Site } from '@oblimap/shared';
 import { clsx } from 'clsx';
 import { useUiStore } from '@/store/uiStore';
 
@@ -205,6 +206,7 @@ function ProbeRow({
   onApprove,
   onRefuse,
   onDelete,
+  sites,
 }: {
   probe: Probe;
   selected: boolean;
@@ -212,6 +214,7 @@ function ProbeRow({
   onApprove: (id: number) => void;
   onRefuse: (id: number) => void;
   onDelete: (id: number) => void;
+  sites: Site[];
 }) {
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -253,7 +256,7 @@ function ProbeRow({
       </td>
       <td className="px-4 py-3 hidden lg:table-cell">
         <span className="text-sm text-text-secondary">
-          {probe.siteId ? `Site #${probe.siteId}` : '—'}
+          {probe.siteId ? (sites.find((s) => s.id === probe.siteId)?.name ?? `Site #${probe.siteId}`) : '—'}
         </span>
       </td>
       <td className="px-4 py-3">
@@ -333,6 +336,7 @@ export function AdminProbePage() {
   const [activeTab, setActiveTab] = useState<'probes' | 'keys'>('probes');
   const [probes, setProbes] = useState<Probe[]>([]);
   const [keys, setKeys] = useState<ProbeApiKey[]>([]);
+  const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [bulkMenu, setBulkMenu] = useState(false);
@@ -340,9 +344,10 @@ export function AdminProbePage() {
 
   const load = useCallback(async () => {
     try {
-      const [probeRes, keyRes] = await Promise.all([probeApi.list(), probeApi.listKeys()]);
+      const [probeRes, keyRes, siteRes] = await Promise.all([probeApi.list(), probeApi.listKeys(), siteApi.list()]);
       setProbes(probeRes.probes);
       setKeys(keyRes.keys);
+      setSites(siteRes.sites);
     } catch {
       toast.error(t('probesPage.failedLoad'));
     } finally {
@@ -604,6 +609,7 @@ export function AdminProbePage() {
                       onApprove={handleApprove}
                       onRefuse={handleRefuse}
                       onDelete={handleDelete}
+                      sites={sites}
                     />
                   ))}
                 </tbody>

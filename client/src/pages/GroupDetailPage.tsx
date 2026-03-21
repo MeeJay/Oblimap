@@ -212,16 +212,16 @@ export function GroupDetailPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-border bg-bg-secondary px-6">
+      <div className="flex items-center gap-1 mx-6 mb-2 rounded-lg bg-bg-secondary p-1 border border-border w-fit">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={cn(
-              'flex items-center gap-1.5 border-b-2 px-4 py-3 text-sm font-medium transition-colors',
+              'flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-md transition-colors',
               activeTab === tab.id
-                ? 'border-accent text-accent'
-                : 'border-transparent text-text-muted hover:text-text-primary',
+                ? 'bg-accent text-white'
+                : 'text-text-muted hover:text-text-primary',
             )}
           >
             {tab.icon}
