@@ -140,6 +140,17 @@ router.get('/sso-redirect', async (req, res) => {
       res.redirect('/login');
       return;
     }
+    // Verify Obligate is reachable before redirecting (prevents redirect loop when Gate is down)
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2000);
+      const healthRes = await fetch(`${raw.url}/health`, { signal: controller.signal });
+      clearTimeout(timeout);
+      if (!healthRes.ok) { res.redirect('/login?error=sso_failed'); return; }
+    } catch {
+      res.redirect('/login?error=sso_failed');
+      return;
+    }
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
     const host = req.headers['x-forwarded-host'] || req.headers.host;
     const redirectUri = `${protocol}://${host}/auth/callback`;
