@@ -542,7 +542,15 @@ export function SettingsPage() {
                       role="switch"
                       aria-checked={appConfig?.obligateEnabled ?? false}
                       disabled={configSaving || !appConfig}
-                      onClick={() => setConfigKey('obligate_enabled' as keyof AppConfig, !appConfig?.obligateEnabled)}
+                      onClick={async () => {
+                        setConfigSaving(true);
+                        try {
+                          const newVal = !appConfig?.obligateEnabled;
+                          await appConfigApi.patchObligateConfig({ enabled: newVal });
+                          setAppConfig(prev => prev ? { ...prev, obligateEnabled: newVal } : prev);
+                        } catch { toast.error('Failed to update'); }
+                        finally { setConfigSaving(false); }
+                      }}
                       className={cn('relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none', (appConfig?.obligateEnabled ?? false) ? 'bg-primary' : 'bg-bg-hover')}
                     >
                       <span className={cn('inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform', (appConfig?.obligateEnabled ?? false) ? 'translate-x-6' : 'translate-x-1')} />
