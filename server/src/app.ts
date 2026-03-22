@@ -102,6 +102,10 @@ export function createApp() {
   // Only unauthenticated endpoints (login page, public health, etc.) are limited.
   app.use(apiLimiter);
 
+  // Obligate SSO browser redirects (must be before /api so the browser can reach /auth/callback)
+  const obligateCallback = require('./routes/obligateCallback.routes').default;
+  app.use('/auth', obligateCallback);
+
   // API routes
   app.use('/api', routes);
 

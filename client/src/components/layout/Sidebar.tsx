@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useTransition } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -10,7 +10,6 @@ import {
   Radar,
   UserCircle,
   LogOut,
-  ArrowLeftRight,
   PackageOpen,
   Building2,
   Database,
@@ -28,8 +27,6 @@ import { cn } from '@/utils/cn';
 import { useAuthStore } from '@/store/authStore';
 import { useUiStore } from '@/store/uiStore';
 import { GroupTree } from '@/components/groups/GroupTree';
-import { appConfigApi } from '@/api/appConfig.api';
-import { ssoApi } from '@/api/sso.api';
 
 // ── localStorage helpers ─────────────────────────────────────────────────────
 
@@ -91,20 +88,11 @@ export function Sidebar() {
 
   const { sidebarFloating, toggleSidebarFloating, openAddProbeModal } = useUiStore();
 
-  const [obliguardUrl, setObliguardUrl] = useState<string | null>(null);
-  const [, startSsoTransition] = useTransition();
   const [search, setSearch] = useState('');
   const [adminMenuOpen, setAdminMenuOpen] = usePersisted<boolean>('sidebar:admin-open', true);
   const [ungroupedSites, setUngroupedSites] = useState<Site[]>([]);
 
   const admin = isAdmin();
-
-  // Load Obliguard URL from config (for the switch button)
-  useEffect(() => {
-    appConfigApi.getConfig()
-      .then((cfg) => setObliguardUrl((cfg.obliguard_url as string | null) ?? null))
-      .catch(() => {});
-  }, []);
 
   // Load ungrouped sites (sites with no group assigned)
   useEffect(() => {
@@ -148,29 +136,6 @@ export function Sidebar() {
           <span className="text-lg font-semibold text-text-primary">Oblimap</span>
         </Link>
         <div className="flex items-center gap-1">
-          {obliguardUrl && !sidebarFloating && (
-            <button
-              type="button"
-              onClick={() => {
-                startSsoTransition(() => {
-                  ssoApi.generateSwitchToken()
-                    .then((token) => {
-                      const from = window.location.origin;
-                      window.location.href = `${obliguardUrl}/auth/foreign?token=${encodeURIComponent(token)}&from=${encodeURIComponent(from)}&source=oblimap`;
-                    })
-                    .catch(() => {
-                      window.location.href = obliguardUrl;
-                    });
-                });
-              }}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-semibold border transition-all
-                text-[#fb923c] bg-[#431407]/40 border-[#c2410c]/50
-                hover:text-white hover:bg-[#431407]/60 hover:border-[#ea580c]"
-            >
-              <ArrowLeftRight size={12} />
-              Obliguard
-            </button>
-          )}
           <button
             onClick={toggleSidebarFloating}
             title={sidebarFloating ? t('nav.pinSidebar') : t('nav.floatSidebar')}

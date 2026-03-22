@@ -214,18 +214,18 @@ export interface NotificationConfigField {
 // App Config (used by appConfig.service)
 // ============================================
 export interface AppConfig {
-  obliguardUrl?: string | null;
-  obliviewUrl?: string | null;
-  oblianceUrl?: string | null;
-  registrationEnabled?: boolean;
-  ssoSecret?: string | null;
+  obligateUrl?: string | null;
+  obligateEnabled?: boolean;
   allow_2fa?: boolean;
   force_2fa?: boolean;
   otp_smtp_server_id?: number | null;
-  enable_foreign_sso?: boolean;
-  enable_obliview_sso?: boolean;
-  enable_obliance_sso?: boolean;
   [key: string]: unknown;
+}
+
+export interface ObligateConfig {
+  url: string | null;
+  apiKeySet: boolean;
+  enabled: boolean;
 }
 
 // ============================================
@@ -580,9 +580,6 @@ export type AgentDisplayConfig = any;
 export type AgentGroupConfig = Record<string, unknown>;
 export type AgentGlobalConfig = Record<string, unknown>;
 export type NotificationTypeConfig = Record<string, boolean | null>;
-export type ObliguardConfig  = { url?: string | null; ssoSecret?: string; obliviewUrl?: string; apiKey?: string; apiKeySet?: boolean; [key: string]: unknown };
-export type ObliviewConfig   = { url?: string | null; apiKey?: string; apiKeySet?: boolean; [key: string]: unknown };
-export type OblianceConfig   = { url?: string | null; apiKey?: string; apiKeySet?: boolean; [key: string]: unknown };
 
 export const DEFAULT_NOTIFICATION_TYPES: NotificationTypeConfig = {};
 export const DEFAULT_AGENT_THRESHOLDS: AgentThresholds = {};

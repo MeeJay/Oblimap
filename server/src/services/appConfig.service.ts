@@ -1,5 +1,5 @@
 import { db } from '../db';
-import type { AppConfig } from '@oblimap/shared';
+import type { AppConfig, ObligateConfig } from '@oblimap/shared';
 
 // Local types for agent config (agent system not in shared for IPAM)
 interface AgentGlobalConfig {
@@ -17,16 +17,6 @@ interface NotificationTypeConfig {
   update: boolean;
 }
 
-/** Public shape returned to clients — never exposes the raw apiKey */
-interface IntegrationConfigPublic {
-  url: string | null;
-  apiKeySet: boolean;
-}
-
-type ObliguardConfig = IntegrationConfigPublic;
-type ObliviewConfig  = IntegrationConfigPublic;
-type OblianceConfig  = IntegrationConfigPublic;
-
 const DEFAULT_NOTIFICATION_TYPES: NotificationTypeConfig = {
   global: true,
   down: true,
@@ -36,9 +26,7 @@ const DEFAULT_NOTIFICATION_TYPES: NotificationTypeConfig = {
 };
 
 const AGENT_GLOBAL_CONFIG_KEY = 'agent_global_config';
-const OBLIGUARD_CONFIG_KEY  = 'obliguard_config';
-const OBLIVIEW_CONFIG_KEY   = 'obliview_config';
-const OBLIANCE_CONFIG_KEY   = 'obliance_config';
+const OBLIGATE_CONFIG_KEY     = 'obligate_config';
 
 export const appConfigService = {
   async get(key: string): Promise<string | null> {
@@ -57,127 +45,54 @@ export const appConfigService = {
     const rows = await db('app_config').select('key', 'value');
     const map = Object.fromEntries(rows.map((r: { key: string; value: string }) => [r.key, r.value]));
 
-    // Parse integration URLs (but NOT the apiKeys — never expose those via getAll)
+    /** Extract only the URL from a JSON config blob (never expose apiKey) */
     const parseUrl = (key: string): string | null => {
       if (!map[key]) return null;
-      try { return (JSON.parse(map[key]) as { url?: string }).url || null; }
-      catch { return null; }
+      try { return (JSON.parse(map[key]) as { url?: string }).url || null; } catch { return null; }
     };
 
     return {
       allow_2fa: map['allow_2fa'] === 'true',
       force_2fa: map['force_2fa'] === 'true',
       otp_smtp_server_id: map['otp_smtp_server_id'] ? parseInt(map['otp_smtp_server_id'], 10) : null,
-      obliguardUrl: parseUrl(OBLIGUARD_CONFIG_KEY),
-      obliviewUrl:  parseUrl(OBLIVIEW_CONFIG_KEY),
-      oblianceUrl:  parseUrl(OBLIANCE_CONFIG_KEY),
-      enable_foreign_sso:  map['enable_foreign_sso']  === 'true',
-      enable_obliview_sso: map['enable_obliview_sso'] === 'true',
-      enable_obliance_sso: map['enable_obliance_sso'] === 'true',
+      obligateUrl:     parseUrl(OBLIGATE_CONFIG_KEY),
+      obligateEnabled: map['obligate_enabled'] === 'true',
     };
   },
 
-  /** Get Obliguard integration config — returns public shape (no raw key) */
-  async getObliguardConfig(): Promise<ObliguardConfig> {
-    const raw = await this.get(OBLIGUARD_CONFIG_KEY);
-    if (!raw) return { url: null, apiKeySet: false };
+  // ── Obligate SSO gateway ───────────────────────────────────────────────
+
+  async getObligateConfig(): Promise<ObligateConfig> {
+    const raw = await this.get(OBLIGATE_CONFIG_KEY);
+    const enabled = await this.get('obligate_enabled');
+    if (!raw) return { url: null, apiKeySet: false, enabled: enabled === 'true' };
     try {
       const cfg = JSON.parse(raw) as { url?: string; apiKey?: string };
-      return { url: cfg.url ?? null, apiKeySet: !!cfg.apiKey };
-    } catch {
-      return { url: null, apiKeySet: false };
-    }
+      return { url: cfg.url ?? null, apiKeySet: !!cfg.apiKey, enabled: enabled === 'true' };
+    } catch { return { url: null, apiKeySet: false, enabled: enabled === 'true' }; }
   },
 
-  /** Get Obliguard integration config raw (includes API key — for internal use only) */
-  async getObliguardRaw(): Promise<{ url: string | null; apiKey: string | null }> {
-    const raw = await this.get(OBLIGUARD_CONFIG_KEY);
+  async getObligateRaw(): Promise<{ url: string | null; apiKey: string | null }> {
+    const raw = await this.get(OBLIGATE_CONFIG_KEY);
     if (!raw) return { url: null, apiKey: null };
     try {
       const cfg = JSON.parse(raw) as { url?: string; apiKey?: string };
       return { url: cfg.url ?? null, apiKey: cfg.apiKey ?? null };
-    } catch {
-      return { url: null, apiKey: null };
-    }
+    } catch { return { url: null, apiKey: null }; }
   },
 
-  /** Patch Obliguard integration config (partial update) */
-  async patchObliguardConfig(patch: { url?: string | null; apiKey?: string | null }): Promise<ObliguardConfig> {
-    const existing = await this.getObliguardRaw();
+  async patchObligateConfig(patch: { url?: string | null; apiKey?: string | null; enabled?: boolean }): Promise<ObligateConfig> {
+    const existing = await this.getObligateRaw();
     const merged = {
       url: 'url' in patch ? (patch.url ?? null) : existing.url,
       apiKey: ('apiKey' in patch && patch.apiKey) ? patch.apiKey : existing.apiKey,
     };
-    await this.set(OBLIGUARD_CONFIG_KEY, JSON.stringify(merged));
-    return { url: merged.url, apiKeySet: !!merged.apiKey };
-  },
-
-  // ── Obliview Integration ──────────────────────────────────────────────────
-
-  async getObliviewConfig(): Promise<ObliviewConfig> {
-    const raw = await this.get(OBLIVIEW_CONFIG_KEY);
-    if (!raw) return { url: null, apiKeySet: false };
-    try {
-      const cfg = JSON.parse(raw) as { url?: string; apiKey?: string };
-      return { url: cfg.url ?? null, apiKeySet: !!cfg.apiKey };
-    } catch {
-      return { url: null, apiKeySet: false };
+    await this.set(OBLIGATE_CONFIG_KEY, JSON.stringify(merged));
+    if ('enabled' in patch) {
+      await this.set('obligate_enabled', patch.enabled ? 'true' : 'false');
     }
-  },
-
-  async getObliviewRaw(): Promise<{ url: string | null; apiKey: string | null }> {
-    const raw = await this.get(OBLIVIEW_CONFIG_KEY);
-    if (!raw) return { url: null, apiKey: null };
-    try {
-      const cfg = JSON.parse(raw) as { url?: string; apiKey?: string };
-      return { url: cfg.url ?? null, apiKey: cfg.apiKey ?? null };
-    } catch {
-      return { url: null, apiKey: null };
-    }
-  },
-
-  async patchObliviewConfig(patch: { url?: string | null; apiKey?: string | null }): Promise<ObliviewConfig> {
-    const existing = await this.getObliviewRaw();
-    const merged = {
-      url: 'url' in patch ? (patch.url ?? null) : existing.url,
-      apiKey: ('apiKey' in patch && patch.apiKey) ? patch.apiKey : existing.apiKey,
-    };
-    await this.set(OBLIVIEW_CONFIG_KEY, JSON.stringify(merged));
-    return { url: merged.url, apiKeySet: !!merged.apiKey };
-  },
-
-  // ── Obliance Integration ──────────────────────────────────────────────────
-
-  async getOblianceConfig(): Promise<OblianceConfig> {
-    const raw = await this.get(OBLIANCE_CONFIG_KEY);
-    if (!raw) return { url: null, apiKeySet: false };
-    try {
-      const cfg = JSON.parse(raw) as { url?: string; apiKey?: string };
-      return { url: cfg.url ?? null, apiKeySet: !!cfg.apiKey };
-    } catch {
-      return { url: null, apiKeySet: false };
-    }
-  },
-
-  async getOblianceRaw(): Promise<{ url: string | null; apiKey: string | null }> {
-    const raw = await this.get(OBLIANCE_CONFIG_KEY);
-    if (!raw) return { url: null, apiKey: null };
-    try {
-      const cfg = JSON.parse(raw) as { url?: string; apiKey?: string };
-      return { url: cfg.url ?? null, apiKey: cfg.apiKey ?? null };
-    } catch {
-      return { url: null, apiKey: null };
-    }
-  },
-
-  async patchOblianceConfig(patch: { url?: string | null; apiKey?: string | null }): Promise<OblianceConfig> {
-    const existing = await this.getOblianceRaw();
-    const merged = {
-      url: 'url' in patch ? (patch.url ?? null) : existing.url,
-      apiKey: ('apiKey' in patch && patch.apiKey) ? patch.apiKey : existing.apiKey,
-    };
-    await this.set(OBLIANCE_CONFIG_KEY, JSON.stringify(merged));
-    return { url: merged.url, apiKeySet: !!merged.apiKey };
+    const enabled = await this.get('obligate_enabled');
+    return { url: merged.url, apiKeySet: !!merged.apiKey, enabled: enabled === 'true' };
   },
 
   /** Get global agent defaults from app_config */

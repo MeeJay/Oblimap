@@ -14,15 +14,9 @@ router.get('/', requireAuth, appConfigController.getAll);
 router.get('/agent-global', requireAuth, requireRole('admin'), appConfigController.getAgentGlobal);
 router.patch('/agent-global', requireAuth, requireRole('admin'), appConfigController.patchAgentGlobal);
 
-// Integration configs — admin only (include apiKey)
-router.get('/obliguard', requireAuth, requireRole('admin'), appConfigController.getObliguardConfig);
-router.put('/obliguard', requireAuth, requireRole('admin'), appConfigController.setObliguardConfig);
-
-router.get('/obliview', requireAuth, requireRole('admin'), appConfigController.getObliviewConfig);
-router.put('/obliview', requireAuth, requireRole('admin'), appConfigController.setObliviewConfig);
-
-router.get('/obliance', requireAuth, requireRole('admin'), appConfigController.getOblianceConfig);
-router.put('/obliance', requireAuth, requireRole('admin'), appConfigController.setOblianceConfig);
+// Obligate SSO gateway config — admin only
+router.get('/obligate', requireAuth, requireRole('admin'), appConfigController.getObligateConfig);
+router.put('/obligate', requireAuth, requireRole('admin'), appConfigController.setObligateConfig);
 
 // Generic key setter — must be LAST among PUT routes
 router.put('/:key', requireAuth, requireRole('admin'), appConfigController.set);
