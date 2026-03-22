@@ -153,8 +153,16 @@ router.get('/sso-redirect', async (req, res) => {
     }
     const protocol = req.headers['x-forwarded-proto'] || req.protocol;
     const host = req.headers['x-forwarded-host'] || req.headers.host;
-    const redirectUri = `${protocol}://${host}/auth/callback`;
+    const selfUrl = `${protocol}://${host}`;
+    // Safety: never redirect to ourselves (misconfigured obligate_url pointing to this app)
+    if (raw.url.replace(/\/$/, '') === selfUrl.replace(/\/$/, '')) {
+      logger.error({ obligateUrl: raw.url, selfUrl }, 'sso-redirect: obligate_url points to this app — aborting to prevent loop');
+      res.redirect('/login?error=sso_misconfigured');
+      return;
+    }
+    const redirectUri = `${selfUrl}/auth/callback`;
     const obligateUrl = `${raw.url}/authorize?client_id=${encodeURIComponent(raw.apiKey)}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+    logger.info({ obligateUrl: raw.url, redirectUri }, 'sso-redirect: redirecting to Obligate');
     res.redirect(obligateUrl);
   } catch {
     res.redirect('/login');
