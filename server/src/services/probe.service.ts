@@ -557,9 +557,6 @@ class ProbeService {
         .returning('*');
       probe = newProbe;
 
-      // Register probe UUID with Obligate for cross-app linking (non-blocking)
-      obligateService.registerDeviceLink(probeUuid, `/probes/${probe.id}`).catch(() => {});
-
       _io
         ?.to(`tenant:${tenantId}:admin`)
         .emit(SOCKET_EVENTS.PROBE_STATUS_CHANGED, {
@@ -591,6 +588,9 @@ class ProbeService {
       // Refresh probe data
       probe = await db('probes').where({ id: probe.id as number }).first();
     }
+
+    // Register/update probe UUID with Obligate for cross-app linking (non-blocking, idempotent)
+    obligateService.registerDeviceLink(probeUuid, `/probes/${probe.id}`).catch(() => {});
 
     const probeStatus = probe.status as string;
     const scanConfig = (() => {
