@@ -100,6 +100,42 @@ router.get('/callback', async (req, res) => {
       }
     }
 
+    // Sync team memberships from Obligate assertion.
+    // assertion.teams is a flat list of team names; match against user_teams
+    // in the tenants the user is assigned to.
+    if (assertion.teams && assertion.teams.length > 0) {
+      const userTenantRows = await db('user_tenants')
+        .where({ user_id: localUserId })
+        .pluck('tenant_id') as number[];
+
+      if (userTenantRows.length > 0) {
+        const matchingTeams = await db('user_teams')
+          .whereIn('tenant_id', userTenantRows)
+          .whereIn('name', assertion.teams)
+          .select('id') as Array<{ id: number }>;
+
+        for (const team of matchingTeams) {
+          await db('team_memberships')
+            .insert({ team_id: team.id, user_id: localUserId })
+            .onConflict(['team_id', 'user_id'])
+            .ignore();
+        }
+
+        // Remove memberships for teams no longer in the assertion
+        if (matchingTeams.length > 0) {
+          await db('team_memberships')
+            .where({ user_id: localUserId })
+            .whereNotIn('team_id', matchingTeams.map(t => t.id))
+            .delete();
+        } else {
+          // No matching teams → remove all memberships
+          await db('team_memberships')
+            .where({ user_id: localUserId })
+            .delete();
+        }
+      }
+    }
+
     // Sync preferences from Obligate (theme, language, toast settings)
     if (assertion.preferences) {
       const prefUpdate: Record<string, unknown> = {};

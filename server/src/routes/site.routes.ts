@@ -1,25 +1,26 @@
 import { Router } from 'express';
+import { requireRole } from '../middleware/rbac';
 import { siteController } from '../controllers/site.controller';
 
 const router = Router();
 
 // ── Sites ─────────────────────────────────────────────────────────────────────
 router.get('/', siteController.list);
-router.post('/', siteController.create);
+router.post('/', requireRole('admin'), siteController.create);
 router.get('/:id', siteController.get);
-router.patch('/:id', siteController.update);
-router.delete('/:id', siteController.remove);
+router.patch('/:id', requireRole('admin'), siteController.update);
+router.delete('/:id', requireRole('admin'), siteController.remove);
 
 // ── Items ─────────────────────────────────────────────────────────────────────
 router.get('/:id/items', siteController.listItems);
-router.post('/:id/items', siteController.createItem);
-router.patch('/:id/items/:itemId', siteController.updateItem);
-router.delete('/:id/items/:itemId', siteController.removeItem);
+router.post('/:id/items', requireRole('admin'), siteController.createItem);
+router.patch('/:id/items/:itemId', requireRole('admin'), siteController.updateItem);
+router.delete('/:id/items/:itemId', requireRole('admin'), siteController.removeItem);
 
 // ── IP Reservations ───────────────────────────────────────────────────────────
 router.get('/:id/reservations', siteController.listReservations);
-router.post('/:id/reservations', siteController.createReservation);
-router.patch('/:id/reservations/:resId', siteController.updateReservation);
-router.delete('/:id/reservations/:resId', siteController.removeReservation);
+router.post('/:id/reservations', requireRole('admin'), siteController.createReservation);
+router.patch('/:id/reservations/:resId', requireRole('admin'), siteController.updateReservation);
+router.delete('/:id/reservations/:resId', requireRole('admin'), siteController.removeReservation);
 
 export default router;

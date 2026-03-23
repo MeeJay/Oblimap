@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth';
 import { requireTenant } from '../middleware/tenant';
+import { requireRole } from '../middleware/rbac';
 import {
   probeController,
   probeVersion,
@@ -32,9 +33,10 @@ router.get('/installer/macos', probeInstallerMacos);
 // Pre-built Windows MSI (static, SERVERURL + APIKEY passed via msiexec properties)
 router.get('/installer/windows.msi', probeInstallerWindowsMsi);
 
-// ── Tenant-scoped admin endpoints — session + tenant required ─────────────────
+// ── Tenant-scoped admin endpoints — session + tenant + admin role required ────
 router.use(requireAuth);
 router.use(requireTenant);
+router.use(requireRole('admin'));
 
 // API Keys
 router.get('/keys', probeController.listKeys);
