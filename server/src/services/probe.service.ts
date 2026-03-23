@@ -7,6 +7,7 @@ import { SOCKET_EVENTS } from '@oblimap/shared';
 import type { Probe, ProbeApiKey, ProbeScanConfig } from '@oblimap/shared';
 import { liveAlertService } from './liveAlert.service';
 import { notificationService } from './notification.service';
+import { obligateService } from './obligate.service';
 
 let _io: SocketIOServer | null = null;
 
@@ -555,6 +556,9 @@ class ProbeService {
         })
         .returning('*');
       probe = newProbe;
+
+      // Register probe UUID with Obligate for cross-app linking (non-blocking)
+      obligateService.registerDeviceLink(probeUuid, `/probes/${probe.id}`).catch(() => {});
 
       _io
         ?.to(`tenant:${tenantId}:admin`)
