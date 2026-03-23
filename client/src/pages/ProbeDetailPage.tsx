@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   Radar, ArrowLeft, CheckCircle, XCircle, Trash2, Plus,
   X, Save, Loader2, AlertTriangle, Monitor, RefreshCw,
-  Activity, Globe,
+  Activity, Globe, ArrowLeftRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
@@ -206,6 +206,8 @@ export function ProbeDetailPage() {
     extraSubnets: [],
   });
 
+  const [crossAppLinks, setCrossAppLinks] = useState<Array<{ appType: string; name: string; url: string; color: string | null }>>([]);
+
   const probeId = parseInt(id ?? '0', 10);
 
   const load = useCallback(async () => {
@@ -229,6 +231,16 @@ export function ProbeDetailPage() {
   useEffect(() => {
     siteApi.list().then(({ sites: s }) => setSites(s)).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!probe?.uuid) return;
+    fetch(`/api/auth/device-links?uuid=${encodeURIComponent(probe.uuid)}`, { credentials: 'include' })
+      .then(r => r.json())
+      .then((d: { success: boolean; data?: Array<{ appType: string; name: string; url: string; color: string | null }> }) => {
+        if (d.success && d.data) setCrossAppLinks(d.data);
+      })
+      .catch(() => {});
+  }, [probe?.uuid]);
 
   async function handleSave() {
     setSaving(true);
@@ -346,6 +358,20 @@ export function ProbeDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {crossAppLinks.map(link => (
+            <a
+              key={link.appType}
+              href={link.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`Open in ${link.name}`}
+              className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium border transition-colors"
+              style={{ color: link.color ?? '#58a6ff', borderColor: `${link.color ?? '#58a6ff'}40`, backgroundColor: `${link.color ?? '#58a6ff'}0d` }}
+            >
+              <ArrowLeftRight size={12} />
+              {link.name}
+            </a>
+          ))}
           <StatusBadge status={probe.status} />
           {probe.status === 'pending' && (
             <>
