@@ -16,6 +16,7 @@ import {
   Building2,
   X,
 } from 'lucide-react';
+import { useAnonymize } from '../utils/anonymize';
 import type {
   User,
   UserTeam,
@@ -43,6 +44,7 @@ type TenantDraft = Record<number, { isMember: boolean; role: 'admin' | 'member' 
 export function AdminUsersPage() {
   const { t } = useTranslation();
   const { user: currentUser } = useAuthStore();
+  const { anonymize } = useAnonymize();
   const isPlatformAdmin = currentUser?.role === 'admin';
   const [tab, setTab] = useState<Tab>('users');
 
@@ -518,8 +520,8 @@ export function AdminUsersPage() {
                   <div key={user.id} className="flex items-center gap-2 px-3 py-2.5 group">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="text-sm font-medium text-text-primary truncate">{user.username.startsWith('og_') ? user.username.slice(3) : user.username}</span>
-                        {user.displayName && <span className="text-xs text-text-muted">({user.displayName})</span>}
+                        <span className="text-sm font-medium text-text-primary truncate">{anonymize(user.username.startsWith('og_') ? user.username.slice(3) : user.username, 'username')}</span>
+                        {user.displayName && <span className="text-xs text-text-muted">({anonymize(user.displayName, 'username')})</span>}
                         <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
                           user.role === 'admin' ? 'bg-accent/10 text-accent' : 'bg-bg-tertiary text-text-muted'
                         }`}>

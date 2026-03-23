@@ -15,6 +15,7 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { SiteItem, IpReservation, ItemStatus } from '@oblimap/shared';
 import { clsx } from 'clsx';
+import { useAnonymize } from '@/utils/anonymize';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -100,6 +101,7 @@ interface TooltipProps {
 }
 
 function Tooltip({ cell, col, row, conflictLabel, reservedLabel }: TooltipProps) {
+  const { anonymize } = useAnonymize();
   // Position left side for right half of grid, right side otherwise
   const alignRight = col >= 8;
   return (
@@ -112,7 +114,7 @@ function Tooltip({ cell, col, row, conflictLabel, reservedLabel }: TooltipProps)
         row >= 13 ? 'bottom-0 top-auto translate-y-0' : '',
       )}
     >
-      <div className="font-mono font-semibold text-text-primary">{cell.ip}</div>
+      <div className="font-mono font-semibold text-text-primary">{anonymize(cell.ip, 'ip')}</div>
       <div className="text-text-secondary mt-0.5">{cell.label}</div>
       <div className={clsx(
         'mt-1 font-medium capitalize',
@@ -219,6 +221,7 @@ interface SubnetHeatmapProps {
 
 export function SubnetHeatmap({ items, reservations }: SubnetHeatmapProps) {
   const { t } = useTranslation();
+  const { anonymize } = useAnonymize();
 
   const slices = useMemo<SubnetSlice[]>(() => {
     const subnets = new Map<string, (CellData | null)[]>();
@@ -256,7 +259,7 @@ export function SubnetHeatmap({ items, reservations }: SubnetHeatmapProps) {
       cells[host] = {
         ip: item.ip,
         status: item.status,
-        label: item.customName || item.hostname || item.mac || item.ip,
+        label: anonymize(item.customName || item.hostname || item.mac || item.ip, 'hostname'),
         isReservation: false,
         hasConflict,
       };

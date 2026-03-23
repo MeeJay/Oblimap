@@ -26,6 +26,7 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/utils/cn';
 import { useAuthStore } from '@/store/authStore';
 import { useUiStore } from '@/store/uiStore';
+import { useAnonymize } from '@/utils/anonymize';
 import { GroupTree } from '@/components/groups/GroupTree';
 
 // ── localStorage helpers ─────────────────────────────────────────────────────
@@ -65,6 +66,7 @@ export function Sidebar() {
   const { t } = useTranslation();
   const location = useLocation();
   const { user, isAdmin } = useAuthStore();
+  const { anonymize } = useAnonymize();
 
   const topNavItems: NavItem[] = [
     { label: t('nav.dashboard'), path: '/',            icon: <LayoutDashboard size={18} /> },
@@ -272,7 +274,7 @@ export function Sidebar() {
           )}
         >
           <UserCircle size={18} />
-          <span className="truncate flex-1">{user?.displayName || (user?.username?.startsWith('og_') ? user.username.slice(3) : user?.username)}</span>
+          <span className="truncate flex-1">{anonymize(user?.displayName || (user?.username?.startsWith('og_') ? user.username.slice(3) : user?.username), 'username')}</span>
         </Link>
         <button
           onClick={() => {

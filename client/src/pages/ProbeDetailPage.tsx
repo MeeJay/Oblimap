@@ -11,6 +11,7 @@ import { probeApi } from '../api/probe.api';
 import { siteApi } from '../api/site.api';
 import type { Probe, ProbeScanConfig, Site } from '@oblimap/shared';
 import { clsx } from 'clsx';
+import { useAnonymize } from '../utils/anonymize';
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -187,6 +188,7 @@ function PortListEditor({
 
 export function ProbeDetailPage() {
   const { t } = useTranslation();
+  const { anonymize } = useAnonymize();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
@@ -352,9 +354,9 @@ export function ProbeDetailPage() {
           </div>
           <div>
             <h1 className="text-2xl font-semibold text-text-primary">
-              {probe.name ?? probe.hostname}
+              {anonymize(probe.name ?? probe.hostname, 'hostname')}
             </h1>
-            <p className="text-text-muted text-sm font-mono">{probe.uuid}</p>
+            <p className="text-text-muted text-sm font-mono">{anonymize(probe.uuid)}</p>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -405,7 +407,7 @@ export function ProbeDetailPage() {
         <h2 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
           <Monitor size={15} className="text-accent" /> {t('probesPage.detail.probeInfo')}
         </h2>
-        <InfoRow label={t('probesPage.detail.hostname')} value={probe.hostname} />
+        <InfoRow label={t('probesPage.detail.hostname')} value={anonymize(probe.hostname, 'hostname')} />
         <InfoRow
           label={t('probesPage.detail.platform')}
           value={

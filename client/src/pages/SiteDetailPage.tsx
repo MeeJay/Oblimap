@@ -13,6 +13,7 @@ import { useTranslation } from 'react-i18next';
 import { siteApi } from '../api/site.api';
 import type { Site, SiteItem, IpReservation, DeviceType } from '@oblimap/shared';
 import { clsx } from 'clsx';
+import { useAnonymize } from '../utils/anonymize';
 import { SubnetHeatmap } from '@/components/ipam/SubnetHeatmap';
 import { exportSiteCSV, exportSiteExcel } from '@/utils/exportSite';
 import { getSocket } from '@/socket/socketClient';
@@ -464,6 +465,8 @@ function DevicesTab({
     return translated !== key ? translated : type;
   }
 
+  const { anonymize } = useAnonymize();
+
   async function handleDelete(item: SiteItem) {
     const displayName = item.customName ?? item.hostname ?? item.ip;
     if (!confirm(t('siteDetail.device.confirmRemove', { name: displayName }))) return;
@@ -554,7 +557,7 @@ function DevicesTab({
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-sm font-mono text-text-primary">{item.ip}</span>
+                          <span className="text-sm font-mono text-text-primary">{anonymize(item.ip, 'ip')}</span>
                           {item.hasReservationConflict && (
                             <span
                               title={t('siteDetail.device.reservationConflict')}
@@ -584,15 +587,15 @@ function DevicesTab({
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell">
                         <span className="text-xs font-mono text-text-secondary">
-                          {item.mac ?? '—'}
+                          {item.mac ? anonymize(item.mac, 'mac') : '—'}
                         </span>
                       </td>
                       <td className="px-4 py-3">
                         {displayName ? (
                           <div>
-                            <p className="text-sm text-text-primary">{displayName}</p>
+                            <p className="text-sm text-text-primary">{anonymize(displayName, 'hostname')}</p>
                             {item.customName && item.hostname && (
-                              <p className="text-xs text-text-muted">{item.hostname}</p>
+                              <p className="text-xs text-text-muted">{anonymize(item.hostname, 'hostname')}</p>
                             )}
                           </div>
                         ) : (
@@ -668,6 +671,7 @@ function ReservationsTab({
 }) {
   const { t } = useTranslation();
   const [modal, setModal] = useState<IpReservation | null | undefined>(undefined);
+  const { anonymize } = useAnonymize();
 
   function deviceTypeLabel(type: DeviceType): string {
     const key = `deviceTypes.${type}` as const;
@@ -727,7 +731,7 @@ function ReservationsTab({
                   className="border-b border-border last:border-0 hover:bg-bg-elevated/50 transition-colors"
                 >
                   <td className="px-4 py-3">
-                    <span className="text-sm font-mono text-text-primary">{res.ip}</span>
+                    <span className="text-sm font-mono text-text-primary">{anonymize(res.ip, 'ip')}</span>
                   </td>
                   <td className="px-4 py-3">
                     <span className="text-sm text-text-primary">{res.name}</span>
@@ -747,7 +751,7 @@ function ReservationsTab({
                           {t('siteDetail.reservation.occupied')}
                         </span>
                         {res.occupiedByMac && (
-                          <p className="text-xs font-mono text-text-muted mt-0.5">{res.occupiedByMac}</p>
+                          <p className="text-xs font-mono text-text-muted mt-0.5">{anonymize(res.occupiedByMac, 'mac')}</p>
                         )}
                       </div>
                     ) : (
@@ -799,6 +803,7 @@ type Tab = 'devices' | 'reservations' | 'heatmap';
 
 export function SiteDetailPage() {
   const { t } = useTranslation();
+  const { anonymize } = useAnonymize();
   const { id } = useParams<{ id: string }>();
   const siteId = Number(id);
 
@@ -895,7 +900,7 @@ export function SiteDetailPage() {
           <ArrowLeft size={18} />
         </Link>
         <MapPin size={22} className="text-accent" />
-        <h1 className="text-2xl font-semibold text-text-primary">{site.name}</h1>
+        <h1 className="text-2xl font-semibold text-text-primary">{anonymize(site.name, 'hostname')}</h1>
         <button
           onClick={() => void load()}
           className="ml-auto p-2 text-text-muted hover:text-text-primary rounded-lg transition-colors"

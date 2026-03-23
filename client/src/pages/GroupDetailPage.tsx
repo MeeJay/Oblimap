@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/utils/cn';
+import { useAnonymize } from '@/utils/anonymize';
 import { useGroupStore } from '@/store/groupStore';
 import { groupsApi } from '@/api/groups.api';
 import { siteApi } from '@/api/site.api';
@@ -20,6 +21,7 @@ type Tab = 'sites' | 'settings' | 'notifications';
 // ─── Sites Tab ────────────────────────────────────────────────────────────────
 
 function SitesTab({ groupId }: { groupId: number }) {
+  const { anonymize } = useAnonymize();
   const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -99,7 +101,7 @@ function SitesTab({ groupId }: { groupId: number }) {
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="font-medium text-text-primary truncate group-hover:text-accent transition-colors">
-                    {site.name}
+                    {anonymize(site.name, 'hostname')}
                   </p>
                   {site.description && (
                     <p className="text-xs text-text-muted truncate mt-0.5">{site.description}</p>

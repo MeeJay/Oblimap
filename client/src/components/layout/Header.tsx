@@ -7,6 +7,7 @@ import { useUiStore } from '@/store/uiStore';
 import { useSocketStore } from '@/store/socketStore';
 import { appConfigApi } from '@/api/appConfig.api';
 import { Button } from '@/components/common/Button';
+import { useAnonymize } from '@/utils/anonymize';
 import { NotificationCenter } from './NotificationCenter';
 import { TenantSwitcher } from './TenantSwitcher';
 import { cn } from '@/utils/cn';
@@ -19,6 +20,7 @@ export function Header() {
   const { t } = useTranslation();
   const { user, logout } = useAuthStore();
   const { toggleSidebar, sidebarFloating } = useUiStore();
+  const { anonymize } = useAnonymize();
   const { status: socketStatus } = useSocketStore();
   const [connectedApps, setConnectedApps] = useState<Array<{ appType: string; name: string; baseUrl: string }>>([]);
   const [obligateUrl, setObligateUrl] = useState<string | null>(null);
@@ -122,7 +124,7 @@ export function Header() {
           <>
             <div className="text-sm">
               <span className="text-text-secondary">{t('header.signedInAs')} </span>
-              <span className="font-medium text-text-primary">{user.username.startsWith('og_') ? user.username.slice(3) : user.username}</span>
+              <span className="font-medium text-text-primary">{anonymize(user.username.startsWith('og_') ? user.username.slice(3) : user.username, 'username')}</span>
               <span className="ml-2 rounded-full bg-bg-tertiary px-2 py-0.5 text-xs text-text-muted">
                 {user.role}
               </span>

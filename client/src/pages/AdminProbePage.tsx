@@ -11,6 +11,7 @@ import { siteApi } from '../api/site.api';
 import type { Probe, ProbeApiKey, Site } from '@oblimap/shared';
 import { clsx } from 'clsx';
 import { useUiStore } from '@/store/uiStore';
+import { useAnonymize } from '../utils/anonymize';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -217,6 +218,7 @@ function ProbeRow({
   sites: Site[];
 }) {
   const { t } = useTranslation();
+  const { anonymize } = useAnonymize();
   const [menuOpen, setMenuOpen] = useState(false);
 
   const platform = probe.osInfo?.platform
@@ -237,7 +239,7 @@ function ProbeRow({
               to={`/admin/probes/${probe.id}`}
               className="text-sm font-medium text-text-primary hover:text-accent transition-colors"
             >
-              {probe.name ?? probe.hostname}
+              {anonymize(probe.name ?? probe.hostname, 'hostname')}
             </Link>
             <p className="text-xs text-text-muted font-mono">{probe.uuid.slice(0, 8)}…</p>
           </div>
@@ -256,7 +258,7 @@ function ProbeRow({
       </td>
       <td className="px-4 py-3 hidden lg:table-cell">
         <span className="text-sm text-text-secondary">
-          {probe.siteId ? (sites.find((s) => s.id === probe.siteId)?.name ?? `Site #${probe.siteId}`) : '—'}
+          {probe.siteId ? anonymize(sites.find((s) => s.id === probe.siteId)?.name ?? `Site #${probe.siteId}`, 'hostname') : '—'}
         </span>
       </td>
       <td className="px-4 py-3">

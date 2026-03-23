@@ -10,6 +10,7 @@ import { siteApi } from '../api/site.api';
 import { groupsApi } from '../api/groups.api';
 import type { Site, MonitorGroup } from '@oblimap/shared';
 import { clsx } from 'clsx';
+import { useAnonymize } from '../utils/anonymize';
 import { useIpamLiveRefresh } from '@/hooks/useIpamLiveRefresh';
 
 // ─── Site Modal (create / edit) ───────────────────────────────────────────────
@@ -146,6 +147,7 @@ function SiteCard({
   onDelete: (site: Site) => void;
 }) {
   const { t } = useTranslation();
+  const { anonymize } = useAnonymize();
   const total = site.itemCount ?? 0;
   const online = site.onlineCount ?? 0;
   const offline = site.offlineCount ?? 0;
@@ -159,7 +161,7 @@ function SiteCard({
           <MapPin size={18} className="text-accent shrink-0" />
           <div className="min-w-0">
             <p className="font-semibold text-text-primary group-hover:text-accent transition-colors truncate">
-              {site.name}
+              {anonymize(site.name, 'hostname')}
             </p>
             {site.description && (
               <p className="text-xs text-text-muted truncate mt-0.5">{site.description}</p>

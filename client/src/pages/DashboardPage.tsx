@@ -11,6 +11,7 @@ import { probeApi } from '../api/probe.api';
 import type { Site, Probe } from '@oblimap/shared';
 import { clsx } from 'clsx';
 import { useIpamLiveRefresh } from '@/hooks/useIpamLiveRefresh';
+import { useAnonymize } from '../utils/anonymize';
 
 // ─── Stat Card ────────────────────────────────────────────────────────────────
 
@@ -76,6 +77,7 @@ function probeOnline(p: Probe) {
 export function DashboardPage() {
   const { t } = useTranslation();
   const { user } = useAuthStore();
+  const { anonymize } = useAnonymize();
   const [sites, setSites] = useState<Site[]>([]);
   const [probes, setProbes] = useState<Probe[]>([]);
   const [loading, setLoading] = useState(true);
@@ -149,7 +151,7 @@ export function DashboardPage() {
             <h1 className="text-2xl font-semibold text-text-primary">{t('dashboard.title')}</h1>
             {user && (
               <p className="text-sm text-text-secondary mt-0.5">
-                Welcome back, {user.displayName || user.username}
+                Welcome back, {anonymize(user.displayName || user.username, 'username')}
               </p>
             )}
           </div>
@@ -255,7 +257,7 @@ export function DashboardPage() {
                         to={`/sites/${site.id}`}
                         className="text-sm font-medium text-text-primary hover:text-accent transition-colors truncate block"
                       >
-                        {site.name}
+                        {anonymize(site.name, 'hostname')}
                       </Link>
                       {site.description && (
                         <p className="text-xs text-text-muted truncate">{site.description}</p>
@@ -338,7 +340,7 @@ export function DashboardPage() {
                           to={`/admin/probes/${probe.id}`}
                           className="text-sm text-text-primary hover:text-accent transition-colors truncate block"
                         >
-                          {probe.name ?? probe.hostname}
+                          {anonymize(probe.name ?? probe.hostname, 'hostname')}
                         </Link>
                         <p className="text-xs text-text-muted flex items-center gap-1 mt-0.5">
                           <Clock size={10} />
@@ -347,7 +349,7 @@ export function DashboardPage() {
                       </div>
                       {probe.siteId && (
                         <span className="text-xs text-text-muted shrink-0">
-                          {sites.find((s) => s.id === probe.siteId)?.name ?? `Site #${probe.siteId}`}
+                          {anonymize(sites.find((s) => s.id === probe.siteId)?.name ?? `Site #${probe.siteId}`, 'hostname')}
                         </span>
                       )}
                     </div>
