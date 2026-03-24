@@ -46,7 +46,7 @@ export function Header() {
             In pinned mode the logo lives inside the sidebar itself. */}
         {sidebarFloating && (
           <Link to="/" className="flex items-center gap-2 shrink-0">
-            <img src="/logo.webp" alt="Oblimap" className="h-8 w-8 rounded-lg" />
+            <img src="/logo.svg" alt="Oblimap" className="h-8 w-8 rounded-lg" />
             <span className="hidden text-lg font-semibold text-text-primary sm:block">Oblimap</span>
           </Link>
         )}
