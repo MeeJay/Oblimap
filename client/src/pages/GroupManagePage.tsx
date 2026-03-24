@@ -22,6 +22,7 @@ import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { NotificationBindingsPanel } from '@/components/notifications/NotificationBindingsPanel';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { cn } from '@/utils/cn';
+import { useAnonymize } from '@/utils/anonymize';
 import toast from 'react-hot-toast';
 
 interface GroupFormData {
@@ -88,6 +89,7 @@ function findNodeById(nodes: GroupTreeNode[], id: number): GroupTreeNode | null 
 export function GroupManagePage() {
   const { fetchGroups, fetchTree, tree } = useGroupStore();
   const { t } = useTranslation();
+  const { anonymize } = useAnonymize();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<GroupFormData>(emptyForm);
@@ -472,7 +474,7 @@ export function GroupManagePage() {
                 <div className="flex items-center gap-2 rounded-md bg-bg-secondary border border-accent px-3 py-2 text-sm shadow-lg">
                   <GripVertical size={14} className="text-accent" />
                   <FolderTree size={16} className="text-accent" />
-                  <span className="text-text-primary">{draggingNode.name}</span>
+                  <span className="text-text-primary">{anonymize(draggingNode.name, 'hostname')}</span>
                 </div>
               )}
             </DragOverlay>
@@ -500,6 +502,7 @@ function DraggableGroupRow({
   draggedId: number | null;
 }) {
   const { t } = useTranslation();
+  const { anonymize } = useAnonymize();
   const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
     id: `group-drag-${node.id}`,
     data: { node },
@@ -532,7 +535,7 @@ function DraggableGroupRow({
         <GripVertical size={14} />
       </div>
       <FolderTree size={16} className="text-accent shrink-0" />
-      <span className="flex-1 text-sm text-text-primary">{node.name}</span>
+      <span className="flex-1 text-sm text-text-primary">{anonymize(node.name, 'hostname')}</span>
       {node.isGeneral && (
         <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
           {t('groups.generalBadge')}

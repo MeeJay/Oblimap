@@ -150,6 +150,7 @@ export function GroupDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { t } = useTranslation();
   const { getGroup } = useGroupStore();
+  const { anonymize } = useAnonymize();
 
   const groupId = parseInt(id!, 10);
 
@@ -201,7 +202,7 @@ export function GroupDetailPage() {
         </Link>
         <span className="text-text-muted">/</span>
         <FolderOpen size={16} className="text-accent shrink-0" />
-        <h1 className="text-lg font-semibold text-text-primary">{group.name}</h1>
+        <h1 className="text-lg font-semibold text-text-primary">{anonymize(group.name, 'hostname')}</h1>
         {group.description && (
           <p className="text-sm text-text-muted hidden sm:block">— {group.description}</p>
         )}

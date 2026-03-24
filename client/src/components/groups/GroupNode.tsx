@@ -4,6 +4,7 @@ import { useDroppable } from '@dnd-kit/core';
 import type { GroupTreeNode } from '@oblimap/shared';
 import { cn } from '@/utils/cn';
 import { useGroupStore } from '@/store/groupStore';
+import { useAnonymize } from '@/utils/anonymize';
 
 interface GroupNodeProps {
   node: GroupTreeNode;
@@ -18,6 +19,7 @@ export function GroupNode({ node, depth = 0, selectedGroupId, onSelectGroup, dnd
   const navigate = useNavigate();
   const location = useLocation();
   const { getGroupStats, isGroupExpanded, toggleGroupExpanded } = useGroupStore();
+  const { anonymize } = useAnonymize();
   const expanded = isGroupExpanded(node.id);
 
   const isSearching = searchQuery.length > 0;
@@ -98,7 +100,7 @@ export function GroupNode({ node, depth = 0, selectedGroupId, onSelectGroup, dnd
               }}
               className="flex items-center gap-1.5 flex-1 min-w-0 py-1.5 pr-2"
             >
-              <span className="truncate flex-1 text-left">{node.name}</span>
+              <span className="truncate flex-1 text-left">{anonymize(node.name, 'hostname')}</span>
 
               {stats && stats.total > 0 && (
                 <span

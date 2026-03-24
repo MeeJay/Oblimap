@@ -214,7 +214,7 @@ export function Sidebar() {
                     )}
                   >
                     <MapPin size={13} className="shrink-0 text-accent" />
-                    <span className="truncate flex-1">{site.name}</span>
+                    <span className="truncate flex-1">{anonymize(site.name, 'hostname')}</span>
                     {total > 0 && (
                       <span
                         className={cn(
