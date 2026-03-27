@@ -49,6 +49,7 @@ router.post('/devices/bulk', probeController.bulk);
 
 // Single probe operations
 router.get('/devices/:id', probeController.get);
+router.get('/devices/:id/effective-config', probeController.getEffectiveConfig);
 router.patch('/devices/:id', probeController.update);
 router.delete('/devices/:id', probeController.remove);
 router.post('/devices/:id/approve', probeController.approve);

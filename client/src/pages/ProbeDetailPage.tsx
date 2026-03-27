@@ -203,6 +203,7 @@ export function ProbeDetailPage() {
   const [name, setName] = useState('');
   const [scanInterval, setScanInterval] = useState(300);
   const [selectedSiteId, setSelectedSiteId] = useState<number | null>(null);
+  const [scanConfigOverride, setScanConfigOverride] = useState(true);
   const [scanConfig, setScanConfig] = useState<ProbeScanConfig>({
     excludedSubnets: [],
     extraSubnets: [],
@@ -219,6 +220,7 @@ export function ProbeDetailPage() {
       setName(p.name ?? p.hostname);
       setScanInterval(p.scanIntervalSeconds);
       setSelectedSiteId(p.siteId ?? null);
+      setScanConfigOverride(p.scanConfigOverride ?? true);
       setScanConfig(p.scanConfig);
     } catch {
       toast.error(t('probesPage.failedLoad'));
@@ -252,6 +254,7 @@ export function ProbeDetailPage() {
         scanIntervalSeconds: scanInterval,
         siteId: selectedSiteId,
         scanConfig,
+        scanConfigOverride,
       });
       toast.success(t('probesPage.updated'));
       void load();
@@ -462,6 +465,38 @@ export function ProbeDetailPage() {
         </h2>
 
         <div className="space-y-5">
+          {/* Override group/site settings toggle */}
+          <div className="border-b border-border pb-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-text-primary font-medium">{t('probesPage.detail.overrideSettings')}</p>
+                <p className="text-xs text-text-muted mt-0.5">{t('probesPage.detail.overrideSettingsDesc')}</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={scanConfigOverride}
+                onClick={() => setScanConfigOverride(!scanConfigOverride)}
+                className={clsx(
+                  'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none',
+                  scanConfigOverride ? 'bg-accent' : 'bg-bg-elevated border border-border',
+                )}
+              >
+                <span
+                  className={clsx(
+                    'inline-block h-4 w-4 rounded-full bg-white shadow transition-transform',
+                    scanConfigOverride ? 'translate-x-6' : 'translate-x-1',
+                  )}
+                />
+              </button>
+            </div>
+            {!scanConfigOverride && (
+              <p className="mt-2 text-xs text-accent/80 bg-accent/5 border border-accent/20 rounded-lg px-3 py-2">
+                {t('probesPage.detail.inheritingSettings')}
+              </p>
+            )}
+          </div>
+
           {/* Display name */}
           <div>
             <label className="text-sm text-text-muted block mb-2">
@@ -493,100 +528,105 @@ export function ProbeDetailPage() {
             </select>
           </div>
 
-          {/* Scan interval */}
-          <div>
-            <label className="text-sm text-text-muted block mb-2">
-              {t('probesPage.detail.scanInterval', {
-                seconds: scanInterval,
-                minutes: Math.round(scanInterval / 60),
-              })}
-            </label>
-            <input
-              type="range"
-              min={30}
-              max={3600}
-              step={30}
-              value={scanInterval}
-              onChange={(e) => setScanInterval(parseInt(e.target.value, 10))}
-              className="w-full accent-accent"
-            />
-            <div className="flex justify-between text-xs text-text-muted mt-1">
-              <span>30s</span>
-              <span>10m</span>
-              <span>30m</span>
-              <span>1h</span>
-            </div>
-          </div>
-
-          {/* Excluded subnets */}
-          <SubnetListEditor
-            label={t('probesPage.detail.excludedSubnets')}
-            value={scanConfig.excludedSubnets}
-            onChange={(v) => setScanConfig((c) => ({ ...c, excludedSubnets: v }))}
-            placeholder="10.0.0.0/8"
-          />
-
-          {/* Extra subnets */}
-          <SubnetListEditor
-            label={t('probesPage.detail.extraSubnets')}
-            value={scanConfig.extraSubnets}
-            onChange={(v) => setScanConfig((c) => ({ ...c, extraSubnets: v }))}
-            placeholder="172.16.50.0/24"
-          />
-
-          {/* Port scan */}
-          <div className="border-t border-border pt-4">
-            <div className="flex items-center justify-between mb-3">
+          {/* Scan config fields — only editable when override is ON */}
+          {scanConfigOverride && (
+            <>
+              {/* Scan interval */}
               <div>
-                <p className="text-sm text-text-primary font-medium">{t('probesPage.detail.portScanEnabled')}</p>
-                <p className="text-xs text-text-muted mt-0.5">{t('probesPage.detail.portScanDesc')}</p>
-              </div>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={scanConfig.portScanEnabled ?? false}
-                onClick={() => {
-                  const enabling = !(scanConfig.portScanEnabled ?? false);
-                  setScanConfig((c) => ({
-                    ...c,
-                    portScanEnabled: enabling,
-                    portScanPorts: enabling && (!c.portScanPorts || c.portScanPorts.length === 0)
-                      ? DEFAULT_PORT_SCAN_PORTS
-                      : c.portScanPorts,
-                  }));
-                }}
-                className={clsx(
-                  'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none',
-                  (scanConfig.portScanEnabled ?? false) ? 'bg-accent' : 'bg-bg-elevated border border-border',
-                )}
-              >
-                <span
-                  className={clsx(
-                    'inline-block h-4 w-4 rounded-full bg-white shadow transition-transform',
-                    (scanConfig.portScanEnabled ?? false) ? 'translate-x-6' : 'translate-x-1',
-                  )}
+                <label className="text-sm text-text-muted block mb-2">
+                  {t('probesPage.detail.scanInterval', {
+                    seconds: scanInterval,
+                    minutes: Math.round(scanInterval / 60),
+                  })}
+                </label>
+                <input
+                  type="range"
+                  min={30}
+                  max={3600}
+                  step={30}
+                  value={scanInterval}
+                  onChange={(e) => setScanInterval(parseInt(e.target.value, 10))}
+                  className="w-full accent-accent"
                 />
-              </button>
-            </div>
-            {(scanConfig.portScanEnabled ?? false) && (
-              <div>
-                <label className="text-sm text-text-muted block mb-2">{t('probesPage.detail.portScanPorts')}</label>
-                <PortListEditor
-                  value={scanConfig.portScanPorts ?? []}
-                  onChange={(v) => setScanConfig((c) => ({ ...c, portScanPorts: v }))}
-                />
-                <div className="mt-2">
-                  <button
-                    type="button"
-                    onClick={() => setScanConfig((c) => ({ ...c, portScanPorts: DEFAULT_PORT_SCAN_PORTS }))}
-                    className="text-xs text-accent hover:underline"
-                  >
-                    {t('probesPage.detail.portScanReset')}
-                  </button>
+                <div className="flex justify-between text-xs text-text-muted mt-1">
+                  <span>30s</span>
+                  <span>10m</span>
+                  <span>30m</span>
+                  <span>1h</span>
                 </div>
               </div>
-            )}
-          </div>
+
+              {/* Excluded subnets */}
+              <SubnetListEditor
+                label={t('probesPage.detail.excludedSubnets')}
+                value={scanConfig.excludedSubnets}
+                onChange={(v) => setScanConfig((c) => ({ ...c, excludedSubnets: v }))}
+                placeholder="10.0.0.0/8"
+              />
+
+              {/* Extra subnets */}
+              <SubnetListEditor
+                label={t('probesPage.detail.extraSubnets')}
+                value={scanConfig.extraSubnets}
+                onChange={(v) => setScanConfig((c) => ({ ...c, extraSubnets: v }))}
+                placeholder="172.16.50.0/24"
+              />
+
+              {/* Port scan */}
+              <div className="border-t border-border pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="text-sm text-text-primary font-medium">{t('probesPage.detail.portScanEnabled')}</p>
+                    <p className="text-xs text-text-muted mt-0.5">{t('probesPage.detail.portScanDesc')}</p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={scanConfig.portScanEnabled ?? false}
+                    onClick={() => {
+                      const enabling = !(scanConfig.portScanEnabled ?? false);
+                      setScanConfig((c) => ({
+                        ...c,
+                        portScanEnabled: enabling,
+                        portScanPorts: enabling && (!c.portScanPorts || c.portScanPorts.length === 0)
+                          ? DEFAULT_PORT_SCAN_PORTS
+                          : c.portScanPorts,
+                      }));
+                    }}
+                    className={clsx(
+                      'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none',
+                      (scanConfig.portScanEnabled ?? false) ? 'bg-accent' : 'bg-bg-elevated border border-border',
+                    )}
+                  >
+                    <span
+                      className={clsx(
+                        'inline-block h-4 w-4 rounded-full bg-white shadow transition-transform',
+                        (scanConfig.portScanEnabled ?? false) ? 'translate-x-6' : 'translate-x-1',
+                      )}
+                    />
+                  </button>
+                </div>
+                {(scanConfig.portScanEnabled ?? false) && (
+                  <div>
+                    <label className="text-sm text-text-muted block mb-2">{t('probesPage.detail.portScanPorts')}</label>
+                    <PortListEditor
+                      value={scanConfig.portScanPorts ?? []}
+                      onChange={(v) => setScanConfig((c) => ({ ...c, portScanPorts: v }))}
+                    />
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        onClick={() => setScanConfig((c) => ({ ...c, portScanPorts: DEFAULT_PORT_SCAN_PORTS }))}
+                        className="text-xs text-accent hover:underline"
+                      >
+                        {t('probesPage.detail.portScanReset')}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
 
           <div className="flex justify-end pt-2">
             <button

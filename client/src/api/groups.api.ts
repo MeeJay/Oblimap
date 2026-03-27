@@ -5,6 +5,7 @@ import type {
   ApiResponse,
   CreateGroupRequest,
   UpdateGroupRequest,
+  Probe,
 } from '@oblimap/shared';
 
 export const groupsApi = {
@@ -49,6 +50,11 @@ export const groupsApi = {
 
   async reorder(items: { id: number; sortOrder: number }[]): Promise<void> {
     await apiClient.post('/groups/reorder', { items });
+  },
+
+  async getGroupProbes(groupId: number): Promise<{ probes: (Probe & { siteName: string | null })[] }> {
+    const res = await apiClient.get(`/groups/${groupId}/probes`);
+    return res.data as { probes: (Probe & { siteName: string | null })[] };
   },
 
 };

@@ -9,12 +9,12 @@ function parseScope(req: Request): { scope: SettingsScope; scopeId: number | nul
   const { scope, scopeId } = req.params;
 
   if (scope === 'global') return { scope: 'global', scopeId: null };
-  if (scope === 'group' || scope === 'monitor') {
+  if (scope === 'group' || scope === 'monitor' || scope === 'site') {
     const id = parseInt(scopeId, 10);
     if (isNaN(id)) throw new AppError(400, 'Invalid scope ID');
     return { scope, scopeId: id };
   }
-  throw new AppError(400, 'Invalid scope. Must be global, group, or monitor');
+  throw new AppError(400, 'Invalid scope. Must be global, group, site, or monitor');
 }
 
 export const settingsController = {
@@ -35,6 +35,21 @@ export const settingsController = {
       if (isNaN(groupId)) throw new AppError(400, 'Invalid group ID');
       const result = await settingsService.resolveForGroup(groupId);
       res.json({ success: true, data: result });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // GET /api/settings/site/:scopeId/resolved
+  async getSiteResolved(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const siteId = parseInt(req.params.scopeId, 10);
+      if (isNaN(siteId)) throw new AppError(400, 'Invalid site ID');
+
+      const resolved = await settingsService.resolveForSite(req.tenantId, siteId);
+      const overrides = await settingsService.getByScope('site', siteId);
+
+      res.json({ success: true, data: { resolved, overrides } });
     } catch (err) {
       next(err);
     }

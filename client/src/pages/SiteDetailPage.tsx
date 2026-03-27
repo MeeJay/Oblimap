@@ -6,15 +6,19 @@ import {
   Network, GitBranch, Server, Printer, Cpu, Camera, Hash, Monitor,
   Phone, Smartphone, Laptop, Box, Wifi, Shield, HardDrive, HelpCircle,
   ExternalLink, EyeOff, Eye, ChevronUp, ChevronDown, ChevronsUpDown,
+  ChevronRight,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
 import { siteApi } from '../api/site.api';
-import type { Site, SiteItem, IpReservation, DeviceType } from '@oblimap/shared';
+import { probeApi } from '../api/probe.api';
+import type { Site, SiteItem, IpReservation, DeviceType, Probe } from '@oblimap/shared';
 import { clsx } from 'clsx';
 import { useAnonymize } from '../utils/anonymize';
 import { SubnetHeatmap } from '@/components/ipam/SubnetHeatmap';
+import { SettingsPanel } from '@/components/settings/SettingsPanel';
+import { NotificationBindingsPanel } from '@/components/notifications/NotificationBindingsPanel';
 import { exportSiteCSV, exportSiteExcel } from '@/utils/exportSite';
 import { getSocket } from '@/socket/socketClient';
 import { SOCKET_EVENTS } from '@oblimap/shared';
@@ -496,12 +500,14 @@ function DevicesTab({
   siteName,
   items,
   reservations,
+  probes,
   onRefresh,
 }: {
   siteId: number;
   siteName: string;
   items: SiteItem[];
   reservations: IpReservation[];
+  probes: Probe[];
   onRefresh: () => void;
 }) {
   const { t } = useTranslation();
@@ -509,6 +515,22 @@ function DevicesTab({
   const [hideOffline, setHideOffline] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>('ip');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const lsKey = `oblimap:collapsed-subnets:${siteId}`;
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(lsKey);
+      return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
+    } catch { return new Set(); }
+  });
+
+  function toggleCollapse(subnet: string) {
+    setCollapsed(prev => {
+      const next = new Set(prev);
+      if (next.has(subnet)) next.delete(subnet); else next.add(subnet);
+      localStorage.setItem(lsKey, JSON.stringify([...next]));
+      return next;
+    });
+  }
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) {
@@ -563,6 +585,35 @@ function DevicesTab({
   const multiSubnet = subnetKeys.length > 1;
 
   const offlineCount = items.filter(i => i.status === 'offline').length;
+
+  // Build a map: subnet prefix → probe that discovered most items in it
+  const probeMap = new Map<number, Probe>();
+  for (const p of probes) probeMap.set(p.id, p);
+
+  function subnetProbe(subnetItems: SiteItem[]): Probe | undefined {
+    const counts = new Map<number, number>();
+    for (const item of subnetItems) {
+      if (item.discoveredByProbeId) {
+        counts.set(item.discoveredByProbeId, (counts.get(item.discoveredByProbeId) ?? 0) + 1);
+      }
+    }
+    let bestId = 0, bestCount = 0;
+    for (const [id, count] of counts) {
+      if (count > bestCount) { bestId = id; bestCount = count; }
+    }
+    return bestId ? probeMap.get(bestId) : undefined;
+  }
+
+  async function handleDeleteSubnet(prefix: string, count: number) {
+    if (!confirm(t('siteDetail.device.confirmDeleteSubnet', { subnet: `${prefix}.0/24`, count }))) return;
+    try {
+      await siteApi.removeSubnet(siteId, prefix);
+      toast.success(t('siteDetail.device.subnetDeleted', { count }));
+      onRefresh();
+    } catch {
+      toast.error(t('siteDetail.device.failedDeleteSubnet'));
+    }
+  }
 
   // Shared table header
   function TableHead() {
@@ -758,25 +809,52 @@ function DevicesTab({
         <div className="space-y-4">
           {subnetKeys.map((subnet) => {
             const groupItems = subnets.get(subnet)!;
+            const probe = subnetProbe(groupItems);
             return (
               <div key={subnet} className="bg-bg-card border border-border rounded-xl overflow-hidden">
                 {multiSubnet && (
-                  <div className="px-4 py-2 bg-bg-secondary/50 border-b border-border flex items-center gap-2">
+                  <div
+                    className="px-4 py-2 bg-bg-secondary/50 border-b border-border flex items-center gap-2 cursor-pointer select-none"
+                    onClick={() => toggleCollapse(subnet)}
+                  >
+                    {collapsed.has(subnet)
+                      ? <ChevronRight size={14} className="text-text-muted" />
+                      : <ChevronDown size={14} className="text-text-muted" />
+                    }
                     <Network size={14} className="text-accent" />
                     <span className="text-sm font-medium text-text-primary font-mono">{subnet}.0/24</span>
                     <span className="text-xs text-text-muted">
                       ({groupItems.length} {groupItems.length === 1 ? 'device' : 'devices'})
                     </span>
+                    {probe && (
+                      <Link
+                        to={`/admin/probes/${probe.id}`}
+                        className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border bg-accent/10 text-accent border-accent/30 hover:bg-accent/20 transition-colors"
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <Radar size={10} />
+                        {probe.name || probe.hostname}
+                      </Link>
+                    )}
+                    <button
+                      onClick={(e) => { e.stopPropagation(); void handleDeleteSubnet(subnet, groupItems.length); }}
+                      className="ml-auto p-1.5 text-text-muted hover:text-red-400 rounded transition-colors"
+                      title={t('siteDetail.device.deleteSubnet')}
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
                 )}
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <TableHead />
-                    <tbody>
-                      {groupItems.map(item => <DeviceRow key={item.id} item={item} />)}
-                    </tbody>
-                  </table>
-                </div>
+                {!collapsed.has(subnet) && (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <TableHead />
+                      <tbody>
+                        {groupItems.map(item => <DeviceRow key={item.id} item={item} />)}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -936,7 +1014,7 @@ function ReservationsTab({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-type Tab = 'devices' | 'reservations' | 'heatmap';
+type Tab = 'devices' | 'reservations' | 'heatmap' | 'settings' | 'notifications';
 
 export function SiteDetailPage() {
   const { t } = useTranslation();
@@ -947,20 +1025,23 @@ export function SiteDetailPage() {
   const [site, setSite] = useState<Site | null>(null);
   const [items, setItems] = useState<SiteItem[]>([]);
   const [reservations, setReservations] = useState<IpReservation[]>([]);
+  const [probes, setProbes] = useState<Probe[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('devices');
 
   const load = useCallback(async () => {
     if (!siteId) return;
     try {
-      const [siteRes, itemsRes, resvRes] = await Promise.all([
+      const [siteRes, itemsRes, resvRes, probesRes] = await Promise.all([
         siteApi.get(siteId),
         siteApi.listItems(siteId),
         siteApi.listReservations(siteId),
+        probeApi.list().catch(() => ({ probes: [] as Probe[] })),
       ]);
       setSite(siteRes.site);
       setItems(itemsRes.items);
       setReservations(resvRes.reservations);
+      setProbes(probesRes.probes);
     } catch {
       toast.error(t('siteDetail.failedLoad'));
     } finally {
@@ -1023,6 +1104,8 @@ export function SiteDetailPage() {
     { id: 'devices',      label: t('siteDetail.tabDevices',      { count: items.length }) },
     { id: 'reservations', label: t('siteDetail.tabReservations', { count: reservations.length }) },
     { id: 'heatmap',      label: t('siteDetail.tabHeatmap') },
+    { id: 'settings',     label: t('siteDetail.tabSettings') },
+    { id: 'notifications', label: t('siteDetail.tabNotifications') },
   ];
 
   return (
@@ -1088,6 +1171,7 @@ export function SiteDetailPage() {
             siteName={site.name}
             items={items}
             reservations={reservations}
+            probes={probes}
             onRefresh={() => void load()}
           />
         </div>
@@ -1096,6 +1180,12 @@ export function SiteDetailPage() {
         </div>
         <div style={{ gridArea: '1/1' }} className={tab !== 'heatmap' ? 'invisible pointer-events-none' : ''}>
           <SubnetHeatmap items={items} reservations={reservations} />
+        </div>
+        <div style={{ gridArea: '1/1' }} className={tab !== 'settings' ? 'invisible pointer-events-none' : ''}>
+          <SettingsPanel scope="site" scopeId={siteId} />
+        </div>
+        <div style={{ gridArea: '1/1' }} className={tab !== 'notifications' ? 'invisible pointer-events-none' : ''}>
+          <NotificationBindingsPanel scope="site" scopeId={siteId} />
         </div>
       </div>
     </div>

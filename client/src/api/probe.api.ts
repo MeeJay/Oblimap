@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { Probe, ProbeApiKey, ProbeScanConfig } from '@oblimap/shared';
+import type { Probe, ProbeApiKey, ProbeScanConfig, ResolvedSettings } from '@oblimap/shared';
 import type { AxiosResponse } from 'axios';
 
 export const probeApi = {
@@ -29,6 +29,7 @@ export const probeApi = {
       siteId: number | null;
       scanIntervalSeconds: number;
       scanConfig: ProbeScanConfig;
+      scanConfigOverride: boolean;
     }>,
   ): Promise<{ probe: Probe }> =>
     apiClient.patch(`/probe/devices/${id}`, updates).then((r: AxiosResponse) => r.data as { probe: Probe }),
@@ -44,6 +45,11 @@ export const probeApi = {
 
   remove: (id: number): Promise<void> =>
     apiClient.delete(`/probe/devices/${id}`).then(() => undefined),
+
+  // ── Effective Config ─────────────────────────────────────────────────────
+
+  getEffectiveConfig: (id: number): Promise<ResolvedSettings> =>
+    apiClient.get(`/probe/devices/${id}/effective-config`).then((r: AxiosResponse) => (r.data as { data: ResolvedSettings }).data),
 
   // ── Bulk ──────────────────────────────────────────────────────────────────
 

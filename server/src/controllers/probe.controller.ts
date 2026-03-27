@@ -2,6 +2,7 @@ import path from 'path';
 import fs from 'fs';
 import type { Request, Response, NextFunction } from 'express';
 import { probeService } from '../services/probe.service';
+import { settingsService } from '../services/settings.service';
 import { AppError } from '../middleware/errorHandler';
 
 // ── Public: version + download + installer + notifying-update ────────────────
@@ -188,6 +189,7 @@ export const probeController = {
         siteId?: number | null;
         scanIntervalSeconds?: number;
         scanConfig?: { excludedSubnets: string[]; extraSubnets: string[] };
+        scanConfigOverride?: boolean;
       };
       const probe = await probeService.updateProbe(
         req.tenantId,
@@ -250,6 +252,35 @@ export const probeController = {
     try {
       await probeService.deleteProbe(req.tenantId, parseInt(req.params.id, 10));
       res.status(204).send();
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  // ── Effective Config ─────────────────────────────────────────────────────
+
+  async getEffectiveConfig(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const probe = await probeService.getProbe(
+        req.tenantId,
+        parseInt(req.params.id, 10),
+      );
+      if (!probe) throw new AppError(404, 'Probe not found');
+
+      let groupId: number | null = null;
+      if (probe.siteId) {
+        const { db: database } = await import('../db');
+        const site = await database('sites').where({ id: probe.siteId }).first('group_id');
+        groupId = (site?.group_id as number | null) ?? null;
+      }
+
+      const resolved = await settingsService.resolveForProbe(
+        req.tenantId,
+        probe.id,
+        probe.siteId,
+        groupId,
+      );
+      res.json({ success: true, data: resolved });
     } catch (err) {
       next(err);
     }

@@ -318,9 +318,41 @@ var cachedPortScanEnabled bool
 var cachedPortScanPorts []int
 
 func isExcluded(subnet string) bool {
+	_, snNet, err := net.ParseCIDR(subnet)
+	if err != nil {
+		// Fallback: exact string match
+		for _, ex := range cachedExcluded {
+			if ex == subnet {
+				return true
+			}
+		}
+		return false
+	}
+	snKey := snNet.String() // canonical form e.g. "192.168.1.0/24"
+
 	for _, ex := range cachedExcluded {
-		if ex == subnet {
+		// Try parsing the exclusion as CIDR
+		_, exNet, err2 := net.ParseCIDR(ex)
+		if err2 != nil {
+			// Maybe bare network like "192.168.1.0" — try with /24
+			_, exNet, err2 = net.ParseCIDR(ex + "/24")
+			if err2 != nil {
+				if ex == subnet {
+					return true
+				}
+				continue
+			}
+		}
+		if exNet.String() == snKey {
 			return true
+		}
+		// Also check if the scanned subnet is contained within the exclusion
+		if exNet.Contains(snNet.IP) {
+			ones1, _ := exNet.Mask.Size()
+			ones2, _ := snNet.Mask.Size()
+			if ones1 <= ones2 {
+				return true
+			}
 		}
 	}
 	return false

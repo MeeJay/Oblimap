@@ -106,6 +106,21 @@ export const siteController = {
     } catch (err) { next(err); }
   },
 
+  async removeSubnet(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const prefix = req.query.prefix as string;
+      if (!prefix || !/^\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(prefix)) {
+        throw new AppError(400, 'prefix query param required (e.g. 192.168.1)');
+      }
+      const count = await siteService.deleteItemsBySubnet(
+        req.tenantId,
+        parseInt(req.params.id, 10),
+        prefix,
+      );
+      res.json({ deleted: count });
+    } catch (err) { next(err); }
+  },
+
   // ── Reservations ──────────────────────────────────────────────────────────
 
   async listReservations(req: Request, res: Response, next: NextFunction): Promise<void> {

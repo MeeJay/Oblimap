@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
+import { db } from '../db';
 import { groupService } from '../services/group.service';
 import { permissionService } from '../services/permission.service';
 import { teamService } from '../services/team.service';
@@ -187,21 +188,69 @@ export const groupsController = {
 
   async stats(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      // Heartbeat stats not available in IPAM mode — return empty per-group records
-      const allGroups = await groupService.getAll(req.tenantId);
-      const result: Record<number, { uptimePct: number; total: number; up: number }> = {};
+      const tenantId = req.tenantId;
+      const allGroups = await groupService.getAll(tenantId);
+      const result: Record<number, { uptimePct: number; total: number; up: number; siteCount: number; onlineCount: number; offlineCount: number }> = {};
+
       for (const group of allGroups) {
-        result[group.id] = { total: 0, up: 0, uptimePct: 100 };
+        const descendantIds = await groupService.getDescendantIds(group.id);
+
+        const row = await db('sites')
+          .where('tenant_id', tenantId)
+          .whereIn('group_id', descendantIds)
+          .leftJoin(
+            db('site_items')
+              .select('site_id')
+              .count('* as item_count')
+              .where('tenant_id', tenantId)
+              .groupBy('site_id')
+              .as('ic'),
+            'sites.id', 'ic.site_id',
+          )
+          .leftJoin(
+            db('site_items')
+              .select('site_id')
+              .count('* as online_count')
+              .where({ tenant_id: tenantId, status: 'online' })
+              .groupBy('site_id')
+              .as('oc'),
+            'sites.id', 'oc.site_id',
+          )
+          .leftJoin(
+            db('site_items')
+              .select('site_id')
+              .count('* as offline_count')
+              .where({ tenant_id: tenantId, status: 'offline' })
+              .groupBy('site_id')
+              .as('ofc'),
+            'sites.id', 'ofc.site_id',
+          )
+          .select(
+            db.raw('COUNT(DISTINCT sites.id)::int as site_count'),
+            db.raw('COALESCE(SUM(ic.item_count), 0)::int as total'),
+            db.raw('COALESCE(SUM(oc.online_count), 0)::int as online_count'),
+            db.raw('COALESCE(SUM(ofc.offline_count), 0)::int as offline_count'),
+          )
+          .first();
+
+        const total = Number(row?.total ?? 0);
+        const online = Number(row?.online_count ?? 0);
+        const offline = Number(row?.offline_count ?? 0);
+        const siteCount = Number(row?.site_count ?? 0);
+        const uptimePct = total > 0 ? Math.round((online / total) * 100) : 100;
+
+        result[group.id] = { total, up: online, uptimePct, siteCount, onlineCount: online, offlineCount: offline };
       }
+
       res.json({ success: true, data: result });
     } catch (err) {
       next(err);
     }
   },
 
+  // IPAM mode: no heartbeats
   async clearHeartbeats(_req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      // No heartbeats in IPAM mode
       res.json({ success: true, data: { deleted: 0, monitorCount: 0 } });
     } catch (err) {
       next(err);
@@ -227,37 +276,127 @@ export const groupsController = {
     }
   },
 
+  // IPAM mode: no monitors
   async getMonitors(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const groupId = parseInt(req.params.id, 10);
       const group = await groupService.getById(groupId);
       if (!group) throw new AppError(404, 'Group not found');
-      // Monitors not used in IPAM mode — return empty list
       res.json({ success: true, data: [] });
     } catch (err) {
       next(err);
     }
   },
 
+  // IPAM mode: no heartbeats
   async heartbeats(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const groupId = parseInt(req.params.id, 10);
       const group = await groupService.getById(groupId);
       if (!group) throw new AppError(404, 'Group not found');
-      // No heartbeats in IPAM mode
       res.json({ success: true, data: [] });
     } catch (err) {
       next(err);
     }
   },
 
+  // IPAM mode: real site/device stats for this group (replaces dummy heartbeat stats)
   async groupDetailStats(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const groupId = parseInt(req.params.id, 10);
+      const tenantId = req.tenantId;
       const group = await groupService.getById(groupId);
       if (!group) throw new AppError(404, 'Group not found');
-      // No heartbeat stats in IPAM mode
-      res.json({ success: true, data: { uptimePct: 100, total: 0, up: 0 } });
+
+      const descendantIds = await groupService.getDescendantIds(groupId);
+
+      const row = await db('sites')
+        .where('tenant_id', tenantId)
+        .whereIn('group_id', descendantIds)
+        .leftJoin(
+          db('site_items')
+            .select('site_id')
+            .count('* as item_count')
+            .where('tenant_id', tenantId)
+            .groupBy('site_id')
+            .as('ic'),
+          'sites.id', 'ic.site_id',
+        )
+        .leftJoin(
+          db('site_items')
+            .select('site_id')
+            .count('* as online_count')
+            .where({ tenant_id: tenantId, status: 'online' })
+            .groupBy('site_id')
+            .as('oc'),
+          'sites.id', 'oc.site_id',
+        )
+        .select(
+          db.raw('COUNT(DISTINCT sites.id)::int as site_count'),
+          db.raw('COALESCE(SUM(ic.item_count), 0)::int as total'),
+          db.raw('COALESCE(SUM(oc.online_count), 0)::int as up'),
+        )
+        .first();
+
+      const total = Number(row?.total ?? 0);
+      const up = Number(row?.up ?? 0);
+      const siteCount = Number(row?.site_count ?? 0);
+      const uptimePct = total > 0 ? Math.round((up / total) * 100) : 100;
+
+      res.json({ success: true, data: { uptimePct, total, up, siteCount } });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /** GET /groups/:id/probes — list all probes in this group and its sub-groups */
+  async getGroupProbes(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const groupId = parseInt(req.params.id, 10);
+      const tenantId = req.tenantId;
+
+      const group = await groupService.getById(groupId);
+      if (!group) throw new AppError(404, 'Group not found');
+
+      const isAdmin = req.session.role === 'admin';
+      if (!isAdmin) {
+        const canRead = await permissionService.canReadGroup(req.session.userId!, groupId, false);
+        if (!canRead) throw new AppError(403, 'Access denied');
+      }
+
+      const descendantIds = await groupService.getDescendantIds(groupId);
+      const siteIds: number[] = await db('sites')
+        .whereIn('group_id', descendantIds)
+        .where('tenant_id', tenantId)
+        .pluck('id');
+
+      if (siteIds.length === 0) {
+        res.json({ probes: [] });
+        return;
+      }
+
+      const probes = await db('probes')
+        .whereIn('probes.site_id', siteIds)
+        .where('probes.tenant_id', tenantId)
+        .leftJoin('sites', 'probes.site_id', 'sites.id')
+        .select('probes.*', 'sites.name as site_name');
+
+      const mapped = probes.map((p: any) => ({
+        id: p.id,
+        uuid: p.uuid,
+        hostname: p.hostname,
+        ip: p.ip,
+        mac: p.mac,
+        name: p.name,
+        status: p.status,
+        probeVersion: p.probe_version,
+        siteId: p.site_id,
+        siteName: p.site_name,
+        lastSeenAt: p.last_seen_at,
+        createdAt: p.created_at,
+      }));
+
+      res.json({ probes: mapped });
     } catch (err) {
       next(err);
     }

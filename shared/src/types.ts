@@ -80,7 +80,8 @@ export interface MonitorGroup {
 export interface GroupTreeNode extends MonitorGroup {
   children: GroupTreeNode[];
   depth: number;
-  monitors?: any[]; // backwards compat
+  monitors?: any[];
+  sites?: Array<{ id: number; name: string; itemCount: number; onlineCount: number; offlineCount: number; probeCount: number }>;
 }
 
 export interface GroupStats {
@@ -147,7 +148,7 @@ export interface UserTenantAssignment {
 export type SettingsScope = 'global' | 'group' | 'site' | 'monitor';
 
 export interface SettingValue {
-  value: string | number | boolean | null;
+  value: string | number | boolean | string[] | number[] | null;
   source: SettingsScope | 'default';
   sourceId: number | null;
   sourceName: string | null;
@@ -442,6 +443,7 @@ export interface Probe {
   name: string | null;
   scanIntervalSeconds: number;
   scanConfig: ProbeScanConfig;
+  scanConfigOverride?: boolean;
   lastSeenAt: string | null;
   pendingCommand: string | null;
   uninstallCommandedAt: string | null;

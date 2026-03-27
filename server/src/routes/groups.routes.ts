@@ -22,6 +22,7 @@ router.get('/:id', groupsController.getById);
 router.get('/:id/monitors', groupsController.getMonitors);
 router.get('/:id/heartbeats', groupsController.heartbeats);
 router.get('/:id/detail-stats', groupsController.groupDetailStats);
+router.get('/:id/probes', groupsController.getGroupProbes);
 
 // Write routes (permission-based: admin OR team RW)
 router.post('/', requireCanCreate(), validate(createGroupSchema), groupsController.create);

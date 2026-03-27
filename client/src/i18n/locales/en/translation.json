@@ -300,6 +300,8 @@
     "tabDevices": "Devices ({{count}})",
     "tabReservations": "Reservations ({{count}})",
     "tabHeatmap": "Subnet Map",
+    "tabSettings": "Settings",
+    "tabNotifications": "Notifications",
     "statDevices_one": "{{count}} device",
     "statDevices_other": "{{count}} devices",
     "statOnline": "{{count}} online",
@@ -328,7 +330,11 @@
       "failedUpdate": "Failed to update device",
       "failedAdd": "Failed to add device",
       "hideOffline": "Hide offline",
-      "offlineHidden": "{{count}} offline hidden"
+      "offlineHidden": "{{count}} offline hidden",
+      "deleteSubnet": "Delete all devices in this subnet",
+      "confirmDeleteSubnet": "Delete all {{count}} devices in {{subnet}}? This cannot be undone.",
+      "subnetDeleted": "{{count}} devices deleted",
+      "failedDeleteSubnet": "Failed to delete subnet devices"
     },
     "deviceModal": {
       "editTitle": "Edit Device",
@@ -478,7 +484,10 @@
       "failedCommand": "Failed to send command",
       "approve": "Approve",
       "refuse": "Refuse",
-      "reApprove": "Re-approve"
+      "reApprove": "Re-approve",
+      "overrideSettings": "Override group/site settings",
+      "overrideSettingsDesc": "Use this probe's own scan settings instead of inheriting from its group and site.",
+      "inheritingSettings": "Inheriting scan settings from group/site chain."
     }
   },
   "vendorRules": {
@@ -573,7 +582,14 @@
       "seconds": "s",
       "maxMissedPushes": "Max Missed Pushes",
       "maxMissedPushesDesc": "Consecutive missed pushes before marking a probe offline (empty = 2)",
-      "saveSettings": "Save Settings"
+      "saveSettings": "Save Settings",
+      "tabProbes": "Probes ({{count}})",
+      "noProbes": "No probes in this group",
+      "settingsInfo": "Settings defined here apply to all probes in sites within this group and its sub-groups, unless overridden at the site or probe level.",
+      "colProbe": "Probe",
+      "colSite": "Site",
+      "colStatus": "Status",
+      "colLastSeen": "Last seen"
     }
   },
   "notifications": {

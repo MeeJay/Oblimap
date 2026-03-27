@@ -26,6 +26,8 @@ export function SettingsPanel({ scope, scopeId, title }: SettingsPanelProps) {
         data = await settingsApi.getGlobalResolved();
       } else if (scope === 'group') {
         data = await settingsApi.getGroupResolved(scopeId!);
+      } else if (scope === 'site') {
+        data = await settingsApi.getSiteResolved(scopeId!);
       } else {
         data = await settingsApi.getMonitorResolved(scopeId!);
       }

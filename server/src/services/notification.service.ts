@@ -859,7 +859,7 @@ export const notificationService = {
    * Chain: Global → site's group ancestors (root→leaf, including self).
    * Falls back to global-only if the site has no group.
    */
-  async resolveChannelsForSite(tenantId: number, siteGroupId: number | null): Promise<number[]> {
+  async resolveChannelsForSite(tenantId: number, siteGroupId: number | null, siteId?: number | null): Promise<number[]> {
     let channelIds: Set<number> = new Set();
 
     // Always apply global bindings
@@ -879,6 +879,12 @@ export const notificationService = {
       }
     }
 
+    // Apply site-level bindings
+    if (siteId) {
+      const siteBindings = await this.getBindings('site', siteId);
+      channelIds = this._applyBindings(channelIds, siteBindings);
+    }
+
     return Array.from(channelIds);
   },
 
@@ -890,8 +896,9 @@ export const notificationService = {
     tenantId: number,
     siteGroupId: number | null,
     payload: NotificationPayload,
+    siteId?: number | null,
   ): Promise<void> {
-    const channelIds = await this.resolveChannelsForSite(tenantId, siteGroupId);
+    const channelIds = await this.resolveChannelsForSite(tenantId, siteGroupId, siteId);
     if (channelIds.length === 0) return;
 
     const enriched: NotificationPayload = { ...payload, appName: config.appName, isIpamNotification: true };
@@ -919,6 +926,120 @@ export const notificationService = {
         logger.error(`IPAM notification failed: ${channel.name} (${channel.type}): ${errMsg}`);
       }
     }
+  },
+
+  /**
+   * Resolve bindings for a site WITH source info (for the UI).
+   * Chain: Global → Group ancestors (root→leaf) → Site-level bindings.
+   */
+  async resolveBindingsWithSourcesForSite(
+    siteId: number,
+  ): Promise<{
+    channelId: number;
+    channelName: string;
+    channelType: string;
+    source: 'global' | 'group' | 'site';
+    sourceId: number | null;
+    sourceName: string;
+    isDirect: boolean;
+    isExcluded: boolean;
+  }[]> {
+    interface SourceInfo {
+      channelId: number;
+      source: 'global' | 'group' | 'site';
+      sourceId: number | null;
+      sourceName: string;
+      isDirect: boolean;
+      isExcluded: boolean;
+    }
+
+    const result: Map<number, SourceInfo> = new Map();
+    const excludedSet: Set<number> = new Set();
+
+    const applyBindingsWithSources = (
+      bindings: NotificationBinding[],
+      source: SourceInfo['source'],
+      sourceId: number | null,
+      sourceName: string,
+      isDirect: boolean,
+    ) => {
+      if (bindings.length === 0) return;
+
+      const hasReplace = bindings.some((b) => b.overrideMode === 'replace');
+      if (hasReplace) {
+        result.clear();
+        excludedSet.clear();
+      }
+
+      for (const b of bindings) {
+        if (b.overrideMode !== 'exclude') {
+          result.set(b.channelId, {
+            channelId: b.channelId,
+            source,
+            sourceId,
+            sourceName,
+            isDirect,
+            isExcluded: false,
+          });
+          excludedSet.delete(b.channelId);
+        }
+      }
+
+      for (const b of bindings) {
+        if (b.overrideMode === 'exclude') {
+          const existing = result.get(b.channelId);
+          if (existing) {
+            existing.isExcluded = true;
+          }
+          excludedSet.add(b.channelId);
+        }
+      }
+    };
+
+    // 1. Global bindings
+    const globalBindings = await this.getBindings('global', null);
+    applyBindingsWithSources(globalBindings, 'global', null, 'Global', false);
+
+    // 2. Group hierarchy (root → leaf) based on the site's group_id
+    const siteRow = await db('sites').where({ id: siteId }).select('group_id').first() as { group_id: number | null } | undefined;
+    if (siteRow?.group_id) {
+      const ancestorRows = await db('group_closure')
+        .where('descendant_id', siteRow.group_id)
+        .orderBy('depth', 'desc')
+        .select('ancestor_id');
+
+      for (const row of ancestorRows) {
+        const groupBindings = await this.getBindings('group', row.ancestor_id);
+        const groupRow = await db('monitor_groups').where({ id: row.ancestor_id }).first('name') as { name: string } | undefined;
+        applyBindingsWithSources(
+          groupBindings,
+          'group',
+          row.ancestor_id,
+          groupRow?.name || `Group #${row.ancestor_id}`,
+          false,
+        );
+      }
+    }
+
+    // 3. Site-level bindings
+    const siteBindings = await this.getBindings('site', siteId);
+    applyBindingsWithSources(siteBindings, 'site', siteId, 'Direct', true);
+
+    // Enrich with channel name/type
+    const channelIds = Array.from(result.keys());
+    if (channelIds.length === 0) return [];
+
+    const channels = await db<ChannelRow>('notification_channels').whereIn('id', channelIds);
+    const channelMap = new Map(channels.map((c) => [c.id, c]));
+
+    return Array.from(result.values()).map((r) => {
+      const ch = channelMap.get(r.channelId);
+      return {
+        ...r,
+        channelName: ch?.name || `Channel #${r.channelId}`,
+        channelType: ch?.type || 'unknown',
+      };
+    });
   },
 
   async logNotification(

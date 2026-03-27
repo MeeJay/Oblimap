@@ -1,5 +1,5 @@
-import { useNavigate, useLocation } from 'react-router-dom';
-import { ChevronRight, Folder, FolderOpen } from 'lucide-react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { ChevronRight, Folder, FolderOpen, MapPin } from 'lucide-react';
 import { useDroppable } from '@dnd-kit/core';
 import type { GroupTreeNode } from '@oblimap/shared';
 import { cn } from '@/utils/cn';
@@ -26,6 +26,7 @@ export function GroupNode({ node, depth = 0, selectedGroupId, onSelectGroup, dnd
 
   const hasMatchingInSubtree = (n: GroupTreeNode): boolean => {
     if (n.name.toLowerCase().includes(searchQuery.toLowerCase())) return true;
+    if (n.sites?.some(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()))) return true;
     return n.children.some(hasMatchingInSubtree);
   };
 
@@ -35,7 +36,7 @@ export function GroupNode({ node, depth = 0, selectedGroupId, onSelectGroup, dnd
 
   const effectiveExpanded = isSearching ? true : expanded;
 
-  const hasContent = node.children.length > 0;
+  const hasContent = node.children.length > 0 || (node.sites && node.sites.length > 0);
   const isSelected = selectedGroupId === node.id;
   const stats = getGroupStats(node.id);
 
@@ -121,9 +122,50 @@ export function GroupNode({ node, depth = 0, selectedGroupId, onSelectGroup, dnd
         );
       })()}
 
-      {/* Children */}
+      {/* Sites + Children */}
       {effectiveExpanded && (
         <div>
+          {node.sites && node.sites.length > 0 && (() => {
+            const q = searchQuery.toLowerCase();
+            const filteredSites = isSearching
+              ? node.sites.filter(s => s.name.toLowerCase().includes(q))
+              : node.sites;
+            return filteredSites.map((site) => {
+              const isActive = location.pathname === `/sites/${site.id}`;
+              const total = site.itemCount;
+              const online = site.onlineCount;
+              return (
+                <Link
+                  key={`site-${site.id}`}
+                  to={`/sites/${site.id}`}
+                  className={cn(
+                    'flex items-center gap-2 rounded-md py-1.5 text-sm transition-colors',
+                    isActive
+                      ? 'bg-bg-active text-text-primary'
+                      : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary',
+                  )}
+                  style={{ paddingLeft: `${(depth + 1) * 16 + 8}px`, paddingRight: '8px' }}
+                >
+                  <MapPin size={13} className="shrink-0 text-accent" />
+                  <span className="truncate flex-1">{anonymize(site.name, 'hostname')}</span>
+                  {total > 0 && (
+                    <span
+                      className={cn(
+                        'shrink-0 inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold',
+                        online === total
+                          ? 'bg-status-up-bg text-status-up'
+                          : online > total * 0.5
+                            ? 'bg-yellow-500/10 text-yellow-500'
+                            : 'bg-status-down-bg text-status-down',
+                      )}
+                    >
+                      {online}/{total}
+                    </span>
+                  )}
+                </Link>
+              );
+            });
+          })()}
           {visibleChildren.map((child) => (
             <GroupNode
               key={child.id}

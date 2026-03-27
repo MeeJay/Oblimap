@@ -44,6 +44,10 @@ export const siteApi = {
   removeItem: (siteId: number, itemId: number): Promise<void> =>
     apiClient.delete(`/sites/${siteId}/items/${itemId}`).then(() => undefined),
 
+  removeSubnet: (siteId: number, prefix: string): Promise<{ deleted: number }> =>
+    apiClient.delete(`/sites/${siteId}/items-by-subnet`, { params: { prefix } })
+      .then((r: AxiosResponse) => r.data as { deleted: number }),
+
   // ── Reservations ──────────────────────────────────────────────────────────
 
   listReservations: (siteId: number): Promise<{ reservations: IpReservation[] }> =>

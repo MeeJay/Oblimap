@@ -168,10 +168,10 @@ export const notificationsController = {
     }
   },
 
-  // GET /api/notifications/bindings/resolved?scope=monitor|group|agent&scopeId=N
+  // GET /api/notifications/bindings/resolved?scope=monitor|group|site|agent&scopeId=N
   async resolvedBindings(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const scope = req.query.scope as 'group' | 'monitor' | 'agent';
+      const scope = req.query.scope as 'group' | 'monitor' | 'site' | 'agent';
       const scopeId = parseInt(req.query.scopeId as string, 10);
 
       if (!scope || isNaN(scopeId)) {
@@ -181,6 +181,13 @@ export const notificationsController = {
       // Agent scope uses its own resolution method (global → agent group hierarchy → agent)
       if (scope === 'agent') {
         const resolved = await notificationService.resolveBindingsWithSourcesForAgent(scopeId);
+        res.json({ success: true, data: resolved });
+        return;
+      }
+
+      // Site scope uses its own resolution method (global → group hierarchy → site)
+      if (scope === 'site') {
+        const resolved = await notificationService.resolveBindingsWithSourcesForSite(scopeId);
         res.json({ success: true, data: resolved });
         return;
       }

@@ -18,6 +18,11 @@ export const settingsApi = {
     return res.data.data!;
   },
 
+  async getSiteResolved(siteId: number): Promise<ResolvedWithOverrides> {
+    const res = await apiClient.get<ApiResponse<ResolvedWithOverrides>>(`/settings/site/${siteId}/resolved`);
+    return res.data.data!;
+  },
+
   async getMonitorResolved(monitorId: number): Promise<ResolvedWithOverrides> {
     const res = await apiClient.get<ApiResponse<ResolvedWithOverrides>>(`/settings/monitor/${monitorId}/resolved`);
     return res.data.data!;

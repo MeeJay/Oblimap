@@ -239,7 +239,73 @@ export const groupService = {
 
     // Initialize nodes
     for (const g of allGroups) {
-      groupMap.set(g.id, { ...g, children: [], monitors: [], depth: 0 });
+      groupMap.set(g.id, { ...g, children: [], monitors: [], sites: [], depth: 0 });
+    }
+
+    // Fetch site summaries with counts
+    const siteRows = await db('sites as s')
+      .where('s.tenant_id', tenantId)
+      .whereNotNull('s.group_id')
+      .leftJoin(
+        db('site_items')
+          .select('site_id')
+          .count('* as item_count')
+          .where('tenant_id', tenantId)
+          .groupBy('site_id')
+          .as('ic'),
+        's.id', 'ic.site_id',
+      )
+      .leftJoin(
+        db('site_items')
+          .select('site_id')
+          .count('* as online_count')
+          .where({ tenant_id: tenantId, status: 'online' })
+          .groupBy('site_id')
+          .as('oc'),
+        's.id', 'oc.site_id',
+      )
+      .leftJoin(
+        db('site_items')
+          .select('site_id')
+          .count('* as offline_count')
+          .where({ tenant_id: tenantId, status: 'offline' })
+          .groupBy('site_id')
+          .as('ofc'),
+        's.id', 'ofc.site_id',
+      )
+      .leftJoin(
+        db('probes')
+          .select('site_id')
+          .count('* as probe_count')
+          .where({ tenant_id: tenantId, status: 'approved' })
+          .whereNotNull('site_id')
+          .groupBy('site_id')
+          .as('pc'),
+        's.id', 'pc.site_id',
+      )
+      .select(
+        's.id',
+        's.name',
+        's.group_id',
+        db.raw('COALESCE(ic.item_count, 0)::int as item_count'),
+        db.raw('COALESCE(oc.online_count, 0)::int as online_count'),
+        db.raw('COALESCE(ofc.offline_count, 0)::int as offline_count'),
+        db.raw('COALESCE(pc.probe_count, 0)::int as probe_count'),
+      )
+      .orderBy('s.name', 'asc');
+
+    for (const row of siteRows) {
+      const groupNode = groupMap.get(row.group_id as number);
+      if (groupNode) {
+        groupNode.sites!.push({
+          id: row.id as number,
+          name: row.name as string,
+          itemCount: Number(row.item_count),
+          onlineCount: Number(row.online_count),
+          offlineCount: Number(row.offline_count),
+          probeCount: Number(row.probe_count),
+        });
+      }
     }
 
     // Build tree

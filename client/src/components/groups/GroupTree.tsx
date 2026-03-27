@@ -1,5 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
+import { SOCKET_EVENTS } from '@oblimap/shared';
+import { getSocket } from '@/socket/socketClient';
 import { useGroupStore } from '@/store/groupStore';
 import { GroupNode } from './GroupNode';
 
@@ -13,6 +15,8 @@ export function GroupTree({ selectedGroupId, onSelectGroup, searchQuery = '' }: 
   const { tree, fetchTree, fetchGroupStats, expandAncestors } = useGroupStore();
   const location = useLocation();
 
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     fetchTree();
     fetchGroupStats();
@@ -20,6 +24,30 @@ export function GroupTree({ selectedGroupId, onSelectGroup, searchQuery = '' }: 
       fetchGroupStats();
     }, 60000);
     return () => clearInterval(interval);
+  }, [fetchTree, fetchGroupStats]);
+
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+
+    const scheduleRefresh = () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = setTimeout(() => {
+        fetchTree();
+        fetchGroupStats();
+      }, 1500);
+    };
+
+    socket.on(SOCKET_EVENTS.SITE_UPDATED, scheduleRefresh);
+    socket.on(SOCKET_EVENTS.ITEM_STATUS_CHANGED, scheduleRefresh);
+    socket.on(SOCKET_EVENTS.NEW_DEVICE_DISCOVERED, scheduleRefresh);
+
+    return () => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
+      socket.off(SOCKET_EVENTS.SITE_UPDATED, scheduleRefresh);
+      socket.off(SOCKET_EVENTS.ITEM_STATUS_CHANGED, scheduleRefresh);
+      socket.off(SOCKET_EVENTS.NEW_DEVICE_DISCOVERED, scheduleRefresh);
+    };
   }, [fetchTree, fetchGroupStats]);
 
   // Auto-expand ancestors when navigating to a group detail page
@@ -33,8 +61,10 @@ export function GroupTree({ selectedGroupId, onSelectGroup, searchQuery = '' }: 
 
   const visibleTree = searchQuery
     ? tree.filter(n => {
+        const q = searchQuery.toLowerCase();
         const hasMatch = (node: typeof n): boolean => {
-          if (node.name.toLowerCase().includes(searchQuery.toLowerCase())) return true;
+          if (node.name.toLowerCase().includes(q)) return true;
+          if (node.sites?.some(s => s.name.toLowerCase().includes(q))) return true;
           return node.children.some(hasMatch);
         };
         return hasMatch(n);

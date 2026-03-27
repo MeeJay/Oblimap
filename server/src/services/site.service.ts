@@ -314,6 +314,18 @@ class SiteService {
       .delete();
   }
 
+  /**
+   * Delete all devices in a site whose IP starts with the given /24 prefix.
+   * @param prefix e.g. "192.168.1" — matches all IPs 192.168.1.*
+   */
+  async deleteItemsBySubnet(tenantId: number, siteId: number, prefix: string): Promise<number> {
+    const count = await db('site_items')
+      .where({ site_id: siteId, tenant_id: tenantId })
+      .andWhere('ip', 'like', `${prefix}.%`)
+      .delete();
+    return count;
+  }
+
   // ── IP Reservations ───────────────────────────────────────────────────────
 
   async getReservations(tenantId: number, siteId: number): Promise<IpReservation[]> {

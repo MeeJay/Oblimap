@@ -8,6 +8,7 @@ import type { Probe, ProbeApiKey, ProbeScanConfig } from '@oblimap/shared';
 import { liveAlertService } from './liveAlert.service';
 import { notificationService } from './notification.service';
 import { obligateService } from './obligate.service';
+import { settingsService } from './settings.service';
 
 let _io: SocketIOServer | null = null;
 
@@ -83,6 +84,7 @@ function rowToProbe(row: Record<string, unknown>): Probe {
     updatingSince: row.updating_since
       ? (row.updating_since as Date).toISOString()
       : null,
+    scanConfigOverride: (row.scan_config_override as boolean | undefined) ?? true,
     approvedBy: (row.approved_by as number | null) ?? null,
     approvedAt: row.approved_at
       ? (row.approved_at as Date).toISOString()
@@ -439,7 +441,7 @@ async function processDevices(
           deviceIp: ip,
           deviceMac: mac,
           deviceName: device.hostname ?? null,
-        }).catch((err) => logger.warn({ err }, 'IPAM new-device notification failed'));
+        }, siteId).catch((err) => logger.warn({ err }, 'IPAM new-device notification failed'));
       }
     } catch (err) {
       logger.warn({ err, ip, mac }, 'Failed to upsert site item');
@@ -489,7 +491,7 @@ async function processDevices(
           deviceIp: ip,
           deviceMac: mac,
           deviceName: name,
-        }).catch((err) => logger.warn({ err, ip }, 'IPAM offline notification failed'));
+        }, siteId).catch((err) => logger.warn({ err, ip }, 'IPAM offline notification failed'));
       }
     }
   } catch (err) {
@@ -600,21 +602,25 @@ class ProbeService {
     })();
 
     // Process discovered devices (approved probes with a site assignment only)
+    let siteGroupId: number | null = null;
     if (probeStatus === 'approved' && probe.site_id) {
-      // Look up site info so processDevices can include it in notifications
       const site = await db('sites')
         .where({ id: probe.site_id as number, tenant_id: tenantId })
         .first('id', 'name', 'group_id');
+
+      siteGroupId = (site?.group_id as number | null) ?? null;
 
       await processDevices(
         probe.id as number,
         tenantId,
         probe.site_id as number,
-        (site?.group_id as number | null) ?? null,
+        siteGroupId,
         (site?.name as string | null) ?? `Site #${probe.site_id as number}`,
         payload.discoveredDevices,
         payload.probeMac ? normalizeMac(payload.probeMac) : null,
       ).catch((err) => logger.error({ err }, 'Device processing failed'));
+
+      _io?.to(`tenant:${tenantId}:admin`).emit(SOCKET_EVENTS.SITE_UPDATED, { siteId: probe.site_id });
     }
 
     // Deliver pending command (one-shot — clear after reading)
@@ -628,21 +634,46 @@ class ProbeService {
       });
     }
 
-    // Read the version from probe/VERSION (or probe/main.go as fallback) — same
-    // source as the GET /api/probe/version endpoint, so the probe always gets the
-    // real current version instead of a stale/missing DB value.
     const latestVersion = this.getProbeVersion().version;
 
-    return {
-      httpStatus: probeStatus === 'pending' ? 202 : 200,
-      status: probeStatus,
-      config: {
+    const useScanConfigOverride = (probe.scan_config_override as boolean | undefined) ?? true;
+
+    let effectiveConfig: {
+      scanIntervalSeconds: number;
+      excludedSubnets: string[];
+      extraSubnets: string[];
+      portScanEnabled: boolean;
+      portScanPorts: number[];
+    };
+
+    if (useScanConfigOverride) {
+      effectiveConfig = {
         scanIntervalSeconds: (probe.scan_interval_seconds as number) ?? 300,
         excludedSubnets: scanConfig.excludedSubnets ?? [],
         extraSubnets: scanConfig.extraSubnets ?? [],
         portScanEnabled: scanConfig.portScanEnabled ?? false,
         portScanPorts: scanConfig.portScanPorts ?? [],
-      },
+      };
+    } else {
+      const resolved = await settingsService.resolveForProbe(
+        tenantId,
+        probe.id as number,
+        (probe.site_id as number | null) ?? null,
+        siteGroupId,
+      );
+      effectiveConfig = {
+        scanIntervalSeconds: (resolved.scanIntervalSeconds.value as number) ?? 300,
+        excludedSubnets: (resolved.excludedSubnets.value as string[] | string) ? (Array.isArray(resolved.excludedSubnets.value) ? resolved.excludedSubnets.value as string[] : JSON.parse(resolved.excludedSubnets.value as string)) : [],
+        extraSubnets: (resolved.extraSubnets.value as string[] | string) ? (Array.isArray(resolved.extraSubnets.value) ? resolved.extraSubnets.value as string[] : JSON.parse(resolved.extraSubnets.value as string)) : [],
+        portScanEnabled: (resolved.portScanEnabled.value as boolean) ?? false,
+        portScanPorts: (resolved.portScanPorts.value as number[] | string) ? (Array.isArray(resolved.portScanPorts.value) ? resolved.portScanPorts.value as number[] : JSON.parse(resolved.portScanPorts.value as string)) : [],
+      };
+    }
+
+    return {
+      httpStatus: probeStatus === 'pending' ? 202 : 200,
+      status: probeStatus,
+      config: effectiveConfig,
       latestVersion,
       command,
     };
@@ -696,6 +727,7 @@ class ProbeService {
       siteId: number | null;
       scanIntervalSeconds: number;
       scanConfig: ProbeScanConfig;
+      scanConfigOverride: boolean;
     }>,
   ): Promise<Probe | null> {
     const patch: Record<string, unknown> = { updated_at: new Date() };
@@ -705,6 +737,8 @@ class ProbeService {
       patch.scan_interval_seconds = updates.scanIntervalSeconds;
     if (updates.scanConfig !== undefined)
       patch.scan_config = JSON.stringify(updates.scanConfig);
+    if (updates.scanConfigOverride !== undefined)
+      patch.scan_config_override = updates.scanConfigOverride;
 
     await db('probes').where({ id, tenant_id: tenantId }).update(patch);
     return this.getProbe(tenantId, id);
