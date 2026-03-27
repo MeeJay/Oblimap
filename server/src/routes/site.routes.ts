@@ -15,8 +15,8 @@ router.delete('/:id', requireRole('admin'), siteController.remove);
 router.get('/:id/items', siteController.listItems);
 router.post('/:id/items', requireRole('admin'), siteController.createItem);
 router.patch('/:id/items/:itemId', requireRole('admin'), siteController.updateItem);
-router.delete('/:id/items/:itemId', requireRole('admin'), siteController.removeItem);
 router.delete('/:id/items-by-subnet', requireRole('admin'), siteController.removeSubnet);
+router.delete('/:id/items/:itemId', requireRole('admin'), siteController.removeItem);
 
 // ── IP Reservations ───────────────────────────────────────────────────────────
 router.get('/:id/reservations', siteController.listReservations);

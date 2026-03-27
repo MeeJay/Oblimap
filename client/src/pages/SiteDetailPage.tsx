@@ -590,22 +590,21 @@ function DevicesTab({
   const probeMap = new Map<number, Probe>();
   for (const p of probes) probeMap.set(p.id, p);
 
-  function subnetProbe(subnetItems: SiteItem[]): Probe | undefined {
-    const counts = new Map<number, number>();
+  function subnetProbes(subnetItems: SiteItem[]): Probe[] {
+    const seen = new Set<number>();
+    const result: Probe[] = [];
     for (const item of subnetItems) {
-      if (item.discoveredByProbeId) {
-        counts.set(item.discoveredByProbeId, (counts.get(item.discoveredByProbeId) ?? 0) + 1);
+      if (item.discoveredByProbeId && !seen.has(item.discoveredByProbeId)) {
+        seen.add(item.discoveredByProbeId);
+        const p = probeMap.get(item.discoveredByProbeId);
+        if (p) result.push(p);
       }
     }
-    let bestId = 0, bestCount = 0;
-    for (const [id, count] of counts) {
-      if (count > bestCount) { bestId = id; bestCount = count; }
-    }
-    return bestId ? probeMap.get(bestId) : undefined;
+    return result;
   }
 
   async function handleDeleteSubnet(prefix: string, count: number) {
-    if (!confirm(t('siteDetail.device.confirmDeleteSubnet', { subnet: `${prefix}.0/24`, count }))) return;
+    if (!confirm(t('siteDetail.device.confirmDeleteSubnet', { subnet: anonymize(`${prefix}.0`, 'ip') + '/24', count }))) return;
     try {
       await siteApi.removeSubnet(siteId, prefix);
       toast.success(t('siteDetail.device.subnetDeleted', { count }));
@@ -809,7 +808,7 @@ function DevicesTab({
         <div className="space-y-4">
           {subnetKeys.map((subnet) => {
             const groupItems = subnets.get(subnet)!;
-            const probe = subnetProbe(groupItems);
+            const probesForSubnet = subnetProbes(groupItems);
             return (
               <div key={subnet} className="bg-bg-card border border-border rounded-xl overflow-hidden">
                 {multiSubnet && (
@@ -822,20 +821,21 @@ function DevicesTab({
                       : <ChevronDown size={14} className="text-text-muted" />
                     }
                     <Network size={14} className="text-accent" />
-                    <span className="text-sm font-medium text-text-primary font-mono">{subnet}.0/24</span>
+                    <span className="text-sm font-medium text-text-primary font-mono">{anonymize(`${subnet}.0`, 'ip')}/24</span>
                     <span className="text-xs text-text-muted">
                       ({groupItems.length} {groupItems.length === 1 ? 'device' : 'devices'})
                     </span>
-                    {probe && (
+                    {probesForSubnet.map(p => (
                       <Link
-                        to={`/admin/probes/${probe.id}`}
+                        key={p.id}
+                        to={`/admin/probes/${p.id}`}
                         className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full border bg-accent/10 text-accent border-accent/30 hover:bg-accent/20 transition-colors"
                         onClick={e => e.stopPropagation()}
                       >
                         <Radar size={10} />
-                        {probe.name || probe.hostname}
+                        {anonymize(p.name || p.hostname, 'hostname')}
                       </Link>
-                    )}
+                    ))}
                     <button
                       onClick={(e) => { e.stopPropagation(); void handleDeleteSubnet(subnet, groupItems.length); }}
                       className="ml-auto p-1.5 text-text-muted hover:text-red-400 rounded transition-colors"
