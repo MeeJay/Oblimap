@@ -5,7 +5,7 @@ import {
   RefreshCw, AlertTriangle, Info, FileDown, FileSpreadsheet, Radar,
   Network, GitBranch, Server, Printer, Cpu, Camera, Hash, Monitor,
   Phone, Smartphone, Laptop, Box, Wifi, Shield, HardDrive, HelpCircle,
-  ExternalLink,
+  ExternalLink, EyeOff, Eye, ChevronUp, ChevronDown, ChevronsUpDown,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -440,6 +440,55 @@ function ReservationModal({
   );
 }
 
+// ─── Subnet helpers ───────────────────────────────────────────────────────────
+
+/** Parse an IPv4 address to a comparable number (for sorting). */
+function ipToNum(ip: string): number {
+  const parts = ip.split('.').map(Number);
+  if (parts.length !== 4) return 0;
+  return ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
+}
+
+/** Extract the /24 subnet prefix from an IPv4 address (e.g. "192.168.1"). */
+function subnetOf(ip: string): string {
+  const parts = ip.split('.');
+  if (parts.length === 4) return parts.slice(0, 3).join('.');
+  return ip; // non-v4 fallback
+}
+
+// ─── Sort types ───────────────────────────────────────────────────────────────
+
+type SortKey = 'ip' | 'mac' | 'name' | 'vendor' | 'type' | 'lastSeen';
+type SortDir = 'asc' | 'desc';
+
+function compareSiteItems(a: SiteItem, b: SiteItem, key: SortKey, dir: SortDir): number {
+  let cmp = 0;
+  switch (key) {
+    case 'ip':
+      cmp = ipToNum(a.ip) - ipToNum(b.ip);
+      break;
+    case 'mac':
+      cmp = (a.mac ?? '').localeCompare(b.mac ?? '');
+      break;
+    case 'name': {
+      const an = (a.customName ?? a.hostname ?? '').toLowerCase();
+      const bn = (b.customName ?? b.hostname ?? '').toLowerCase();
+      cmp = an.localeCompare(bn);
+      break;
+    }
+    case 'vendor':
+      cmp = (a.vendor ?? '').localeCompare(b.vendor ?? '');
+      break;
+    case 'type':
+      cmp = (a.deviceType ?? '').localeCompare(b.deviceType ?? '');
+      break;
+    case 'lastSeen':
+      cmp = new Date(a.lastSeenAt ?? 0).getTime() - new Date(b.lastSeenAt ?? 0).getTime();
+      break;
+  }
+  return dir === 'desc' ? -cmp : cmp;
+}
+
 // ─── Devices Tab ──────────────────────────────────────────────────────────────
 
 function DevicesTab({
@@ -457,6 +506,25 @@ function DevicesTab({
 }) {
   const { t } = useTranslation();
   const [deviceModal, setDeviceModal] = useState<SiteItem | null | undefined>(undefined);
+  const [hideOffline, setHideOffline] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>('ip');
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
+
+  function toggleSort(key: SortKey) {
+    if (sortKey === key) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortDir('asc');
+    }
+  }
+
+  function SortIcon({ col }: { col: SortKey }) {
+    if (sortKey !== col) return <ChevronsUpDown size={12} className="text-text-muted/40" />;
+    return sortDir === 'asc'
+      ? <ChevronUp size={12} className="text-accent" />
+      : <ChevronDown size={12} className="text-accent" />;
+  }
 
   // Helper: resolve display label for a device type using translations
   function deviceTypeLabel(type: DeviceType): string {
@@ -479,12 +547,176 @@ function DevicesTab({
     }
   }
 
+  // Filter + sort
+  const filtered = hideOffline ? items.filter(i => i.status !== 'offline') : items;
+  const sorted = [...filtered].sort((a, b) => compareSiteItems(a, b, sortKey, sortDir));
+
+  // Group by /24 subnet
+  const subnets = new Map<string, SiteItem[]>();
+  for (const item of sorted) {
+    const subnet = subnetOf(item.ip);
+    if (!subnets.has(subnet)) subnets.set(subnet, []);
+    subnets.get(subnet)!.push(item);
+  }
+  // Sort subnet keys numerically
+  const subnetKeys = [...subnets.keys()].sort((a, b) => ipToNum(a + '.0') - ipToNum(b + '.0'));
+  const multiSubnet = subnetKeys.length > 1;
+
+  const offlineCount = items.filter(i => i.status === 'offline').length;
+
+  // Shared table header
+  function TableHead() {
+    return (
+      <thead>
+        <tr className="border-b border-border text-text-muted text-xs uppercase tracking-wide">
+          <th className="px-4 py-3 text-left w-10">{t('siteDetail.device.colStatus')}</th>
+          <th className="px-4 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort('ip')}>
+            <span className="inline-flex items-center gap-1">{t('siteDetail.device.colIp')} <SortIcon col="ip" /></span>
+          </th>
+          <th className="px-4 py-3 text-left hidden md:table-cell cursor-pointer select-none" onClick={() => toggleSort('mac')}>
+            <span className="inline-flex items-center gap-1">{t('siteDetail.device.colMac')} <SortIcon col="mac" /></span>
+          </th>
+          <th className="px-4 py-3 text-left cursor-pointer select-none" onClick={() => toggleSort('name')}>
+            <span className="inline-flex items-center gap-1">{t('siteDetail.device.colName')} <SortIcon col="name" /></span>
+          </th>
+          <th className="px-4 py-3 text-left hidden lg:table-cell cursor-pointer select-none" onClick={() => toggleSort('vendor')}>
+            <span className="inline-flex items-center gap-1">{t('siteDetail.device.colVendor')} <SortIcon col="vendor" /></span>
+          </th>
+          <th className="px-4 py-3 text-left hidden sm:table-cell cursor-pointer select-none" onClick={() => toggleSort('type')}>
+            <span className="inline-flex items-center gap-1">{t('siteDetail.device.colType')} <SortIcon col="type" /></span>
+          </th>
+          <th className="px-4 py-3 text-left hidden xl:table-cell cursor-pointer select-none" onClick={() => toggleSort('lastSeen')}>
+            <span className="inline-flex items-center gap-1">{t('siteDetail.device.colLastSeen')} <SortIcon col="lastSeen" /></span>
+          </th>
+          <th className="px-4 py-3 text-right">{t('siteDetail.device.colActions')}</th>
+        </tr>
+      </thead>
+    );
+  }
+
+  function DeviceRow({ item }: { item: SiteItem }) {
+    const displayName = item.customName ?? item.hostname;
+    return (
+      <tr
+        className={clsx(
+          'border-b border-border last:border-0 hover:bg-bg-elevated/50 transition-colors',
+          item.status === 'offline' && 'opacity-50',
+        )}
+      >
+        <td className="px-4 py-3">
+          <span
+            className={clsx('w-2 h-2 rounded-full inline-block', statusDot(item.status))}
+            title={item.status}
+          />
+        </td>
+        <td className="px-4 py-3">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-sm font-mono text-text-primary">{anonymize(item.ip, 'ip')}</span>
+            {item.hasReservationConflict && (
+              <span title={t('siteDetail.device.reservationConflict')} className="text-orange-400">
+                <AlertTriangle size={12} />
+              </span>
+            )}
+            {item.isProbe && (
+              <Link
+                to={`/admin/probes/${item.probeId}`}
+                title="This device is a probe"
+                className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-accent/10 text-accent border-accent/30 hover:bg-accent/20 transition-colors"
+                onClick={e => e.stopPropagation()}
+              >
+                <Radar size={9} />
+                Probe
+              </Link>
+            )}
+            {item.isManual && (
+              <span className="text-xs text-text-muted bg-bg-elevated border border-border rounded px-1">
+                {t('siteDetail.device.manualBadge')}
+              </span>
+            )}
+          </div>
+          <PortBadges ip={item.ip} ports={item.openPorts} />
+        </td>
+        <td className="px-4 py-3 hidden md:table-cell">
+          <span className="text-xs font-mono text-text-secondary">
+            {item.mac ? anonymize(item.mac, 'mac') : '—'}
+          </span>
+        </td>
+        <td className="px-4 py-3">
+          {displayName ? (
+            <div>
+              <p className="text-sm text-text-primary">{anonymize(displayName, 'hostname')}</p>
+              {item.customName && item.hostname && (
+                <p className="text-xs text-text-muted">{anonymize(item.hostname, 'hostname')}</p>
+              )}
+            </div>
+          ) : (
+            <span className="text-sm text-text-muted">—</span>
+          )}
+        </td>
+        <td className="px-4 py-3 hidden lg:table-cell">
+          <span className="text-xs text-text-secondary">{item.vendor ?? '—'}</span>
+        </td>
+        <td className="px-4 py-3 hidden sm:table-cell">
+          <span
+            className={clsx(
+              'inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded border',
+              statusBadge(item.status),
+            )}
+          >
+            <DeviceTypeIcon type={item.deviceType} size={11} />
+            {deviceTypeLabel(item.deviceType)}
+          </span>
+        </td>
+        <td className="px-4 py-3 hidden xl:table-cell">
+          <span className="text-xs text-text-secondary">{formatTime(item.lastSeenAt)}</span>
+        </td>
+        <td className="px-4 py-3 text-right">
+          <div className="flex items-center justify-end gap-1">
+            <button
+              onClick={() => setDeviceModal(item)}
+              className="p-1.5 text-text-muted hover:text-text-primary rounded transition-colors"
+              title={t('common.edit')}
+            >
+              <Pencil size={14} />
+            </button>
+            <button
+              onClick={() => void handleDelete(item)}
+              className="p-1.5 text-text-muted hover:text-red-400 rounded transition-colors"
+              title={t('common.delete')}
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
+  }
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-text-muted">
-          {t('siteDetail.statDevices', { count: items.length })}
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-text-muted">
+            {t('siteDetail.statDevices', { count: items.length })}
+          </p>
+          {offlineCount > 0 && (
+            <button
+              onClick={() => setHideOffline(h => !h)}
+              className={clsx(
+                'inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg border transition-colors',
+                hideOffline
+                  ? 'bg-accent/10 text-accent border-accent/30'
+                  : 'bg-bg-secondary text-text-muted border-border hover:text-text-primary',
+              )}
+            >
+              {hideOffline ? <EyeOff size={12} /> : <Eye size={12} />}
+              {hideOffline
+                ? t('siteDetail.device.offlineHidden', { count: offlineCount })
+                : t('siteDetail.device.hideOffline')
+              }
+            </button>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           {items.length > 0 && (
             <>
@@ -523,126 +755,31 @@ function DevicesTab({
           <p className="text-text-muted text-sm">{t('siteDetail.device.noDevicesDesc')}</p>
         </div>
       ) : (
-        <div className="bg-bg-card border border-border rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-border text-text-muted text-xs uppercase tracking-wide">
-                  <th className="px-4 py-3 text-left w-10">{t('siteDetail.device.colStatus')}</th>
-                  <th className="px-4 py-3 text-left">{t('siteDetail.device.colIp')}</th>
-                  <th className="px-4 py-3 text-left hidden md:table-cell">{t('siteDetail.device.colMac')}</th>
-                  <th className="px-4 py-3 text-left">{t('siteDetail.device.colName')}</th>
-                  <th className="px-4 py-3 text-left hidden lg:table-cell">{t('siteDetail.device.colVendor')}</th>
-                  <th className="px-4 py-3 text-left hidden sm:table-cell">{t('siteDetail.device.colType')}</th>
-                  <th className="px-4 py-3 text-left hidden xl:table-cell">{t('siteDetail.device.colLastSeen')}</th>
-                  <th className="px-4 py-3 text-right">{t('siteDetail.device.colActions')}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((item) => {
-                  const displayName = item.customName ?? item.hostname;
-                  return (
-                    <tr
-                      key={item.id}
-                      className={clsx(
-                        'border-b border-border last:border-0 hover:bg-bg-elevated/50 transition-colors',
-                        item.status === 'offline' && 'opacity-50',
-                      )}
-                    >
-                      <td className="px-4 py-3">
-                        <span
-                          className={clsx('w-2 h-2 rounded-full inline-block', statusDot(item.status))}
-                          title={item.status}
-                        />
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-sm font-mono text-text-primary">{anonymize(item.ip, 'ip')}</span>
-                          {item.hasReservationConflict && (
-                            <span
-                              title={t('siteDetail.device.reservationConflict')}
-                              className="text-orange-400"
-                            >
-                              <AlertTriangle size={12} />
-                            </span>
-                          )}
-                          {item.isProbe && (
-                            <Link
-                              to={`/admin/probes/${item.probeId}`}
-                              title="This device is a probe"
-                              className="inline-flex items-center gap-0.5 text-[10px] font-semibold px-1.5 py-0.5 rounded border bg-accent/10 text-accent border-accent/30 hover:bg-accent/20 transition-colors"
-                              onClick={e => e.stopPropagation()}
-                            >
-                              <Radar size={9} />
-                              Probe
-                            </Link>
-                          )}
-                          {item.isManual && (
-                            <span className="text-xs text-text-muted bg-bg-elevated border border-border rounded px-1">
-                              {t('siteDetail.device.manualBadge')}
-                            </span>
-                          )}
-                        </div>
-                        <PortBadges ip={item.ip} ports={item.openPorts} />
-                      </td>
-                      <td className="px-4 py-3 hidden md:table-cell">
-                        <span className="text-xs font-mono text-text-secondary">
-                          {item.mac ? anonymize(item.mac, 'mac') : '—'}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        {displayName ? (
-                          <div>
-                            <p className="text-sm text-text-primary">{anonymize(displayName, 'hostname')}</p>
-                            {item.customName && item.hostname && (
-                              <p className="text-xs text-text-muted">{anonymize(item.hostname, 'hostname')}</p>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-sm text-text-muted">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 hidden lg:table-cell">
-                        <span className="text-xs text-text-secondary">{item.vendor ?? '—'}</span>
-                      </td>
-                      <td className="px-4 py-3 hidden sm:table-cell">
-                        <span
-                          className={clsx(
-                            'inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded border',
-                            statusBadge(item.status),
-                          )}
-                        >
-                          <DeviceTypeIcon type={item.deviceType} size={11} />
-                          {deviceTypeLabel(item.deviceType)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 hidden xl:table-cell">
-                        <span className="text-xs text-text-secondary">{formatTime(item.lastSeenAt)}</span>
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => setDeviceModal(item)}
-                            className="p-1.5 text-text-muted hover:text-text-primary rounded transition-colors"
-                            title={t('common.edit')}
-                          >
-                            <Pencil size={14} />
-                          </button>
-                          <button
-                            onClick={() => void handleDelete(item)}
-                            className="p-1.5 text-text-muted hover:text-red-400 rounded transition-colors"
-                            title={t('common.delete')}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+        <div className="space-y-4">
+          {subnetKeys.map((subnet) => {
+            const groupItems = subnets.get(subnet)!;
+            return (
+              <div key={subnet} className="bg-bg-card border border-border rounded-xl overflow-hidden">
+                {multiSubnet && (
+                  <div className="px-4 py-2 bg-bg-secondary/50 border-b border-border flex items-center gap-2">
+                    <Network size={14} className="text-accent" />
+                    <span className="text-sm font-medium text-text-primary font-mono">{subnet}.0/24</span>
+                    <span className="text-xs text-text-muted">
+                      ({groupItems.length} {groupItems.length === 1 ? 'device' : 'devices'})
+                    </span>
+                  </div>
+                )}
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <TableHead />
+                    <tbody>
+                      {groupItems.map(item => <DeviceRow key={item.id} item={item} />)}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 

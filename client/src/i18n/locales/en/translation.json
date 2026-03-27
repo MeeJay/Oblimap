@@ -326,7 +326,9 @@
       "updated": "Device updated",
       "added": "Device added",
       "failedUpdate": "Failed to update device",
-      "failedAdd": "Failed to add device"
+      "failedAdd": "Failed to add device",
+      "hideOffline": "Hide offline",
+      "offlineHidden": "{{count}} offline hidden"
     },
     "deviceModal": {
       "editTitle": "Edit Device",
