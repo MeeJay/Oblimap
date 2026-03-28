@@ -8,6 +8,7 @@ import { logger } from './utils/logger';
 import { authService } from './services/auth.service';
 import { setProbeServiceIO, probeService } from './services/probe.service';
 import { setLiveAlertIO } from './services/liveAlert.service';
+import { obligateService } from './services/obligate.service';
 
 async function main() {
   // 1. Run pending migrations
@@ -42,6 +43,9 @@ async function main() {
   server.listen(config.port, () => {
     logger.info(`Oblimap server listening on port ${config.port}`);
     logger.info(`Environment: ${config.nodeEnv}`);
+
+    // Sync capability schemas with Obligate (non-blocking)
+    obligateService.syncCapabilitySchemas().catch(() => {});
   });
 
   // 7. Probe cleanup job — auto-delete probes whose uninstall command was delivered

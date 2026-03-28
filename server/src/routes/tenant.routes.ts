@@ -41,7 +41,8 @@ router.get('/', async (req, res, next) => {
 
     if (isAdmin) {
       const tenants = await tenantService.getAll();
-      res.json({ success: true, data: tenants });
+      // Platform admins get all tenants with role='admin' so the switcher works
+      res.json({ success: true, data: tenants.map(t => ({ ...t, role: 'admin' })) });
     } else {
       const tenants = await tenantService.getTenantsForUser(userId);
       res.json({ success: true, data: tenants });
