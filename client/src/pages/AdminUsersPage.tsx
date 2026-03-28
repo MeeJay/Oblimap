@@ -537,7 +537,7 @@ export function AdminUsersPage() {
                         )}
                       </div>
                     </div>
-                    {user.id !== currentUser?.id && (
+                    {user.id !== currentUser?.id && user.foreignSource !== 'obligate' && (
                       <>
                         <button onClick={() => { setEditingUser(user); setFormPassword(''); setUserFormMode('password'); }}
                           className="shrink-0 p-1 text-text-muted hover:text-accent opacity-0 group-hover:opacity-100" title="Password">
@@ -549,10 +549,12 @@ export function AdminUsersPage() {
                         </button>
                       </>
                     )}
-                    <button onClick={() => { setEditingUser(user); setFormUsername(user.username); setFormDisplayName(user.displayName || ''); setFormRole(user.role); setUserFormMode('edit'); }}
-                      className="shrink-0 p-1 text-text-muted hover:text-text-primary opacity-0 group-hover:opacity-100" title={t('common.edit')}>
-                      <Pencil size={13} />
-                    </button>
+                    {user.foreignSource !== 'obligate' && (
+                      <button onClick={() => { setEditingUser(user); setFormUsername(user.username); setFormDisplayName(user.displayName || ''); setFormRole(user.role); setUserFormMode('edit'); }}
+                        className="shrink-0 p-1 text-text-muted hover:text-text-primary opacity-0 group-hover:opacity-100" title={t('common.edit')}>
+                        <Pencil size={13} />
+                      </button>
+                    )}
                     {/* Tenant assignment button */}
                     <button
                       onClick={() => openTenantPanel(user)}
@@ -561,7 +563,7 @@ export function AdminUsersPage() {
                     >
                       <Building2 size={13} />
                     </button>
-                    {user.id !== currentUser?.id && (
+                    {user.id !== currentUser?.id && user.foreignSource !== 'obligate' && (
                       <button onClick={() => handleDeleteUser(user)}
                         className="shrink-0 p-1 text-text-muted hover:text-status-down opacity-0 group-hover:opacity-100" title={t('common.delete')}>
                         <Trash2 size={13} />
