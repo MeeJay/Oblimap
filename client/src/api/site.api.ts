@@ -74,4 +74,8 @@ export const siteApi = {
   listFlows: (siteId: number, period: FlowPeriod = '24h'): Promise<{ flows: NetworkFlow[] }> =>
     apiClient.get(`/sites/${siteId}/flows`, { params: { period } })
       .then((r: AxiosResponse) => r.data as { flows: NetworkFlow[] }),
+
+  clearFlows: (siteId: number): Promise<{ deleted: number }> =>
+    apiClient.delete(`/sites/${siteId}/flows`)
+      .then((r: AxiosResponse) => r.data as { deleted: number }),
 };

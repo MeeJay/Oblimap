@@ -84,4 +84,10 @@ export const flowService = {
       }
     }
   },
+
+  async clearFlows(tenantId: number, siteId: number): Promise<number> {
+    return db('network_flows')
+      .where({ site_id: siteId, tenant_id: tenantId })
+      .delete();
+  },
 };

@@ -1024,6 +1024,8 @@
     "port": "Port",
     "process": "Process",
     "firstSeen": "First seen",
-    "lastSeen": "Last seen"
+    "lastSeen": "Last seen",
+    "clear": "Clear",
+    "confirmClear": "Delete all captured network flows for this site? This cannot be undone."
   }
 }

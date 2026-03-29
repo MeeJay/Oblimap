@@ -70,6 +70,14 @@ export const siteController = {
     } catch (err) { next(err); }
   },
 
+  async clearFlows(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const siteId = parseInt(req.params.id, 10);
+      const deleted = await flowService.clearFlows(req.tenantId, siteId);
+      res.json({ deleted });
+    } catch (err) { next(err); }
+  },
+
   // ── Items ──────────────────────────────────────────────────────────────────
 
   async listItems(req: Request, res: Response, next: NextFunction): Promise<void> {

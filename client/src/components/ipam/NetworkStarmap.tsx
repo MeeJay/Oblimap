@@ -11,6 +11,29 @@ interface NetworkStarmapProps {
   items: SiteItem[];
 }
 
+// ─── Well-known ports → service name ─────────────────────────────────────────
+
+const WELL_KNOWN_PORTS: Record<number, string> = {
+  20: 'FTP-DATA', 21: 'FTP', 22: 'SSH', 23: 'Telnet', 25: 'SMTP',
+  53: 'DNS', 67: 'DHCP', 68: 'DHCP', 80: 'HTTP', 88: 'Kerberos',
+  110: 'POP3', 111: 'RPC', 123: 'NTP', 135: 'RPC', 137: 'NetBIOS',
+  138: 'NetBIOS', 139: 'NetBIOS', 143: 'IMAP', 161: 'SNMP', 162: 'SNMP-Trap',
+  389: 'LDAP', 443: 'HTTPS', 445: 'SMB', 465: 'SMTPS', 514: 'Syslog',
+  587: 'SMTP-TLS', 636: 'LDAPS', 993: 'IMAPS', 995: 'POP3S',
+  1433: 'MSSQL', 1521: 'Oracle', 2049: 'NFS', 3000: 'Dev/Grafana',
+  3001: 'Dev', 3306: 'MySQL', 3389: 'RDP', 5432: 'PostgreSQL',
+  5060: 'SIP', 5061: 'SIP-TLS', 5222: 'XMPP',
+  5900: 'VNC', 5985: 'WinRM', 5986: 'WinRM-S', 6379: 'Redis',
+  6443: 'K8s-API', 8080: 'HTTP-Alt', 8443: 'HTTPS-Alt', 8883: 'MQTT-S',
+  9090: 'Prometheus', 9200: 'Elasticsearch', 9300: 'ES-Transport',
+  27017: 'MongoDB', 1883: 'MQTT', 11211: 'Memcached',
+};
+
+function portLabel(port: number): string {
+  const name = WELL_KNOWN_PORTS[port];
+  return name ? `${port}/${name}` : String(port);
+}
+
 // ─── Device type colors ──────────────────────────────────────────────────────
 
 const DEVICE_COLORS: Record<string, string> = {
@@ -262,6 +285,73 @@ export function NetworkStarmap({ siteId, items }: NetworkStarmapProps) {
     return () => { cancelled = true; };
   }, [siteId, period]);
 
+  // ─── Export CSV ──────────────────────────────────────────────────────────
+
+  const exportCSV = useCallback(() => {
+    if (flows.length === 0) return;
+
+    // Build a map: server IP → { services it exposes (dest ports where it's the dest), clients that connect }
+    const itemMap = new Map<string, SiteItem>();
+    for (const item of items) itemMap.set(item.ip, item);
+
+    const servers = new Map<string, { ports: Map<number, Set<string>>; outbound: Map<string, Set<number>> }>();
+
+    const ensureServer = (ip: string) => {
+      if (!servers.has(ip)) servers.set(ip, { ports: new Map(), outbound: new Map() });
+      return servers.get(ip)!;
+    };
+
+    for (const f of flows) {
+      // dest is the server exposing the service
+      const srv = ensureServer(f.destIp);
+      if (!srv.ports.has(f.destPort)) srv.ports.set(f.destPort, new Set());
+      srv.ports.get(f.destPort)!.add(f.sourceIp);
+
+      // source has an outbound connection
+      const src = ensureServer(f.sourceIp);
+      if (!src.outbound.has(f.destIp)) src.outbound.set(f.destIp, new Set());
+      src.outbound.get(f.destIp)!.add(f.destPort);
+    }
+
+    const lines: string[] = ['Server IP,Hostname,Device Type,Direction,Port,Service,Remote IP,Remote Hostname,Process'];
+
+    for (const [ip, data] of [...servers.entries()].sort()) {
+      const item = itemMap.get(ip);
+      const hostname = item?.customName || item?.hostname || '';
+      const dtype = item?.deviceType || 'unknown';
+
+      // Inbound services (remote → this server)
+      for (const [port, clients] of [...data.ports.entries()].sort((a, b) => a[0] - b[0])) {
+        const svc = WELL_KNOWN_PORTS[port] || '';
+        for (const clientIp of [...clients].sort()) {
+          const ci = itemMap.get(clientIp);
+          const ch = ci?.customName || ci?.hostname || '';
+          const proc = flows.find(f => f.destIp === ip && f.destPort === port && f.sourceIp === clientIp)?.sourceProcess || '';
+          lines.push(`${ip},"${hostname}",${dtype},INBOUND (${clientIp} → ${ip}:${port}),${port},${svc},${clientIp},"${ch}","${proc}"`);
+        }
+      }
+
+      // Outbound connections (this server → remote)
+      for (const [destIp, ports] of [...data.outbound.entries()].sort()) {
+        for (const port of [...ports].sort()) {
+          const svc = WELL_KNOWN_PORTS[port] || '';
+          const di = itemMap.get(destIp);
+          const dh = di?.customName || di?.hostname || '';
+          const proc = flows.find(f => f.sourceIp === ip && f.destIp === destIp && f.destPort === port)?.sourceProcess || '';
+          lines.push(`${ip},"${hostname}",${dtype},OUTBOUND (${ip} → ${destIp}:${port}),${port},${svc},${destIp},"${dh}","${proc}"`);
+        }
+      }
+    }
+
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `network-flows-${period}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [flows, items, period]);
+
   // ─── Build graph when flows change ───────────────────────────────────────
 
   useEffect(() => {
@@ -388,7 +478,7 @@ export function NetworkStarmap({ siteId, items }: NetworkStarmapProps) {
         ctx.font = `${Math.round(9 * cam.zoom)}px monospace`;
         ctx.fillStyle = 'rgba(90,138,181,0.6)';
         ctx.textAlign = 'center';
-        ctx.fillText(link.ports.slice(0, 3).join(','), mx, my - 4 * cam.zoom);
+        ctx.fillText(link.ports.slice(0, 3).map(portLabel).join(', '), mx, my - 4 * cam.zoom);
       }
     }
 
@@ -636,8 +726,30 @@ export function NetworkStarmap({ siteId, items }: NetworkStarmapProps) {
             </div>
           ))}
         </div>
-        <div className="font-mono text-[11px] text-[#3a6080]">
-          {t('networkMap.zoomHint')}
+        <div className="flex items-center gap-3">
+          {flows.length > 0 && (
+            <button
+              onClick={exportCSV}
+              className="z-10 font-mono text-[11px] text-[#5a8ab5] hover:text-[#c0daf0] transition-colors"
+            >
+              CSV
+            </button>
+          )}
+          <button
+            onClick={async () => {
+              if (!confirm(t('networkMap.confirmClear'))) return;
+              try {
+                await siteApi.clearFlows(siteId);
+                setFlows([]);
+              } catch { /* ignore */ }
+            }}
+            className="z-10 font-mono text-[11px] text-[#5a4040] hover:text-[#E24B4A] transition-colors"
+          >
+            {t('networkMap.clear')}
+          </button>
+          <span className="font-mono text-[11px] text-[#3a6080]">
+            {t('networkMap.zoomHint')}
+          </span>
         </div>
       </div>
 
@@ -674,7 +786,7 @@ export function NetworkStarmap({ siteId, items }: NetworkStarmapProps) {
             {tooltip.node.ports.length > 0 && (
               <div className="flex justify-between gap-5 text-[11px] text-[#6a8fad]">
                 <span>{t('networkMap.port')}s</span>
-                <span className="text-[#a0c4e0] font-mono">{tooltip.node.ports.slice(0, 6).join(', ')}</span>
+                <span className="text-[#a0c4e0] font-mono">{tooltip.node.ports.slice(0, 6).map(portLabel).join(', ')}</span>
               </div>
             )}
           </div>

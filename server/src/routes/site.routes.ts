@@ -20,6 +20,7 @@ router.delete('/:id/items/:itemId', requireRole('admin'), siteController.removeI
 
 // ── Flows ────────────────────────────────────────────────────────────────────
 router.get('/:id/flows', siteController.listFlows);
+router.delete('/:id/flows', requireRole('admin'), siteController.clearFlows);
 
 // ── IP Reservations ───────────────────────────────────────────────────────────
 router.get('/:id/reservations', siteController.listReservations);
