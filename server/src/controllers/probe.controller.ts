@@ -43,7 +43,7 @@ export function probeInstallerLinux(req: Request, res: Response): void {
   const apiKey = req.query.key as string | undefined;
   const scriptPath = path.resolve(__dirname, '../../../../probe/installer/install.sh');
   if (!fs.existsSync(scriptPath)) { res.status(404).json({ error: 'Installer not available' }); return; }
-  let script = fs.readFileSync(scriptPath, 'utf-8');
+  let script = fs.readFileSync(scriptPath, 'utf-8').replace(/\r\n/g, '\n');
   const serverUrl = `${req.protocol}://${req.get('host')}`;
   script = script.replace('__SERVER_URL__', serverUrl);
   if (apiKey) script = script.replace('__API_KEY__', apiKey);
@@ -56,7 +56,7 @@ export function probeInstallerMacos(req: Request, res: Response): void {
   const apiKey = req.query.key as string | undefined;
   const scriptPath = path.resolve(__dirname, '../../../../probe/installer/install-macos.sh');
   if (!fs.existsSync(scriptPath)) { res.status(404).json({ error: 'macOS installer not available' }); return; }
-  let script = fs.readFileSync(scriptPath, 'utf-8');
+  let script = fs.readFileSync(scriptPath, 'utf-8').replace(/\r\n/g, '\n');
   const serverUrl = `${req.protocol}://${req.get('host')}`;
   script = script.replace('__SERVER_URL__', serverUrl);
   if (apiKey) script = script.replace('__API_KEY__', apiKey);
