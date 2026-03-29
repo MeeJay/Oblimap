@@ -1,83 +1,140 @@
-# Obliview
+<p align="center">
+  <img src="client/public/logo.svg" alt="Oblimap" height="80">
+</p>
 
-Self-hosted uptime & infrastructure monitoring built for teams. Multi-tenant workspaces, hierarchical groups, RBAC, 13 monitor types, 10 notification channels, native system agent, and automated remediation - deployable in one command.
+<h3 align="center">Self-hosted IP Address Management</h3>
+
+<p align="center">
+  Network discovery, device inventory, subnet visualization, distributed probes.
+  <br>
+  Part of the <a href="https://obli.tools"><strong>obli.tools</strong></a> ecosystem.
+</p>
+
 ---
+
+Oblimap is an enterprise IPAM platform with multi-tenant support, real-time network discovery, hierarchical site management, and intelligent device tracking. Deploy lightweight Go probes across your network segments to automatically discover, classify, and monitor devices.
+
 ## Features at a Glance
 
-- **13 monitor types** - HTTP, Ping, TCP, DNS, SSL, SMTP, Docker, Game Server, Push, Script, JSON API, Browser, Value Watcher
-- **Native system agent** - Windows/Linux/macOS, with CPU, memory, disk, network, temperature, GPU metrics
-- **10 notification channels** - Telegram, Discord, Slack, Teams, SMTP, Webhook, Gotify, Ntfy, Pushover, Free Mobile
-- **5 remediation actions** - Webhook, N8N, Script, Docker restart, SSH command
-- **Multi-tenant workspaces** - isolated tenants with per-workspace roles
-- **Teams & RBAC** - read-only / read-write per group or monitor
-- **Maintenance windows** - one-time or recurring, scope-based, suppresses notifications
-- **2FA** - TOTP authenticator apps + Email OTP
-- **Import / Export** - full config backup as JSON with conflict resolution
+- **Distributed network probes** — Go binary for Windows/Linux/macOS, auto-discovers subnets, ARP table, reverse DNS, port scanning
+- **Device inventory** — MAC-based tracking, vendor lookup (30,000+ OUI prefixes), 16 device types, IP history
+- **IP reservation system** — reserve IPs with names and device types, occupation detection
+- **Subnet heatmap** — D3.js visualization of IP utilization per site
+- **Intelligent detection** — IP takeover alerts, IP instability detection (3+ MACs on same IP)
+- **Vendor classification** — auto-classify devices by MAC vendor with priority-based rules
+- **10 notification channels** — Telegram, Discord, Slack, Teams, SMTP, Webhook, Gotify, Ntfy, Pushover, Free Mobile
+- **Multi-tenant workspaces** — isolated tenants with per-workspace roles
+- **Teams & RBAC** — read-only / read-write per group or site
+- **2FA** — TOTP authenticator apps + Email OTP
+- **Import / Export** — full config backup as JSON with conflict resolution
 - **18 UI languages**
-- **Real-time** - Socket.io live updates and live alert toasts
-- **Desktop tray app** - Windows & macOS, multi-tenant tab bar, auto-update
+- **Real-time** — Socket.io live updates, device status changes, discovery events
+- **SSO** — federated login via Obligate
 
 ---
 
-## Monitor Types
+## Network Probe
 
-| Type | Description |
-|------|-------------|
-| **HTTP(S)** | URL monitoring with keyword matching, status code validation, custom headers & body, upside-down mode |
-| **Ping** | ICMP round-trip with response time tracking |
-| **TCP Port** | Raw TCP connectivity to any host:port |
-| **DNS** | Record lookup validation (A, AAAA, CNAME, MX, TXT…) |
-| **SSL Certificate** | Certificate expiry monitoring with configurable warning threshold |
-| **SMTP** | SMTP server availability check |
-| **Docker Container** | Container running/stopped status via Docker socket |
-| **Game Server** | Availability & player count via GameDig (Minecraft, CS2, Valheim, and 300+ games) |
-| **Push / Heartbeat** | Passive monitoring - external systems POST to a token URL, Obliview alerts if they stop |
-| **Script** | Run a shell command, validate exit code |
-| **JSON API** | Fetch a JSON endpoint, extract a value via JSONPath, validate it |
-| **Browser** | Headless Playwright browser check - renders JS, waits for selectors, optional screenshot on failure |
-| **Value Watcher** | Numeric value monitoring with operators: `>`, `<`, `>=`, `<=`, `==`, `!=`, `between`, `changed` |
+A lightweight Go binary deployed on network segments. Scans local subnets and pushes device data to the server — no inbound ports required.
 
-Agent monitors (CPU, memory, disk, etc.) are a 14th category managed through the native agent system.
+**Scanning capabilities**
+- Subnet enumeration from active network interfaces (up to /20 CIDR blocks)
+- Concurrent TCP scanning (up to 4094 hosts per subnet)
+- ARP table reading for MAC discovery (no root required)
+- Reverse DNS lookup with concurrent resolution
+- Optional full port scanning (admin-configurable port list)
+- Probe self-identification in discovered device list
+- Scan duration and scanned subnets reporting
 
----
-
-## Native System Agent
-
-A lightweight Go binary runs on monitored hosts and pushes metrics to the server every N seconds. No inbound ports required.
-
-**Collected metrics**
-- CPU usage (total + per-core)
-- Memory & swap usage
-- Disk usage per mount point
-- Network throughput (in/out per interface)
-- Temperatures - CPU, GPU, motherboard, NVMe (Windows: LibreHardwareMonitor + PawnIO + ASUS ATK; Linux/macOS: native sensors)
-- GPU utilization, VRAM, temperature (NVIDIA & AMD)
-
-**Installation**
-- Windows: MSI installer (WiX v4) with optional PawnIO kernel driver for temperature sensors
+**Deployment**
+- Windows: MSI installer (WiX v4)
 - Linux / macOS: native binary, systemd / launchctl service
-- Auto-update: agent downloads and reinstalls itself silently when a new version is available
-- Auto-uninstall command via server → agent executes uninstaller and exits
+- Auto-update: checks server for newer versions on startup and via push responses
+- Auto-uninstall command via server
 
-**Configuration per device**
-- Threshold overrides per metric (CPU, memory, disk, network, temperature)
-- Group-level default thresholds with per-device override toggle
-- Push interval (seconds) - group default or device-specific
-- Heartbeat monitoring (alert if agent stops pushing)
-- Display config: hide/show sections, custom labels, chart preferences
-- Sensor display name renaming
+**Configuration per probe**
+- Scan interval (seconds)
+- Excluded subnets (CIDR blocks to skip)
+- Extra subnets (additional scan targets beyond auto-detected)
+- Port scan toggle and target ports
+- Exponential backoff on connection failures (5min, 10min, 30min, 60min)
 
-**Device management**
-- Approval workflow (auto or manual)
-- Suspend / resume without deletion
-- Bulk approve, suspend, or uninstall
+**Probe management**
+- API key generation for probe authentication
+- Approval workflow: pending, approved, refused, suspended
+- Probe version and OS/architecture tracking
+- Commands: update, rescan, uninstall
 - Auto-delete 10 minutes after uninstall command
+
+---
+
+## Device & IP Management
+
+### Site Management
+
+Organize your network into logical sites (offices, data centers, branches).
+
+- Create sites with descriptions and group assignments
+- Bulk device import from probe discoveries
+- Manual device entry for reserved or non-discoverable IPs
+- Real-time device sync via Socket.io
+- CSV and Excel export of device inventories
+
+### Device Inventory
+
+Track every device on your network by MAC address.
+
+- **MAC-based primary key** — follows devices across IP changes
+- **IP fallback matching** for devices without MACs
+- **Status states**: Online, Offline, Reserved, Unknown
+- **16 device types**: Router, Switch, Server, Workstation, Printer, IoT, Camera, Counter, Phone, GSM/Mobile, Laptop, VM, Access Point, Firewall, NAS, Unknown
+- **Custom device names** and notes
+- **Vendor lookup** via IEEE OUI database (30,000+ prefixes)
+- **Custom vendor overrides** per OUI prefix
+- **First/last seen timestamps**
+- **Open ports** discovered during scanning
+- **Discovery source** tracking (which probe found it)
+- **IP history** — all MAC-to-IP pairs indexed with timestamps
+
+### IP Reservation System
+
+- Reserve IPs to prevent automatic assignment
+- Named reservations with descriptions and device types
+- Occupation detection — see which MAC currently uses a reserved IP
+
+### Intelligent Detection
+
+- **IP takeover alerts** — new MAC claims an existing IP, old device preserved offline
+- **IP instability detection** — 3+ MACs on same IP within 30min triggers alert
+- **Offline marking** — devices not in latest scan automatically marked offline
+
+---
+
+## Subnet Heatmap
+
+D3.js-powered visualization of subnet IP utilization integrated into site detail pages.
+
+- Visual density representation of device distribution
+- Interactive subnet navigation
+- Color-coded occupancy levels
+
+---
+
+## Vendor Classification
+
+Automatically classify discovered devices by their MAC vendor.
+
+- **IEEE OUI database** — 30,000+ prefixes with standard vendor names
+- **Custom override names** — rename vendors per OUI prefix
+- **Vendor type rules** — auto-assign device types based on vendor name patterns
+- **Priority-based matching** — first matching rule wins, drag-to-reorder
+- **Group-scoped rules** — rules can be specific to site groups
 
 ---
 
 ## Notification Channels
 
-Bind channels at **global**, **group**, or **monitor** level with **merge**, **replace**, or **exclude** inheritance modes.
+Bind channels at **global**, **group**, or **site** level with **merge**, **replace**, or **exclude** inheritance modes.
 
 | Channel | Notes |
 |---------|-------|
@@ -85,48 +142,27 @@ Bind channels at **global**, **group**, or **monitor** level with **merge**, **r
 | **Discord** | Webhook URL |
 | **Slack** | Incoming webhook |
 | **Microsoft Teams** | Webhook URL |
-| **Email (SMTP)** | Custom SMTP server or platform SMTP |
-| **Webhook** | Generic HTTP - GET / POST / PUT / PATCH, custom headers |
+| **Email (SMTP)** | Custom SMTP server |
+| **Webhook** | Generic HTTP — GET / POST / PUT / PATCH, custom headers |
 | **Gotify** | Self-hosted push (server URL + token) |
 | **Ntfy** | Self-hosted or ntfy.sh push |
 | **Pushover** | Mobile push via Pushover app |
 | **Free Mobile** | SMS via French mobile operator API |
 
-**Group notification mode** - receive one alert when the first monitor in a group goes down, and one recovery when all are back up.
+**Notification types**: device down, device up, IP conflict, new device discovered.
 
 Test messages can be sent directly from the UI to validate channel configuration.
 
 ---
 
-## Remediation System
-
-Automatically react to monitor state changes with configurable actions.
-
-| Action | Description |
-|--------|-------------|
-| **Generic Webhook** | HTTP request (GET / POST / PUT / PATCH) to any endpoint |
-| **N8N Workflow** | Trigger an N8N automation workflow |
-| **Custom Script** | Run a shell script on the Obliview server |
-| **Docker Restart** | Restart a Docker container by name |
-| **SSH Command** | Execute a remote command over SSH (password or key auth) |
-
-- Trigger on: **down**, **up**, or **both**
-- Configurable cooldown between executions
-- Scope-based binding with merge / replace / exclude inheritance
-- AES-256-GCM encryption for SSH credentials
-- Full execution history: status, output, error, duration
-
----
-
 ## Multi-Tenant Workspaces
 
-Create isolated workspaces (tenants) within a single Obliview instance.
+Create isolated workspaces within a single Oblimap instance.
 
-- Each workspace has its own monitors, groups, teams, notification channels, settings, and remediation actions
+- Each workspace has its own sites, devices, groups, teams, notification channels, and settings
 - Users can belong to multiple workspaces with independent **admin** or **member** roles
-- Platform admins have cross-workspace visibility and can manage all tenants
+- Platform admins have cross-workspace visibility
 - Workspace switching from the UI without re-login
-- Notification channels can be shared across workspaces
 
 ---
 
@@ -134,22 +170,23 @@ Create isolated workspaces (tenants) within a single Obliview instance.
 
 - Create **teams** per workspace
 - Assign users to teams
-- Grant teams **read-only** (RO) or **read-write** (RW) access per group or monitor
-- Access cascades through the group hierarchy - assign a group and all children are covered
-- `canCreate` flag per team: allows non-admins to create monitors/groups
-- Platform admins always have full access to their workspace
+- Grant teams **read-only** (RO) or **read-write** (RW) access per group or site
+- Access cascades through the group hierarchy
+- `canCreate` flag per team: allows non-admins to create sites and groups
+- **Permission sets** — reusable permission templates across teams
+- Platform admins always have full access
 
 ---
 
 ## Hierarchical Groups
 
-Organize monitors into nested groups with unlimited depth using a **closure table** for efficient queries.
+Organize sites into nested groups with unlimited depth using a **closure table**.
 
 - Settings cascade: configure once at a parent group, override where needed
 - Notification channels cascade with merge / replace / exclude modes
-- **General groups** are visible to all users regardless of team permissions
+- **General groups** visible to all users regardless of team permissions
 - Drag-and-drop reordering
-- Group notification mode for aggregate alerting
+- Group-scoped vendor classification rules
 
 ---
 
@@ -159,42 +196,17 @@ Organize monitors into nested groups with unlimited depth using a **closure tabl
 |-------|-------|
 | Global | Applies to everything in the workspace |
 | Group | Applies to the group and all subgroups |
-| Monitor | Monitor-specific override |
+| Site | Site-specific override |
 
-Deleting a setting at any scope reverts it to the inherited value from the parent. Settings include: check interval, timeout, retry interval, max retries, heartbeat monitoring (agents), push interval (agents).
-
----
-
-## Maintenance Windows
-
-Suppress alerts and exclude downtime from uptime statistics during planned maintenance.
-
-- **One-time** windows (auto-deleted after expiry) or **recurring** (daily / weekly)
-- Scope: global, group, monitor, or agent device
-- Scope inheritance - set a window on a group and it applies to all child monitors
-- Heartbeat records are shown in blue during maintenance
-- Notifications and remediations are suppressed
-- Uptime % and response time averages exclude maintenance periods
+Deleting a setting at any scope reverts it to the inherited value from the parent.
 
 ---
 
 ## Two-Factor Authentication
 
-- **TOTP** - any authenticator app (Google Authenticator, Authy, 1Password, etc.)
-- **Email OTP** - one-time code sent via SMTP
+- **TOTP** — any authenticator app (Google Authenticator, Authy, 1Password, etc.)
+- **Email OTP** — one-time code sent via SMTP
 - Optional system-wide enforcement (all users must enroll 2FA)
-- Setup available during enrollment wizard or from the profile page
-
----
-
-## Enrollment Wizard
-
-New users are guided through a 4-step wizard on first login:
-
-1. **Language** - pick from 18 supported languages
-2. **Profile** - display name, email address
-3. **Alerts** - configure notification preferences
-4. **2FA** - optional TOTP or Email OTP setup
 
 ---
 
@@ -202,81 +214,30 @@ New users are guided through a 4-step wizard on first login:
 
 Full configuration backup and restore as JSON.
 
-**Exportable sections:** monitor groups, monitors, settings, notification channels, agent groups, teams, remediation actions, remediation bindings.
+**Exportable sections:** site groups, sites, settings, notification channels, teams.
 
-**Conflict resolution strategies** (when a UUID matches an existing record):
-- **Update** - overwrite the existing record
-- **Generate new** - create a duplicate with a fresh UUID
-- **Skip** - leave the existing record untouched
-
-Export and import are scoped to the **active workspace** - cross-tenant data is never included.
+**Conflict resolution strategies:**
+- **Update** — overwrite the existing record
+- **Generate new** — create a duplicate with a fresh UUID
+- **Skip** — leave the existing record untouched
 
 ---
 
 ## Live Alerts
 
-Real-time status-change notifications delivered via Socket.io without polling.
+Real-time notifications delivered via Socket.io.
 
-- Floating toast notifications (bottom-right stack, 1-minute auto-dismiss)
-- Top-center banner showing the latest alert (10-second auto-dismiss)
-- Click to navigate directly to the affected monitor or agent
-- Per-workspace filtering - only see alerts relevant to your current tenant
-- Desktop app: unread badge per workspace tab, optional auto-switch to the alerting workspace
-
----
-
-## Desktop App
-
-A lightweight system tray application (Go) for quick access without keeping a browser tab open.
-
-- **Windows** (MSI installer) and **macOS** (DMG)
-- Per-workspace tab bar - switch between tenants
-- Unread alert badge per tab
-- **Auto-cycle mode** - rotate through workspaces every N seconds
-- **Follow alerts mode** - automatically switch to the workspace that just received an alert
-- Auto-update with in-tray update prompt
-- Starts minimized to tray, opens on click
-
----
-
-## User Management
-
-- Create, edit, disable, and delete users
-- Platform roles: **admin** (full access) or **user** (team-based access)
-- Per-user workspace assignment with **admin** or **member** role per workspace
-- Password reset via email token (1-hour expiry)
-- Admin safeguards: cannot delete or demote the last active admin
-
----
-
-## Internationalization
-
-18 UI languages with full translation coverage:
-
-English · French · Spanish · German · Portuguese (BR) · Chinese (Simplified) · Japanese · Korean · Russian · Arabic · Italian · Dutch · Polish · Turkish · Swedish · Danish · Czech · Ukrainian
-
-Language is saved per user and applied immediately without page reload.
-
----
-
-## Real-Time Dashboard
-
-- Live status updates via Socket.io - no manual refresh needed
-- Per-monitor status: `UP`, `DOWN`, `ALERT`, `PAUSED`, `PENDING`, `MAINTENANCE`, `SSL_WARNING`, `SSL_EXPIRED`, `OFFLINE`
-- 24-hour uptime %, average/min/max response time
-- Group-level aggregated status (number of monitors down, in alert, pending, etc.)
-- Bulk operations: multi-select, pause/resume, delete, edit
-- Configurable heartbeat retention
+- Device status changes (online/offline)
+- New device discovered
+- IP conflict / instability detected
+- Device IP changed
+- Click to navigate to the affected site or device
+- Per-workspace filtering
+- Auto-trim: keeps latest 200 alerts per tenant
 
 ---
 
 ## Deployment
-
-### One-command install
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/MeeJay/obliview/main/install.sh | sh
-```
 
 ### Docker Compose (built-in PostgreSQL)
 
@@ -296,15 +257,14 @@ Set `DATABASE_URL` in your `.env` to point at your existing PostgreSQL instance.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | `postgres://obliview:changeme@localhost:5432/obliview` |
-| `SESSION_SECRET` | Session signing secret | - |
-| `PORT` | Server port | `3001` |
+| `DATABASE_URL` | PostgreSQL connection string | `postgres://oblimap:changeme@localhost:5432/oblimap` |
+| `SESSION_SECRET` | Session signing secret | — |
+| `PORT` | Server port | `3002` |
 | `NODE_ENV` | `production` or `development` | `production` |
 | `CLIENT_ORIGIN` | CORS origin for the client | `http://localhost` |
-| `APP_NAME` | Prefix for notification messages | `Obliview` |
+| `APP_NAME` | Prefix for notification messages | `Oblimap` |
 | `DEFAULT_ADMIN_USERNAME` | Admin account created on first run | `admin` |
 | `DEFAULT_ADMIN_PASSWORD` | Admin password on first run | `admin123` |
-| `MIN_CHECK_INTERVAL` | Minimum allowed check interval (seconds) | `10` |
 
 ---
 
@@ -316,12 +276,16 @@ Set `DATABASE_URL` in your `.env` to point at your existing PostgreSQL instance.
 | **Database** | PostgreSQL 16, Knex (migrations + query builder) |
 | **Real-time** | Socket.io |
 | **Client** | React 18, Vite, Tailwind CSS, Zustand |
-| **Agent** | Go (cross-platform binary) |
-| **Desktop app** | Go (Wails / systray) |
-| **Browser monitors** | Playwright (headless Chromium) |
+| **Probe** | Go (cross-platform binary) |
+| **Visualization** | D3.js (subnet heatmap) |
 | **Monorepo** | npm workspaces (`shared/`, `server/`, `client/`) |
 
+---
 
-> **🤖 An experiment with Claude Code**
+> **An experiment with Claude Code**
 >
 > This project was built as an experiment to see how far Claude Code could be pushed as a development tool. Claude was used as a coding assistant throughout the entire development process.
+
+<p align="center">
+  <a href="https://obli.tools">obli.tools</a>
+</p>
