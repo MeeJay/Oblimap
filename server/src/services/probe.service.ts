@@ -656,6 +656,17 @@ class ProbeService {
       flowAnalysisEnabled: boolean;
     };
 
+    // flowAnalysisEnabled is always resolved from the settings chain (site/group level),
+    // never from the probe's own scan_config — it's a site-level feature toggle.
+    let flowEnabled = false;
+    if (probe.site_id) {
+      try {
+        const siteSettings = await settingsService.resolveForSite(tenantId, probe.site_id as number);
+        const v = siteSettings.flowAnalysisEnabled?.value;
+        flowEnabled = v === true || v === 'true';
+      } catch { /* ignore */ }
+    }
+
     if (useScanConfigOverride) {
       effectiveConfig = {
         scanIntervalSeconds: (probe.scan_interval_seconds as number) ?? 300,
@@ -663,7 +674,7 @@ class ProbeService {
         extraSubnets: scanConfig.extraSubnets ?? [],
         portScanEnabled: scanConfig.portScanEnabled ?? false,
         portScanPorts: scanConfig.portScanPorts ?? [],
-        flowAnalysisEnabled: scanConfig.flowAnalysisEnabled ?? false,
+        flowAnalysisEnabled: flowEnabled,
       };
     } else {
       const resolved = await settingsService.resolveForProbe(
@@ -678,7 +689,7 @@ class ProbeService {
         extraSubnets: (resolved.extraSubnets.value as string[] | string) ? (Array.isArray(resolved.extraSubnets.value) ? resolved.extraSubnets.value as string[] : JSON.parse(resolved.extraSubnets.value as string)) : [],
         portScanEnabled: (resolved.portScanEnabled.value as boolean) ?? false,
         portScanPorts: (resolved.portScanPorts.value as number[] | string) ? (Array.isArray(resolved.portScanPorts.value) ? resolved.portScanPorts.value as number[] : JSON.parse(resolved.portScanPorts.value as string)) : [],
-        flowAnalysisEnabled: (resolved.flowAnalysisEnabled.value as boolean) ?? false,
+        flowAnalysisEnabled: flowEnabled,
       };
     }
 
