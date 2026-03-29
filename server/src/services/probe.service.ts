@@ -4,11 +4,12 @@ import { Server as SocketIOServer } from 'socket.io';
 import { db } from '../db';
 import { logger } from '../utils/logger';
 import { SOCKET_EVENTS } from '@oblimap/shared';
-import type { Probe, ProbeApiKey, ProbeScanConfig } from '@oblimap/shared';
+import type { Probe, ProbeApiKey, ProbeScanConfig, FlowEntry } from '@oblimap/shared';
 import { liveAlertService } from './liveAlert.service';
 import { notificationService } from './notification.service';
 import { obligateService } from './obligate.service';
 import { settingsService } from './settings.service';
+import { flowService } from './flow.service';
 
 let _io: SocketIOServer | null = null;
 
@@ -33,6 +34,7 @@ export interface ProbePushPayload {
   osInfo?: Record<string, unknown>;
   probeMac?: string | null;
   discoveredDevices: DiscoveredDevice[];
+  discoveredFlows?: FlowEntry[];
   scannedSubnets: string[];
   scanDurationMs: number;
 }
@@ -45,6 +47,7 @@ export interface ProbePushResponse {
     extraSubnets: string[];
     portScanEnabled: boolean;
     portScanPorts: number[];
+    flowAnalysisEnabled: boolean;
   };
   latestVersion: string | null;
   command: string | null;
@@ -518,7 +521,7 @@ class ProbeService {
       return {
         httpStatus: 401,
         status: 'unauthorized',
-        config: { scanIntervalSeconds: 300, excludedSubnets: [], extraSubnets: [], portScanEnabled: false, portScanPorts: [] },
+        config: { scanIntervalSeconds: 300, excludedSubnets: [], extraSubnets: [], portScanEnabled: false, portScanPorts: [], flowAnalysisEnabled: false },
         latestVersion: null,
         command: null,
       };
@@ -620,6 +623,12 @@ class ProbeService {
         payload.probeMac ? normalizeMac(payload.probeMac) : null,
       ).catch((err) => logger.error({ err }, 'Device processing failed'));
 
+      // Process network flows if present
+      if (payload.discoveredFlows && payload.discoveredFlows.length > 0) {
+        await flowService.processFlows(tenantId, probe.site_id as number, probe.id as number, payload.discoveredFlows)
+          .catch((err) => logger.error({ err }, 'Flow processing failed'));
+      }
+
       _io?.to(`tenant:${tenantId}:admin`).emit(SOCKET_EVENTS.SITE_UPDATED, { siteId: probe.site_id });
     }
 
@@ -644,6 +653,7 @@ class ProbeService {
       extraSubnets: string[];
       portScanEnabled: boolean;
       portScanPorts: number[];
+      flowAnalysisEnabled: boolean;
     };
 
     if (useScanConfigOverride) {
@@ -653,6 +663,7 @@ class ProbeService {
         extraSubnets: scanConfig.extraSubnets ?? [],
         portScanEnabled: scanConfig.portScanEnabled ?? false,
         portScanPorts: scanConfig.portScanPorts ?? [],
+        flowAnalysisEnabled: scanConfig.flowAnalysisEnabled ?? false,
       };
     } else {
       const resolved = await settingsService.resolveForProbe(
@@ -667,6 +678,7 @@ class ProbeService {
         extraSubnets: (resolved.extraSubnets.value as string[] | string) ? (Array.isArray(resolved.extraSubnets.value) ? resolved.extraSubnets.value as string[] : JSON.parse(resolved.extraSubnets.value as string)) : [],
         portScanEnabled: (resolved.portScanEnabled.value as boolean) ?? false,
         portScanPorts: (resolved.portScanPorts.value as number[] | string) ? (Array.isArray(resolved.portScanPorts.value) ? resolved.portScanPorts.value as number[] : JSON.parse(resolved.portScanPorts.value as string)) : [],
+        flowAnalysisEnabled: (resolved.flowAnalysisEnabled.value as boolean) ?? false,
       };
     }
 

@@ -18,11 +18,12 @@ var ProbeVersion = "1.0.0"
 
 // Config holds the probe configuration persisted to disk.
 type Config struct {
-	ServerURL           string `json:"serverUrl"`
-	APIKey              string `json:"apiKey"`
-	DeviceUUID          string `json:"deviceUuid"`
-	ScanIntervalSeconds int    `json:"scanIntervalSeconds"`
-	BackoffUntil        int64  `json:"backoffUntil"` // unix ms
+	ServerURL            string `json:"serverUrl"`
+	APIKey               string `json:"apiKey"`
+	DeviceUUID           string `json:"deviceUuid"`
+	ScanIntervalSeconds  int    `json:"scanIntervalSeconds"`
+	BackoffUntil         int64  `json:"backoffUntil"` // unix ms
+	FlowAnalysisEnabled  bool   `json:"flowAnalysisEnabled"`
 }
 
 const defaultScanInterval = 300
@@ -56,9 +57,14 @@ func loadConfig() {
 	if cfg.ScanIntervalSeconds == 0 {
 		cfg.ScanIntervalSeconds = defaultScanInterval
 	}
+	// Restore cached flow analysis setting from persisted config
+	cachedFlowAnalysisEnabled = cfg.FlowAnalysisEnabled
 }
 
 func saveConfig() {
+	// Sync cached settings into config struct before persisting
+	cfg.FlowAnalysisEnabled = cachedFlowAnalysisEnabled
+
 	if err := os.MkdirAll(configDir(), 0750); err != nil {
 		log.Printf("WARN: could not create config dir: %v", err)
 		return

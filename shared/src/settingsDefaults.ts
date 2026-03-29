@@ -8,7 +8,8 @@ export type SettingsKey =
   | 'excludedSubnets'
   | 'extraSubnets'
   | 'portScanEnabled'
-  | 'portScanPorts';
+  | 'portScanPorts'
+  | 'flowAnalysisEnabled';
 
 export const SETTINGS_KEYS: SettingsKey[] = [
   'scanIntervalSeconds',
@@ -19,6 +20,7 @@ export const SETTINGS_KEYS: SettingsKey[] = [
   'extraSubnets',
   'portScanEnabled',
   'portScanPorts',
+  'flowAnalysisEnabled',
 ];
 
 export const SETTINGS_DEFAULTS: Record<SettingsKey, string | number | boolean> = {
@@ -30,6 +32,7 @@ export const SETTINGS_DEFAULTS: Record<SettingsKey, string | number | boolean> =
   extraSubnets: '[]',
   portScanEnabled: false,
   portScanPorts: '[]',
+  flowAnalysisEnabled: false,
 };
 
 // Alias for backwards compat
@@ -55,4 +58,5 @@ export const SETTINGS_DEFINITIONS: SettingDefinition[] = [
   { key: 'extraSubnets', label: 'Extra Subnets', type: 'json', defaultValue: '[]', description: 'Additional subnets to scan' },
   { key: 'portScanEnabled', label: 'Port Scan Enabled', type: 'boolean', defaultValue: false },
   { key: 'portScanPorts', label: 'Port Scan Ports', type: 'json', defaultValue: '[]', description: 'Ports to scan on discovered devices' },
+  { key: 'flowAnalysisEnabled', label: 'Network Flow Analysis', type: 'boolean', defaultValue: false, description: 'Capture active TCP/UDP connections on probes for network mapping' },
 ];

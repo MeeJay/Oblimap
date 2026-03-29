@@ -1,7 +1,8 @@
 import type { Request, Response, NextFunction } from 'express';
 import { siteService } from '../services/site.service';
+import { flowService } from '../services/flow.service';
 import { AppError } from '../middleware/errorHandler';
-import type { DeviceType } from '@oblimap/shared';
+import type { DeviceType, FlowPeriod } from '@oblimap/shared';
 
 export const siteController = {
   // ── Sites ─────────────────────────────────────────────────────────────────
@@ -52,6 +53,20 @@ export const siteController = {
     try {
       await siteService.deleteSite(req.tenantId, parseInt(req.params.id, 10));
       res.status(204).send();
+    } catch (err) { next(err); }
+  },
+
+  // ── Flows ──────────────────────────────────────────────────────────────────
+
+  async listFlows(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const siteId = parseInt(req.params.id, 10);
+      const period = (req.query.period as string) || '24h';
+      if (!['1h', '24h', '30d', '1y'].includes(period)) {
+        throw new AppError(400, 'Invalid period. Use: 1h, 24h, 30d, 1y');
+      }
+      const flows = await flowService.getFlows(req.tenantId, siteId, period as FlowPeriod);
+      res.json({ flows });
     } catch (err) { next(err); }
   },
 

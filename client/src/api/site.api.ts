@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { Site, SiteItem, IpReservation, DeviceType } from '@oblimap/shared';
+import type { Site, SiteItem, IpReservation, DeviceType, NetworkFlow, FlowPeriod } from '@oblimap/shared';
 import type { AxiosResponse } from 'axios';
 
 export const siteApi = {
@@ -68,4 +68,10 @@ export const siteApi = {
 
   removeReservation: (siteId: number, resId: number): Promise<void> =>
     apiClient.delete(`/sites/${siteId}/reservations/${resId}`).then(() => undefined),
+
+  // ── Flows ────────────────────────────────────────────────────────────────
+
+  listFlows: (siteId: number, period: FlowPeriod = '24h'): Promise<{ flows: NetworkFlow[] }> =>
+    apiClient.get(`/sites/${siteId}/flows`, { params: { period } })
+      .then((r: AxiosResponse) => r.data as { flows: NetworkFlow[] }),
 };

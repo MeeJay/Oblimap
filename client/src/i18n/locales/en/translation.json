@@ -300,6 +300,7 @@
     "tabDevices": "Devices ({{count}})",
     "tabReservations": "Reservations ({{count}})",
     "tabHeatmap": "Subnet Map",
+    "tabNetworkMap": "Network Map",
     "tabSettings": "Settings",
     "tabNotifications": "Notifications",
     "statDevices_one": "{{count}} device",
@@ -1007,5 +1008,22 @@
     "toggleRole": "Click to toggle admin / member role",
     "roleAdmin": "admin",
     "switchWorkspace": "Switch workspace"
+  },
+  "networkMap": {
+    "title": "NETWORK MAP",
+    "nodes": "Nodes",
+    "links": "Links",
+    "period1h": "1H",
+    "period24h": "24H",
+    "period30d": "30D",
+    "period1y": "1Y",
+    "noFlows": "No network flows captured",
+    "noFlowsDesc": "Enable Flow Analysis in site settings and deploy probes on target machines.",
+    "zoomHint": "scroll to zoom \u00b7 drag to pan",
+    "connections": "connections",
+    "port": "Port",
+    "process": "Process",
+    "firstSeen": "First seen",
+    "lastSeen": "Last seen"
   }
 }

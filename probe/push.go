@@ -36,6 +36,7 @@ type PushBody struct {
 	OSInfo            OSInfo             `json:"osInfo"`
 	ProbeMac          string             `json:"probeMac,omitempty"`
 	DiscoveredDevices []DiscoveredDevice `json:"discoveredDevices"`
+	DiscoveredFlows   []FlowEntry        `json:"discoveredFlows,omitempty"`
 	ScannedSubnets    []string           `json:"scannedSubnets"`
 	ScanDurationMs    int64              `json:"scanDurationMs"`
 }
@@ -46,6 +47,7 @@ type ProbeResponseConfig struct {
 	ExtraSubnets        []string `json:"extraSubnets"`
 	PortScanEnabled     bool     `json:"portScanEnabled"`
 	PortScanPorts       []int    `json:"portScanPorts"`
+	FlowAnalysisEnabled bool     `json:"flowAnalysisEnabled"`
 }
 
 type PushResponse struct {
@@ -225,12 +227,19 @@ func doPush() int {
 	log.Printf("Scan complete: %d devices in %d subnets (%dms)",
 		len(devices), len(scannedSubnets), scanDurationMs)
 
+	// Collect network flows if enabled by server config
+	var discoveredFlows []FlowEntry
+	if cachedFlowAnalysisEnabled {
+		discoveredFlows = collectFlows()
+	}
+
 	body := PushBody{
 		Hostname:          hostname(),
 		ProbeVersion:      ProbeVersion,
 		OSInfo:            osInfo(),
 		ProbeMac:          myMac,
 		DiscoveredDevices: devices,
+		DiscoveredFlows:   discoveredFlows,
 		ScannedSubnets:    scannedSubnets,
 		ScanDurationMs:    scanDurationMs,
 	}
@@ -294,6 +303,7 @@ func doPush() int {
 	if pushResp.Config.PortScanPorts != nil {
 		cachedPortScanPorts = pushResp.Config.PortScanPorts
 	}
+	cachedFlowAnalysisEnabled = pushResp.Config.FlowAnalysisEnabled
 	saveConfig()
 
 	// Check for update
@@ -316,6 +326,9 @@ var cachedExtra []string
 // Cached port scan config from last server response
 var cachedPortScanEnabled bool
 var cachedPortScanPorts []int
+
+// Cached flow analysis config from last server response
+var cachedFlowAnalysisEnabled bool
 
 func isExcluded(subnet string) bool {
 	_, snNet, err := net.ParseCIDR(subnet)

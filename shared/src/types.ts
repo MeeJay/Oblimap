@@ -421,6 +421,7 @@ export interface ProbeScanConfig {
   extraSubnets: string[];
   portScanEnabled?: boolean;
   portScanPorts?: number[];
+  flowAnalysisEnabled?: boolean;
 }
 
 export interface Probe {
@@ -452,6 +453,36 @@ export interface Probe {
   approvedAt: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+// ============================================
+// Network Flows
+// ============================================
+export interface NetworkFlow {
+  id: number;
+  siteId: number;
+  tenantId: number;
+  sourceIp: string;
+  sourcePort: number | null;
+  destIp: string;
+  destPort: number;
+  protocol: string;
+  sourceProcess: string | null;
+  connectionCount: number;
+  discoveredByProbeId: number | null;
+  firstSeenAt: string;
+  lastSeenAt: string;
+}
+
+export type FlowPeriod = '1h' | '24h' | '30d' | '1y';
+
+export interface FlowEntry {
+  sourceIp: string;
+  sourcePort?: number;
+  destIp: string;
+  destPort: number;
+  protocol: string;
+  process?: string;
 }
 
 // ============================================

@@ -17,6 +17,7 @@ import type { Site, SiteItem, IpReservation, DeviceType, Probe } from '@oblimap/
 import { clsx } from 'clsx';
 import { useAnonymize } from '../utils/anonymize';
 import { SubnetHeatmap } from '@/components/ipam/SubnetHeatmap';
+import { NetworkStarmap } from '@/components/ipam/NetworkStarmap';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { NotificationBindingsPanel } from '@/components/notifications/NotificationBindingsPanel';
 import { exportSiteCSV, exportSiteExcel } from '@/utils/exportSite';
@@ -1014,7 +1015,7 @@ function ReservationsTab({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-type Tab = 'devices' | 'reservations' | 'heatmap' | 'settings' | 'notifications';
+type Tab = 'devices' | 'reservations' | 'heatmap' | 'networkMap' | 'settings' | 'notifications';
 
 export function SiteDetailPage() {
   const { t } = useTranslation();
@@ -1104,6 +1105,7 @@ export function SiteDetailPage() {
     { id: 'devices',      label: t('siteDetail.tabDevices',      { count: items.length }) },
     { id: 'reservations', label: t('siteDetail.tabReservations', { count: reservations.length }) },
     { id: 'heatmap',      label: t('siteDetail.tabHeatmap') },
+    { id: 'networkMap',   label: t('siteDetail.tabNetworkMap') },
     { id: 'settings',     label: t('siteDetail.tabSettings') },
     { id: 'notifications', label: t('siteDetail.tabNotifications') },
   ];
@@ -1180,6 +1182,9 @@ export function SiteDetailPage() {
         </div>
         <div style={{ gridArea: '1/1' }} className={tab !== 'heatmap' ? 'invisible pointer-events-none' : ''}>
           <SubnetHeatmap items={items} reservations={reservations} />
+        </div>
+        <div style={{ gridArea: '1/1' }} className={tab !== 'networkMap' ? 'invisible pointer-events-none' : ''}>
+          <NetworkStarmap siteId={siteId} items={items} />
         </div>
         <div style={{ gridArea: '1/1' }} className={tab !== 'settings' ? 'invisible pointer-events-none' : ''}>
           <SettingsPanel scope="site" scopeId={siteId} />
