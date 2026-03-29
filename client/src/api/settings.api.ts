@@ -2,9 +2,11 @@ import apiClient from './client';
 import type { ResolvedSettings, ApiResponse, SettingsScope } from '@oblimap/shared';
 import type { SettingsKey } from '@oblimap/shared';
 
+type SettingRawValue = number | boolean | string | string[] | number[];
+
 interface ResolvedWithOverrides {
   resolved: ResolvedSettings;
-  overrides: Record<string, number>;
+  overrides: Record<string, SettingRawValue>;
 }
 
 export const settingsApi = {
@@ -28,14 +30,14 @@ export const settingsApi = {
     return res.data.data!;
   },
 
-  async set(scope: SettingsScope, scopeId: string, key: SettingsKey, value: number): Promise<void> {
+  async set(scope: SettingsScope, scopeId: string, key: SettingsKey, value: SettingRawValue): Promise<void> {
     await apiClient.put(`/settings/${scope}/${scopeId}`, { key, value });
   },
 
   async setBulk(
     scope: SettingsScope,
     scopeId: string,
-    overrides: Array<{ key: SettingsKey; value: number }>,
+    overrides: Array<{ key: SettingsKey; value: SettingRawValue }>,
   ): Promise<void> {
     await apiClient.put(`/settings/${scope}/${scopeId}/bulk`, { overrides });
   },

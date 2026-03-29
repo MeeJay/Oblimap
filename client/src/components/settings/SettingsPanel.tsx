@@ -7,6 +7,8 @@ import { SettingField } from './SettingField';
 import { LoadingSpinner } from '@/components/common/LoadingSpinner';
 import toast from 'react-hot-toast';
 
+type SettingRawValue = number | boolean | string | string[] | number[];
+
 interface SettingsPanelProps {
   scope: SettingsScope;
   scopeId: number | null;
@@ -15,7 +17,7 @@ interface SettingsPanelProps {
 
 export function SettingsPanel({ scope, scopeId, title }: SettingsPanelProps) {
   const [resolved, setResolved] = useState<ResolvedSettings | null>(null);
-  const [overrides, setOverrides] = useState<Record<string, number>>({});
+  const [overrides, setOverrides] = useState<Record<string, SettingRawValue>>({});
   const [loading, setLoading] = useState(true);
 
   const fetchSettings = async () => {
@@ -44,7 +46,7 @@ export function SettingsPanel({ scope, scopeId, title }: SettingsPanelProps) {
     fetchSettings();
   }, [scope, scopeId]);
 
-  const handleSave = async (key: SettingsKey, value: number) => {
+  const handleSave = async (key: SettingsKey, value: SettingRawValue) => {
     const scopeIdStr = scopeId !== null ? String(scopeId) : 'null';
     try {
       await settingsApi.set(scope, scopeIdStr, key, value);
