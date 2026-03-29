@@ -588,7 +588,7 @@ export function NetworkStarmap({ siteId, items }: NetworkStarmapProps) {
       <canvas ref={canvasRef} className="block w-full h-full" />
 
       {/* Period selector */}
-      <div className="absolute top-3.5 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-[rgba(8,14,24,0.85)] border border-[rgba(90,138,181,0.25)] rounded-lg p-0.5">
+      <div className="absolute top-3.5 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 bg-[rgba(8,14,24,0.85)] border border-[rgba(90,138,181,0.25)] rounded-lg p-0.5">
         {PERIODS.map((p) => (
           <button
             key={p.id}
@@ -683,14 +683,14 @@ export function NetworkStarmap({ siteId, items }: NetworkStarmapProps) {
 
       {/* Loading overlay */}
       {loading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#06090f]/70">
+        <div className="absolute inset-0 flex items-center justify-center bg-[#06090f]/70 pointer-events-none">
           <div className="animate-spin w-6 h-6 border-2 border-[#5a8ab5] border-t-transparent rounded-full" />
         </div>
       )}
 
       {/* Empty state */}
       {!loading && !hasFlows && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8">
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-8 pointer-events-none">
           <div className="text-[#5a8ab5] mb-3">
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="10" />
