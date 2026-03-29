@@ -30,6 +30,8 @@ func collectFlows() []FlowEntry {
 		return collectFlowsWindows()
 	case "darwin":
 		return collectFlowsDarwin()
+	case "freebsd":
+		return collectFlowsFreeBSD()
 	default:
 		log.Printf("WARN: flow collection not supported on %s", runtime.GOOS)
 		return nil
@@ -234,6 +236,66 @@ func collectFlowsWindows() []FlowEntry {
 			DestPort:   dstPort,
 			Protocol:   "tcp",
 			Process:    pid,
+		})
+
+		if len(flows) >= maxFlowEntries {
+			break
+		}
+	}
+
+	log.Printf("Collected %d unique network flows", len(flows))
+	return flows
+}
+
+// collectFlowsFreeBSD parses output from `sockstat -4 -c -P tcp`.
+// Falls back to BSD netstat if sockstat is unavailable.
+func collectFlowsFreeBSD() []FlowEntry {
+	out, err := exec.Command("sockstat", "-4", "-c", "-P", "tcp").Output()
+	if err != nil {
+		// Fallback to BSD netstat (same format as macOS)
+		return collectFlowsDarwin()
+	}
+
+	seen := make(map[flowKey]bool)
+	var flows []FlowEntry
+
+	scanner := bufio.NewScanner(strings.NewReader(string(out)))
+	for scanner.Scan() {
+		line := scanner.Text()
+		fields := strings.Fields(line)
+		// Expected: USER COMMAND PID FD PROTO LOCAL FOREIGN
+		if len(fields) < 7 {
+			continue
+		}
+		if fields[4] != "tcp4" && fields[4] != "tcp46" {
+			continue
+		}
+
+		srcIP, srcPort := splitHostPort(fields[5])
+		dstIP, dstPort := splitHostPort(fields[6])
+
+		if srcIP == "" || dstIP == "" || dstPort == 0 {
+			continue
+		}
+		if !isPrivateIPv4(srcIP) || !isPrivateIPv4(dstIP) {
+			continue
+		}
+
+		process := fields[1] // COMMAND column
+
+		key := flowKey{sourceIP: srcIP, destIP: dstIP, destPort: dstPort, protocol: "tcp"}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+
+		flows = append(flows, FlowEntry{
+			SourceIP:   srcIP,
+			SourcePort: srcPort,
+			DestIP:     dstIP,
+			DestPort:   dstPort,
+			Protocol:   "tcp",
+			Process:    process,
 		})
 
 		if len(flows) >= maxFlowEntries {

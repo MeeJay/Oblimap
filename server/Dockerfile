@@ -36,7 +36,9 @@ RUN VERSION=$(cat VERSION) && \
     CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 \
         go build -ldflags="-s -w -X main.ProbeVersion=${VERSION}" -o dist/oblimap-probe-darwin-amd64 . && \
     CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 \
-        go build -ldflags="-s -w -X main.ProbeVersion=${VERSION}" -o dist/oblimap-probe-darwin-arm64 .
+        go build -ldflags="-s -w -X main.ProbeVersion=${VERSION}" -o dist/oblimap-probe-darwin-arm64 . && \
+    CGO_ENABLED=0 GOOS=freebsd GOARCH=amd64 \
+        go build -ldflags="-s -w -X main.ProbeVersion=${VERSION}" -o dist/oblimap-probe-freebsd-amd64 .
 
 # ---- Production stage ----
 FROM node:24-alpine AS production
@@ -63,7 +65,8 @@ COPY --from=go-probe-builder /build/dist/oblimap-probe.exe            ./probe/di
 COPY --from=go-probe-builder /build/dist/oblimap-probe-linux-amd64   ./probe/dist/
 COPY --from=go-probe-builder /build/dist/oblimap-probe-linux-arm64   ./probe/dist/
 COPY --from=go-probe-builder /build/dist/oblimap-probe-darwin-amd64  ./probe/dist/
-COPY --from=go-probe-builder /build/dist/oblimap-probe-darwin-arm64  ./probe/dist/
+COPY --from=go-probe-builder /build/dist/oblimap-probe-darwin-arm64   ./probe/dist/
+COPY --from=go-probe-builder /build/dist/oblimap-probe-freebsd-amd64 ./probe/dist/
 
 # Pre-built Windows MSI (build on Windows: cd probe && build-msi.bat)
 # If absent, the /api/probe/installer/windows.msi endpoint returns 404.

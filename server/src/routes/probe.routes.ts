@@ -8,6 +8,7 @@ import {
   probeDownload,
   probeInstallerLinux,
   probeInstallerMacos,
+  probeInstallerFreebsd,
   probeInstallerWindowsMsi,
   probeNotifyingUpdate,
 } from '../controllers/probe.controller';
@@ -29,6 +30,7 @@ router.get('/download/:filename', probeDownload);
 // Installer scripts (with API key injected server-side)
 router.get('/installer/linux', probeInstallerLinux);
 router.get('/installer/macos', probeInstallerMacos);
+router.get('/installer/freebsd', probeInstallerFreebsd);
 
 // Pre-built Windows MSI (static, SERVERURL + APIKEY passed via msiexec properties)
 router.get('/installer/windows.msi', probeInstallerWindowsMsi);

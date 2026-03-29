@@ -91,6 +91,7 @@ func isVirtualInterface(name string) bool {
 	prefixes := []string{
 		"docker", "br-", "veth", "virbr", "lo", "tun", "tap",
 		"vmnet", "vboxnet", "utun", "ipsec", "ppp", "wg",
+		"epair", "pflog", "pfsync", "enc", "gif", "gre",
 	}
 	for _, prefix := range prefixes {
 		if len(name) >= len(prefix) && name[:len(prefix)] == prefix {

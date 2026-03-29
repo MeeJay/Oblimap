@@ -78,9 +78,10 @@ export function GlobalAddProbeModal() {
               const expanded = expandedKeys.has(apiKey.id);
 
               // Install commands — matching Obliview's agent pattern exactly
-              const linuxCmd  = `${origin}/api/probe/installer/linux?key=${apiKey.key}`;
-              const macosCmd  = `${origin}/api/probe/installer/macos?key=${apiKey.key}`;
-              const msiUrl    = `${origin}/api/probe/installer/windows.msi`;
+              const linuxCmd    = `${origin}/api/probe/installer/linux?key=${apiKey.key}`;
+              const macosCmd    = `${origin}/api/probe/installer/macos?key=${apiKey.key}`;
+              const freebsdCmd  = `${origin}/api/probe/installer/freebsd?key=${apiKey.key}`;
+              const msiUrl      = `${origin}/api/probe/installer/windows.msi`;
               const windowsCmd = `$m="$env:TEMP\\oblimap-probe.msi"; Invoke-WebRequest "${msiUrl}" -OutFile $m -UseBasicParsing; Start-Process msiexec -ArgumentList "/i \`"$m\`" SERVERURL=\`"${origin}\`" APIKEY=\`"${apiKey.key}\`" /quiet" -Wait -Verb RunAs; Remove-Item $m`;
 
               return (
@@ -103,6 +104,7 @@ export function GlobalAddProbeModal() {
                     <div className="px-4 pb-4 space-y-3 border-t border-border">
                       {[
                         { label: 'Linux (amd64 / arm64)', cmd: `curl -fsSL "${linuxCmd}" | bash` },
+                        { label: 'FreeBSD / OPNsense (amd64)', cmd: `fetch -o - "${freebsdCmd}" | sh` },
                         { label: 'macOS (Apple Silicon / Intel)', cmd: `sudo bash -c "$(curl -fsSL '${macosCmd}')"` },
                         { label: 'Windows — PowerShell (admin)', cmd: windowsCmd },
                       ].map(({ label, cmd }) => (

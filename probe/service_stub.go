@@ -38,6 +38,42 @@ StandardError=append:/var/log/oblimap-probe.log
 WantedBy=multi-user.target
 `
 
+const freebsdRCDTpl = `#!/bin/sh
+#
+# PROVIDE: oblimap_probe
+# REQUIRE: NETWORKING
+# KEYWORD: shutdown
+
+. /etc/rc.subr
+
+name="oblimap_probe"
+rcvar="oblimap_probe_enable"
+command="/usr/local/bin/oblimap-probe"
+pidfile="/var/run/${name}.pid"
+
+start_cmd="${name}_start"
+stop_cmd="${name}_stop"
+
+oblimap_probe_start()
+{
+    /usr/sbin/daemon -p ${pidfile} -o /var/log/oblimap-probe.log ${command}
+    echo "Started ${name}."
+}
+
+oblimap_probe_stop()
+{
+    if [ -f ${pidfile} ]; then
+        kill $(cat ${pidfile}) 2>/dev/null
+        rm -f ${pidfile}
+        echo "Stopped ${name}."
+    fi
+}
+
+load_rc_config $name
+: ${oblimap_probe_enable:=NO}
+run_rc_command "$1"
+`
+
 const darwinPlistTpl = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -71,6 +107,8 @@ func serviceInstall() error {
 		return installLinux(exePath)
 	case "darwin":
 		return installDarwin(exePath)
+	case "freebsd":
+		return installFreeBSD(exePath)
 	default:
 		return errors.New("service install not supported on this platform")
 	}
@@ -141,6 +179,43 @@ func installDarwin(exePath string) error {
 	return nil
 }
 
+func installFreeBSD(exePath string) error {
+	dest := "/usr/local/bin/oblimap-probe"
+	if exePath != dest {
+		if err := copyFile(exePath, dest); err != nil {
+			return fmt.Errorf("copy binary: %w", err)
+		}
+		if err := os.Chmod(dest, 0755); err != nil {
+			return err
+		}
+	}
+
+	// Write rc.d script
+	tpl := template.Must(template.New("rcd").Parse(freebsdRCDTpl))
+	rcdPath := "/usr/local/etc/rc.d/oblimap_probe"
+	f, err := os.Create(rcdPath)
+	if err != nil {
+		return fmt.Errorf("create rc.d script: %w", err)
+	}
+	if err := tpl.Execute(f, nil); err != nil {
+		f.Close()
+		return err
+	}
+	f.Close()
+	if err := os.Chmod(rcdPath, 0755); err != nil {
+		return err
+	}
+
+	// Enable and start
+	if out, err := exec.Command("sysrc", "oblimap_probe_enable=YES").CombinedOutput(); err != nil {
+		log.Printf("sysrc enable: %s", out)
+	}
+	if out, err := exec.Command("service", "oblimap_probe", "start").CombinedOutput(); err != nil {
+		return fmt.Errorf("start service: %v (%s)", err, out)
+	}
+	return nil
+}
+
 func serviceUninstall() error {
 	switch runtime.GOOS {
 	case "linux":
@@ -153,6 +228,11 @@ func serviceUninstall() error {
 		plist := "/Library/LaunchDaemons/com.oblimap.probe.plist"
 		exec.Command("launchctl", "unload", plist).Run() //nolint
 		os.Remove(plist)
+		return nil
+	case "freebsd":
+		exec.Command("service", "oblimap_probe", "stop").Run()  //nolint
+		exec.Command("sysrc", "-x", "oblimap_probe_enable").Run() //nolint
+		os.Remove("/usr/local/etc/rc.d/oblimap_probe")
 		return nil
 	default:
 		return errors.New("service uninstall not supported on this platform")
@@ -215,12 +295,37 @@ rm -f %s
 	cmd.Process.Release() //nolint
 }
 
+func uninstallSelfFreeBSD(serverURL string) {
+	_ = serverURL
+	script := `#!/bin/sh
+sleep 2
+service oblimap_probe stop 2>/dev/null
+sysrc -x oblimap_probe_enable 2>/dev/null
+rm -f /usr/local/etc/rc.d/oblimap_probe
+rm -rf /usr/local/bin/oblimap-probe
+rm -rf /opt/oblimap-probe
+`
+	scriptPath := "/tmp/oblimap-uninstall.sh"
+	if err := os.WriteFile(scriptPath, []byte(script), 0700); err != nil {
+		log.Printf("ERROR: write uninstall script: %v", err)
+		return
+	}
+	cmd := exec.Command("/bin/sh", scriptPath)
+	if err := cmd.Start(); err != nil {
+		log.Printf("ERROR: start uninstall script: %v", err)
+		return
+	}
+	cmd.Process.Release() //nolint
+}
+
 func performUninstall(serverURL string) {
 	switch runtime.GOOS {
 	case "linux":
 		uninstallSelfLinux(serverURL)
 	case "darwin":
 		uninstallSelfDarwin(serverURL)
+	case "freebsd":
+		uninstallSelfFreeBSD(serverURL)
 	default:
 		log.Printf("Uninstall not implemented for %s", runtime.GOOS)
 	}

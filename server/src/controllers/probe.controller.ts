@@ -23,6 +23,7 @@ const ALLOWED_PROBE_BINARIES: Record<string, string> = {
   'oblimap-probe-linux-arm64':  'oblimap-probe-linux-arm64',
   'oblimap-probe-darwin-amd64': 'oblimap-probe-darwin-amd64',
   'oblimap-probe-darwin-arm64': 'oblimap-probe-darwin-arm64',
+  'oblimap-probe-freebsd-amd64': 'oblimap-probe-freebsd-amd64',
 };
 
 export function probeDownload(req: Request, res: Response): void {
@@ -62,6 +63,19 @@ export function probeInstallerMacos(req: Request, res: Response): void {
   if (apiKey) script = script.replace('__API_KEY__', apiKey);
   res.setHeader('Content-Type', 'text/plain; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="install-macos.sh"');
+  res.send(script);
+}
+
+export function probeInstallerFreebsd(req: Request, res: Response): void {
+  const apiKey = req.query.key as string | undefined;
+  const scriptPath = path.resolve(__dirname, '../../../../probe/installer/install-freebsd.sh');
+  if (!fs.existsSync(scriptPath)) { res.status(404).json({ error: 'FreeBSD installer not available' }); return; }
+  let script = fs.readFileSync(scriptPath, 'utf-8').replace(/\r\n/g, '\n');
+  const serverUrl = `${req.protocol}://${req.get('host')}`;
+  script = script.replace('__SERVER_URL__', serverUrl);
+  if (apiKey) script = script.replace('__API_KEY__', apiKey);
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="install-freebsd.sh"');
   res.send(script);
 }
 
