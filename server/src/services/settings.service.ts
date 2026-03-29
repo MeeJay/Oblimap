@@ -37,7 +37,7 @@ export const settingsService = {
     return result;
   },
 
-  async set(scope: SettingsScope, scopeId: number | null, key: SettingsKey, value: unknown): Promise<void> {
+  async set(scope: SettingsScope, scopeId: number | null, key: SettingsKey, value: unknown, tenantId: number): Promise<void> {
     const def = SETTINGS_DEFINITIONS.find((d: typeof SETTINGS_DEFINITIONS[0]) => d.key === key);
     if (!def) throw new Error(`Unknown setting key: ${key}`);
     if (def.type === 'number' && typeof value === 'number') {
@@ -49,7 +49,7 @@ export const settingsService = {
       }
     }
 
-    const serialized = Array.isArray(value) ? JSON.stringify(value) : JSON.stringify(value);
+    const serialized = JSON.stringify(value);
 
     await db('settings')
       .insert({
@@ -57,22 +57,23 @@ export const settingsService = {
         scope_id: scopeId,
         key,
         value: serialized,
+        tenant_id: tenantId,
         updated_at: new Date(),
       })
-      .onConflict(['scope', 'scope_id', 'key'])
+      .onConflict(['scope', 'scope_id', 'key', 'tenant_id'])
       .merge({ value: serialized, updated_at: new Date() });
   },
 
-  async remove(scope: SettingsScope, scopeId: number | null, key: SettingsKey): Promise<boolean> {
-    const count = await db('settings')
-      .where({ scope, scope_id: scopeId, key })
-      .del();
+  async remove(scope: SettingsScope, scopeId: number | null, key: SettingsKey, tenantId?: number): Promise<boolean> {
+    const q = db('settings').where({ scope, scope_id: scopeId, key });
+    if (tenantId) q.andWhere({ tenant_id: tenantId });
+    const count = await q.del();
     return count > 0;
   },
 
-  async setBulk(scope: SettingsScope, scopeId: number | null, overrides: SettingOverride[]): Promise<void> {
+  async setBulk(scope: SettingsScope, scopeId: number | null, overrides: SettingOverride[], tenantId: number): Promise<void> {
     for (const { key, value } of overrides) {
-      await this.set(scope, scopeId, key, value);
+      await this.set(scope, scopeId, key, value, tenantId);
     }
   },
 

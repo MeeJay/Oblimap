@@ -83,7 +83,7 @@ export const settingsController = {
       const { scope, scopeId } = parseScope(req);
       const { key, value } = req.body as SetSettingInput;
 
-      await settingsService.set(scope, scopeId, key as SettingsKey, value);
+      await settingsService.set(scope, scopeId, key as SettingsKey, value, req.tenantId);
 
       // Broadcast settings update
       const io = req.app.get('io');
@@ -111,6 +111,7 @@ export const settingsController = {
         scope,
         scopeId,
         overrides.map((o) => ({ key: o.key as SettingsKey, value: o.value })),
+        req.tenantId,
       );
 
       const io = req.app.get('io');
@@ -130,7 +131,7 @@ export const settingsController = {
       const { scope, scopeId } = parseScope(req);
       const { key } = req.params;
 
-      const deleted = await settingsService.remove(scope, scopeId, key as SettingsKey);
+      const deleted = await settingsService.remove(scope, scopeId, key as SettingsKey, req.tenantId);
 
       if (deleted) {
         const io = req.app.get('io');
