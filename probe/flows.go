@@ -48,6 +48,29 @@ func isLoopback(ip string) bool {
 	return ip == "127.0.0.1" || ip == "::1" || strings.HasPrefix(ip, "127.")
 }
 
+// isIPv4 returns true if the string looks like an IPv4 address (contains dots, no colons).
+func isIPv4(ip string) bool {
+	return strings.Contains(ip, ".") && !strings.Contains(ip, ":")
+}
+
+// isPrivateIPv4 returns true for RFC 1918 + link-local addresses.
+func isPrivateIPv4(ip string) bool {
+	if !isIPv4(ip) {
+		return false
+	}
+	return strings.HasPrefix(ip, "10.") ||
+		strings.HasPrefix(ip, "172.16.") || strings.HasPrefix(ip, "172.17.") ||
+		strings.HasPrefix(ip, "172.18.") || strings.HasPrefix(ip, "172.19.") ||
+		strings.HasPrefix(ip, "172.20.") || strings.HasPrefix(ip, "172.21.") ||
+		strings.HasPrefix(ip, "172.22.") || strings.HasPrefix(ip, "172.23.") ||
+		strings.HasPrefix(ip, "172.24.") || strings.HasPrefix(ip, "172.25.") ||
+		strings.HasPrefix(ip, "172.26.") || strings.HasPrefix(ip, "172.27.") ||
+		strings.HasPrefix(ip, "172.28.") || strings.HasPrefix(ip, "172.29.") ||
+		strings.HasPrefix(ip, "172.30.") || strings.HasPrefix(ip, "172.31.") ||
+		strings.HasPrefix(ip, "192.168.") ||
+		strings.HasPrefix(ip, "169.254.")
+}
+
 // splitHostPort splits "ip:port" into (ip, port). Returns ("", 0) on failure.
 func splitHostPort(addr string) (string, int) {
 	// Handle IPv6 bracket notation like [::1]:port
@@ -118,7 +141,7 @@ func collectFlowsLinux() []FlowEntry {
 		if srcIP == "" || dstIP == "" || dstPort == 0 {
 			continue
 		}
-		if isLoopback(srcIP) || isLoopback(dstIP) {
+		if !isPrivateIPv4(srcIP) || !isPrivateIPv4(dstIP) {
 			continue
 		}
 
@@ -192,7 +215,7 @@ func collectFlowsWindows() []FlowEntry {
 		if srcIP == "" || dstIP == "" || dstPort == 0 {
 			continue
 		}
-		if isLoopback(srcIP) || isLoopback(dstIP) {
+		if !isPrivateIPv4(srcIP) || !isPrivateIPv4(dstIP) {
 			continue
 		}
 
@@ -254,7 +277,7 @@ func collectFlowsDarwin() []FlowEntry {
 		if srcIP == "" || dstIP == "" || dstPort == 0 {
 			continue
 		}
-		if isLoopback(srcIP) || isLoopback(dstIP) {
+		if !isPrivateIPv4(srcIP) || !isPrivateIPv4(dstIP) {
 			continue
 		}
 
