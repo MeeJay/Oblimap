@@ -226,7 +226,7 @@ class SiteService {
     // Load probes assigned to this site so we can identify their own device entry
     const siteProbes = await db('probes')
       .where({ site_id: siteId, tenant_id: tenantId })
-      .select('id', 'ip', 'mac') as { id: number; ip: string | null; mac: string | null }[];
+      .select('id', 'ip', 'mac', 'ips') as { id: number; ip: string | null; mac: string | null; ips: string[] | string | null }[];
 
     // Build lookup maps: ip → probeId  and  mac → probeId
     const probeByIp = new Map<string, number>();
@@ -234,6 +234,13 @@ class SiteService {
     for (const p of siteProbes) {
       if (p.ip) probeByIp.set(p.ip, p.id);
       if (p.mac) probeByMac.set(p.mac, p.id);
+      // Register ALL probe IPs from the ips JSON array (multi-homed probes)
+      const allIps = p.ips != null
+        ? (typeof p.ips === 'string' ? JSON.parse(p.ips) : p.ips) as string[]
+        : [];
+      for (const ip of allIps) {
+        if (!probeByIp.has(ip)) probeByIp.set(ip, p.id);
+      }
     }
 
     return items.map((row) => {

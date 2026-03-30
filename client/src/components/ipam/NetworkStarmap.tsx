@@ -65,6 +65,8 @@ interface GNode {
   deviceType: string;
   vendor: string | null;
   status: string;
+  isProbe: boolean;
+  ips: string[];
   x: number;
   y: number;
   vx: number;
@@ -184,19 +186,47 @@ function buildGraph(flows: NetworkFlow[], items: SiteItem[]): { nodes: GNode[]; 
   const itemByIp = new Map<string, SiteItem>();
   for (const item of items) itemByIp.set(item.ip, item);
 
+  // Build probe grouping maps: IP → probeId, probeId → primary IP
+  const ipToProbeId = new Map<string, number>();
+  const probeIdToPrimaryIp = new Map<number, string>();
+  const probeIdIps = new Map<number, string[]>();
+  for (const item of items) {
+    if (item.isProbe && item.probeId) {
+      ipToProbeId.set(item.ip, item.probeId);
+      if (!probeIdToPrimaryIp.has(item.probeId)) {
+        probeIdToPrimaryIp.set(item.probeId, item.ip);
+      }
+      if (!probeIdIps.has(item.probeId)) probeIdIps.set(item.probeId, []);
+      const ips = probeIdIps.get(item.probeId)!;
+      if (!ips.includes(item.ip)) ips.push(item.ip);
+    }
+  }
+
+  // Resolve an IP to its canonical node ID (merging probe IPs)
+  function canonicalIp(ip: string): string {
+    const probeId = ipToProbeId.get(ip);
+    if (probeId != null) return probeIdToPrimaryIp.get(probeId) ?? ip;
+    return ip;
+  }
+
   const nodeSet = new Map<string, GNode>();
   const linkMap = new Map<string, GLink>();
 
   function getOrCreateNode(ip: string): GNode {
-    let node = nodeSet.get(ip);
+    const canonical = canonicalIp(ip);
+    let node = nodeSet.get(canonical);
     if (!node) {
-      const item = itemByIp.get(ip);
+      const item = itemByIp.get(canonical);
+      const probeId = ipToProbeId.get(canonical);
+      const allIps = probeId != null ? (probeIdIps.get(probeId) ?? [canonical]) : [canonical];
       node = {
-        id: ip,
-        label: item?.customName ?? item?.hostname ?? ip,
+        id: canonical,
+        label: item?.customName ?? item?.hostname ?? canonical,
         deviceType: item?.deviceType ?? 'unknown',
         vendor: item?.vendor ?? null,
         status: item?.status ?? 'unknown',
+        isProbe: item?.isProbe === true,
+        ips: allIps,
         x: 0,
         y: 0,
         vx: 0,
@@ -205,8 +235,12 @@ function buildGraph(flows: NetworkFlow[], items: SiteItem[]): { nodes: GNode[]; 
         connections: 0,
         ports: [],
       };
-      nodeSet.set(ip, node);
+      nodeSet.set(canonical, node);
     }
+    // Accumulate the original IP if not already tracked (for non-primary probe IPs)
+    if (!node.ips.includes(ip)) node.ips.push(ip);
+    // Ensure isProbe is set if any contributing IP is a probe
+    if (itemByIp.get(ip)?.isProbe) node.isProbe = true;
     return node;
   }
 
@@ -217,15 +251,15 @@ function buildGraph(flows: NetworkFlow[], items: SiteItem[]): { nodes: GNode[]; 
     tNode.connections += flow.connectionCount;
     if (!tNode.ports.includes(flow.destPort)) tNode.ports.push(flow.destPort);
 
-    const linkKey = [flow.sourceIp, flow.destIp].sort().join('->');
+    const linkKey = [sNode.id, tNode.id].sort().join('->');
     const existing = linkMap.get(linkKey);
     if (existing) {
       existing.weight += flow.connectionCount;
       if (!existing.ports.includes(flow.destPort)) existing.ports.push(flow.destPort);
     } else {
       linkMap.set(linkKey, {
-        source: flow.sourceIp,
-        target: flow.destIp,
+        source: sNode.id,
+        target: tNode.id,
         ports: [flow.destPort],
         weight: flow.connectionCount,
       });
@@ -535,12 +569,25 @@ export function NetworkStarmap({ siteId, items }: NetworkStarmapProps) {
       ctx.fill();
       ctx.shadowBlur = 0;
 
+      // Probe dashed ring
+      if (n.isProbe) {
+        ctx.save();
+        ctx.strokeStyle = '#8dc63f';
+        ctx.lineWidth = 1.5 * cam.zoom;
+        ctx.setLineDash([4 * cam.zoom, 3 * cam.zoom]);
+        ctx.beginPath();
+        ctx.arc(sx, sy, sr + 5 * cam.zoom, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.restore();
+      }
+
       // Hover ring
       if (n === hovered) {
         ctx.strokeStyle = 'rgba(255,255,255,0.5)';
         ctx.lineWidth = 1.5;
         ctx.beginPath();
-        ctx.arc(sx, sy, sr + 4, 0, Math.PI * 2);
+        ctx.arc(sx, sy, sr + (n.isProbe ? 9 : 4), 0, Math.PI * 2);
         ctx.stroke();
       }
 
@@ -725,6 +772,13 @@ export function NetworkStarmap({ siteId, items }: NetworkStarmapProps) {
               {t(`deviceTypes.${dt}`)}
             </div>
           ))}
+          <div className="flex items-center gap-1.5 text-[11px] text-[#6a8fad]">
+            <span
+              className="w-2.5 h-2.5 rounded-full inline-block"
+              style={{ border: '1.5px dashed #8dc63f', background: 'transparent' }}
+            />
+            Probe
+          </div>
         </div>
         <div className="flex items-center gap-3">
           {flows.length > 0 && (
@@ -763,15 +817,18 @@ export function NetworkStarmap({ siteId, items }: NetworkStarmapProps) {
           }}
         >
           <div className="bg-[rgba(8,14,24,0.92)] border border-[rgba(90,138,181,0.35)] rounded-md px-3.5 py-2.5 min-w-[170px]">
-            <div className="text-[13px] font-medium text-[#d4e0ed] mb-1">
+            <div className="text-[13px] font-medium text-[#d4e0ed] mb-1 flex items-center gap-2">
               {anonymize(tooltip.node.label, 'hostname')}
+              {tooltip.node.isProbe && (
+                <span className="text-[9px] font-semibold uppercase tracking-wider text-[#8dc63f] bg-[rgba(141,198,63,0.12)] border border-[rgba(141,198,63,0.3)] rounded px-1.5 py-px">Probe</span>
+              )}
             </div>
             <div className="text-[11px] text-[#F5A623] mb-1.5">
               {t(`deviceTypes.${tooltip.node.deviceType}`)}
             </div>
             <div className="flex justify-between gap-5 text-[11px] text-[#6a8fad] mb-0.5">
-              <span>IP</span>
-              <span className="text-[#a0c4e0] font-mono">{anonymize(tooltip.node.id, 'ip')}</span>
+              <span>{tooltip.node.ips.length > 1 ? 'IPs' : 'IP'}</span>
+              <span className="text-[#a0c4e0] font-mono">{tooltip.node.ips.map(ip => anonymize(ip, 'ip')).join(', ')}</span>
             </div>
             {tooltip.node.vendor && (
               <div className="flex justify-between gap-5 text-[11px] text-[#6a8fad] mb-0.5">

@@ -31,11 +31,20 @@ function periodToInterval(period: FlowPeriod): string {
 export const flowService = {
   async getFlows(tenantId: number, siteId: number, period: FlowPeriod): Promise<NetworkFlow[]> {
     const interval = periodToInterval(period);
+
+    // Get all known IPs in this site for filtering
+    const siteIps = await db('site_items')
+      .where({ site_id: siteId, tenant_id: tenantId })
+      .pluck('ip') as string[];
+    const ipSet = new Set(siteIps);
+
     const rows = await db('network_flows')
       .where({ site_id: siteId, tenant_id: tenantId })
       .andWhereRaw(`last_seen_at >= NOW() - INTERVAL '${interval}'`)
       .orderBy('connection_count', 'desc');
-    return rows.map(rowToFlow);
+
+    // Only include flows where at least one endpoint is a known device
+    return rows.map(rowToFlow).filter(f => ipSet.has(f.sourceIp) || ipSet.has(f.destIp));
   },
 
   async processFlows(
@@ -88,6 +97,20 @@ export const flowService = {
   async clearFlows(tenantId: number, siteId: number): Promise<number> {
     return db('network_flows')
       .where({ site_id: siteId, tenant_id: tenantId })
+      .delete();
+  },
+
+  /**
+   * Delete flows where source_ip or dest_ip starts with the given /24 prefix.
+   * @param prefix e.g. "192.168.1" — matches all IPs 192.168.1.*
+   */
+  async clearFlowsForSubnet(tenantId: number, siteId: number, prefix: string): Promise<number> {
+    return db('network_flows')
+      .where({ site_id: siteId, tenant_id: tenantId })
+      .andWhere(function () {
+        this.where('source_ip', 'like', `${prefix}.%`)
+          .orWhere('dest_ip', 'like', `${prefix}.%`);
+      })
       .delete();
   },
 };

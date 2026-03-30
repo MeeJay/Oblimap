@@ -35,6 +35,7 @@ type PushBody struct {
 	ProbeVersion      string             `json:"probeVersion"`
 	OSInfo            OSInfo             `json:"osInfo"`
 	ProbeMac          string             `json:"probeMac,omitempty"`
+	ProbeIPs          []string           `json:"probeIPs,omitempty"`
 	DiscoveredDevices []DiscoveredDevice `json:"discoveredDevices"`
 	DiscoveredFlows   []FlowEntry        `json:"discoveredFlows,omitempty"`
 	ScannedSubnets    []string           `json:"scannedSubnets"`
@@ -160,6 +161,64 @@ func probeLocalIP() string {
 	return conn.LocalAddr().(*net.UDPAddr).IP.String()
 }
 
+// probeLocalIPs returns ALL private IPv4 addresses on the machine, across all
+// non-loopback, non-virtual, up interfaces. This allows the server to track
+// multi-homed probes and match them to devices on multiple subnets.
+func probeLocalIPs() []string {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil
+	}
+
+	var ips []string
+	seen := make(map[string]bool)
+
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		if iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+		if isVirtualInterface(iface.Name) {
+			continue
+		}
+
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+			if ip == nil {
+				continue
+			}
+			ip4 := ip.To4()
+			if ip4 == nil {
+				continue // skip IPv6
+			}
+			ipStr := ip4.String()
+			if seen[ipStr] {
+				continue
+			}
+			if !isPrivateIPv4(ipStr) {
+				continue
+			}
+			seen[ipStr] = true
+			ips = append(ips, ipStr)
+		}
+	}
+
+	return ips
+}
+
 // normalizeMacGo converts a MAC from Go's default "aa:bb:cc:dd:ee:ff" to
 // uppercase "AA:BB:CC:DD:EE:FF" to match the server's normalization.
 func normalizeMacGo(mac string) string {
@@ -233,11 +292,15 @@ func doPush() int {
 		discoveredFlows = collectFlows()
 	}
 
+	// Collect all private IPv4 addresses from all interfaces
+	allIPs := probeLocalIPs()
+
 	body := PushBody{
 		Hostname:          hostname(),
 		ProbeVersion:      ProbeVersion,
 		OSInfo:            osInfo(),
 		ProbeMac:          myMac,
+		ProbeIPs:          allIPs,
 		DiscoveredDevices: devices,
 		DiscoveredFlows:   discoveredFlows,
 		ScannedSubnets:    scannedSubnets,

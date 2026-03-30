@@ -430,6 +430,7 @@ export interface Probe {
   hostname: string;
   ip: string | null;
   mac: string | null;
+  ips?: string[] | null;
   osInfo: {
     platform: string;
     distro?: string;

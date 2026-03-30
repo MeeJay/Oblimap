@@ -33,6 +33,7 @@ export interface ProbePushPayload {
   probeVersion: string;
   osInfo?: Record<string, unknown>;
   probeMac?: string | null;
+  probeIPs?: string[];
   discoveredDevices: DiscoveredDevice[];
   discoveredFlows?: FlowEntry[];
   scannedSubnets: string[];
@@ -62,6 +63,9 @@ function rowToProbe(row: Record<string, unknown>): Probe {
     hostname: row.hostname as string,
     ip: (row.ip as string | null) ?? null,
     mac: (row.mac as string | null) ?? null,
+    ips: row.ips != null
+      ? (typeof row.ips === 'string' ? JSON.parse(row.ips) : row.ips) as string[]
+      : null,
     osInfo: row.os_info != null
       ? (typeof row.os_info === 'string' ? JSON.parse(row.os_info) : row.os_info)
       : null,
@@ -546,6 +550,7 @@ class ProbeService {
           hostname: payload.hostname,
           ip: null,
           mac: payload.probeMac ? normalizeMac(payload.probeMac) : null,
+          ips: payload.probeIPs ? JSON.stringify(payload.probeIPs) : null,
           os_info: payload.osInfo ? JSON.stringify(payload.osInfo) : null,
           probe_version: payload.probeVersion,
           api_key_id: apiKey.id as number,
@@ -583,6 +588,7 @@ class ProbeService {
       };
       if (payload.osInfo) updates.os_info = JSON.stringify(payload.osInfo);
       if (payload.probeMac) updates.mac = normalizeMac(payload.probeMac);
+      if (payload.probeIPs) updates.ips = JSON.stringify(payload.probeIPs);
       if (probe.api_key_id !== (apiKey.id as number)) updates.api_key_id = apiKey.id;
       // Clear updating_since if version changed
       if (probe.updating_since && probe.probe_version !== payload.probeVersion) {
