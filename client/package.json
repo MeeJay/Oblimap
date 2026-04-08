@@ -1,6 +1,6 @@
 {
   "name": "@oblimap/client",
-  "version": "2.2.50",
+  "version": "2.2.52",
   "private": true,
   "type": "module",
   "scripts": {
