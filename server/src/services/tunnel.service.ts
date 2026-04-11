@@ -1,9 +1,8 @@
 import { randomUUID } from 'crypto';
 import { db } from '../db';
 import { logger } from '../utils/logger';
-import { PROBE_WS_EVENTS } from '@oblimap/shared';
 import type { Tunnel, TunnelStatus } from '@oblimap/shared';
-import { isProbeConnected, sendToProbe, getConnectedProbes } from '../socket';
+import { isProbeConnected, sendToProbe, getConnectedProbes, waitForTunnelResponse } from './probeHub.service';
 import { AppError } from '../middleware/errorHandler';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -92,14 +91,15 @@ export const tunnelService = {
     });
 
     // Send tunnel_open command to probe via WS
-    sendToProbe(probeId, PROBE_WS_EVENTS.TUNNEL_OPEN, {
+    sendToProbe(probeId, {
+      type: 'tunnel_open',
       tunnelId,
       targetIp,
       targetPort,
     });
 
-    // Wait for probe:tunnel_ready or probe:tunnel_error
-    const result = await this.waitForTunnelReady(probeId, tunnelId);
+    // Wait for probe tunnel_ready or tunnel_error
+    const result = await waitForTunnelResponse(tunnelId);
 
     if (result.error) {
       await db('tunnels').where({ id: tunnelId }).update({
@@ -167,41 +167,6 @@ export const tunnelService = {
     return candidates[0];
   },
 
-  /** Wait for probe tunnel_ready or tunnel_error response */
-  waitForTunnelReady(probeId: number, tunnelId: string): Promise<{ error?: string }> {
-    return new Promise((resolve) => {
-      const timeout = setTimeout(() => {
-        resolve({ error: 'Tunnel open timed out (probe did not respond)' });
-      }, TUNNEL_OPEN_TIMEOUT_MS);
-
-      const socket = getConnectedProbes().get(probeId);
-      if (!socket) {
-        clearTimeout(timeout);
-        resolve({ error: 'Probe disconnected' });
-        return;
-      }
-
-      const onReady = (payload: { tunnelId: string }) => {
-        if (payload.tunnelId !== tunnelId) return;
-        clearTimeout(timeout);
-        socket.off('_tunnel_ready', onReady);
-        socket.off('_tunnel_error', onError);
-        resolve({});
-      };
-
-      const onError = (payload: { tunnelId: string; error: string }) => {
-        if (payload.tunnelId !== tunnelId) return;
-        clearTimeout(timeout);
-        socket.off('_tunnel_ready', onReady);
-        socket.off('_tunnel_error', onError);
-        resolve({ error: payload.error });
-      };
-
-      socket.on('_tunnel_ready', onReady);
-      socket.on('_tunnel_error', onError);
-    });
-  },
-
   async closeTunnel(tunnelId: string, tenantId?: number): Promise<void> {
     const tunnel = await db('tunnels').where({ id: tunnelId }).first();
     if (!tunnel) return;
@@ -209,7 +174,8 @@ export const tunnelService = {
 
     // Send close command to probe
     if (isProbeConnected(tunnel.probe_id as number)) {
-      sendToProbe(tunnel.probe_id as number, PROBE_WS_EVENTS.TUNNEL_CLOSE, {
+      sendToProbe(tunnel.probe_id as number, {
+        type: 'tunnel_close',
         tunnelId,
       });
     }

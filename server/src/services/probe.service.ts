@@ -21,7 +21,7 @@ export function setProbeServiceIO(io: SocketIOServer): void {
 function isProbeWsConnected(probeId: number): boolean {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { isProbeConnected } = require('../socket');
+    const { isProbeConnected } = require('./probeHub.service');
     return isProbeConnected(probeId);
   } catch {
     return false;
@@ -599,8 +599,17 @@ class ProbeService {
     apiKeyValue: string,
     probeUuid: string,
     payload: ProbePushPayload,
+    preValidatedApiKeyId?: number,
   ): Promise<ProbePushResponse & { httpStatus: number }> {
-    const apiKey = await db('probe_api_keys').where({ key: apiKeyValue }).first();
+    let apiKey: Record<string, unknown> | undefined;
+
+    if (preValidatedApiKeyId) {
+      // WS path: key already validated during upgrade handshake
+      apiKey = await db('probe_api_keys').where({ id: preValidatedApiKeyId }).first();
+    } else {
+      // HTTP path: validate key from header
+      apiKey = await db('probe_api_keys').where({ key: apiKeyValue }).first();
+    }
 
     if (!apiKey) {
       return {
@@ -898,15 +907,14 @@ class ProbeService {
     await db('probes').where({ id, tenant_id: tenantId }).update(patch);
 
     // If probe is WS-connected, push config update immediately
-    const { isProbeConnected, sendToProbe } = await import('../socket');
+    const { isProbeConnected, sendToProbe } = await import('./probeHub.service');
     if (isProbeConnected(id)) {
       const updatedProbe = await this.getProbe(tenantId, id);
       if (updatedProbe) {
-        const { PROBE_WS_EVENTS } = await import('@oblimap/shared');
-        // Rebuild effective config and push
         const effectiveConfig = await this.buildEffectiveConfig(tenantId, id);
         if (effectiveConfig) {
-          sendToProbe(id, PROBE_WS_EVENTS.CONFIG_UPDATE, {
+          sendToProbe(id, {
+            type: 'config_update',
             status: updatedProbe.status,
             config: effectiveConfig,
             latestVersion: this.getProbeVersion().version,
@@ -1005,10 +1013,9 @@ class ProbeService {
     });
 
     // If probe is WS-connected, deliver instantly and clear pending_command
-    const { isProbeConnected, sendToProbe } = await import('../socket');
+    const { isProbeConnected, sendToProbe } = await import('./probeHub.service');
     if (isProbeConnected(id)) {
-      const { PROBE_WS_EVENTS } = await import('@oblimap/shared');
-      sendToProbe(id, PROBE_WS_EVENTS.COMMAND, { command });
+      sendToProbe(id, { type: 'command', command });
       await db('probes').where({ id, tenant_id: tenantId }).update({
         pending_command: null,
         ...(command === 'uninstall' ? { uninstall_commanded_at: new Date() } : {}),
@@ -1042,11 +1049,10 @@ class ProbeService {
       .update({ pending_command: command, updated_at: new Date() });
 
     // Deliver instantly to WS-connected probes
-    const { isProbeConnected: isConn, sendToProbe: sendTo } = await import('../socket');
-    const { PROBE_WS_EVENTS: PWS } = await import('@oblimap/shared');
+    const { isProbeConnected: isConn, sendToProbe: sendTo } = await import('./probeHub.service');
     for (const id of ids) {
       if (isConn(id)) {
-        sendTo(id, PWS.COMMAND, { command });
+        sendTo(id, { type: 'command', command });
         await db('probes').where({ id, tenant_id: tenantId }).update({
           pending_command: null,
           ...(command === 'uninstall' ? { uninstall_commanded_at: new Date() } : {}),

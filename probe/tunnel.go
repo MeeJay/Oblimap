@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -148,7 +147,7 @@ func tunnelRelay(t *activeTunnel) {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-// dialTunnelWS opens a dedicated WebSocket to the server's /tunnel namespace.
+// dialTunnelWS opens a dedicated WebSocket to the server's /api/probe/ws/tunnel endpoint.
 func dialTunnelWS(tunnelID string) (*websocket.Conn, error) {
 	u, err := url.Parse(cfg.ServerURL)
 	if err != nil {
@@ -160,43 +159,14 @@ func dialTunnelWS(tunnelID string) (*websocket.Conn, error) {
 		scheme = "wss"
 	}
 
-	// Connect to Socket.io /tunnel namespace with tunnel ID + API key auth
-	wsURL := fmt.Sprintf("%s://%s/socket.io/?EIO=4&transport=websocket", scheme, u.Host)
+	wsURL := fmt.Sprintf("%s://%s/api/probe/ws/tunnel/%s", scheme, u.Host, tunnelID)
 
+	headers := buildWsHeaders()
 	dialer := websocket.Dialer{HandshakeTimeout: 10 * time.Second}
-	conn, _, err := dialer.Dial(wsURL, nil)
+	conn, _, err := dialer.Dial(wsURL, headers)
 	if err != nil {
 		return nil, fmt.Errorf("tunnel WS dial: %w", err)
 	}
-
-	// Read EIO open
-	_, msg, err := conn.ReadMessage()
-	if err != nil || len(msg) == 0 || msg[0] != eioOpen {
-		conn.Close()
-		return nil, fmt.Errorf("tunnel WS: bad EIO open")
-	}
-
-	// Connect to /tunnel namespace with auth
-	authJSON, _ := json.Marshal(map[string]string{
-		"apiKey":    cfg.APIKey,
-		"probeUuid": cfg.DeviceUUID,
-		"tunnelId":  tunnelID,
-		"role":      "probe",
-	})
-	connectMsg := fmt.Sprintf("%c%c/tunnel,%s", eioMessage, sioConnect, string(authJSON))
-	if err := conn.WriteMessage(websocket.TextMessage, []byte(connectMsg)); err != nil {
-		conn.Close()
-		return nil, err
-	}
-
-	// Wait for connect ack
-	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
-	_, msg, err = conn.ReadMessage()
-	if err != nil {
-		conn.Close()
-		return nil, err
-	}
-	conn.SetReadDeadline(time.Time{})
 
 	return conn, nil
 }
@@ -209,7 +179,7 @@ func wsSendTunnelReady(tunnelID string) {
 	if c == nil {
 		return
 	}
-	wsSendEvent(c, "probe:tunnel_ready", map[string]string{"tunnelId": tunnelID})
+	wsSendJSON(c, map[string]string{"type": "tunnel_ready", "tunnelId": tunnelID})
 }
 
 // wsSendTunnelError notifies the server of a tunnel failure via the control channel.
@@ -220,5 +190,5 @@ func wsSendTunnelError(tunnelID, errMsg string) {
 	if c == nil {
 		return
 	}
-	wsSendEvent(c, "probe:tunnel_error", map[string]string{"tunnelId": tunnelID, "error": errMsg})
+	wsSendJSON(c, map[string]string{"type": "tunnel_error", "tunnelId": tunnelID, "error": errMsg})
 }
