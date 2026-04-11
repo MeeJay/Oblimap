@@ -46,24 +46,33 @@ var (
 func wsAvailable() bool {
 	wsURL := buildWsURL()
 	if wsURL == "" {
+		log.Printf("WS probe: no server URL, skipping")
 		return false
 	}
+
+	log.Printf("WS probe: testing connection to %s", wsURL)
 
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,
 	}
-	conn, _, err := dialer.Dial(wsURL, nil)
+	conn, resp, err := dialer.Dial(wsURL, nil)
 	if err != nil {
-		log.Printf("WS probe: server does not support WebSocket (%v), using HTTP fallback", err)
+		status := 0
+		if resp != nil {
+			status = resp.StatusCode
+		}
+		log.Printf("WS probe: dial failed (HTTP %d): %v — using HTTP fallback", status, err)
 		return false
 	}
 
 	// Read the EIO open packet
 	_, msg, err := conn.ReadMessage()
 	if err != nil || len(msg) == 0 || msg[0] != eioOpen {
+		log.Printf("WS probe: bad EIO open packet: %v (msg=%q)", err, string(msg))
 		conn.Close()
 		return false
 	}
+	log.Printf("WS probe: EIO open received, connecting to /probe namespace...")
 
 	// Try to connect to /probe namespace
 	authJSON, _ := json.Marshal(map[string]string{
@@ -72,26 +81,56 @@ func wsAvailable() bool {
 	})
 	connectMsg := fmt.Sprintf("%c%c%s,%s", eioMessage, sioConnect, wsNamespace, string(authJSON))
 	if err := conn.WriteMessage(websocket.TextMessage, []byte(connectMsg)); err != nil {
+		log.Printf("WS probe: send connect failed: %v", err)
 		conn.Close()
 		return false
 	}
 
-	// Wait for connect ack (with timeout)
+	// Wait for connect ack — may need to skip unexpected messages
 	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
-	_, msg, err = conn.ReadMessage()
+	for i := 0; i < 5; i++ {
+		_, msg, err = conn.ReadMessage()
+		if err != nil {
+			log.Printf("WS probe: read connect ack failed: %v", err)
+			conn.Close()
+			return false
+		}
+		msgStr := string(msg)
+		log.Printf("WS probe: received message [%d]: %s", i, truncate(msgStr, 200))
+
+		// EIO ping → respond with pong and continue reading
+		if len(msgStr) > 0 && msgStr[0] == eioPing {
+			conn.WriteMessage(websocket.TextMessage, []byte{eioPong})
+			continue
+		}
+
+		// Check for /probe namespace connect ack: 40/probe,{...}
+		prefix := fmt.Sprintf("%c%c%s,", eioMessage, sioConnect, wsNamespace)
+		if strings.HasPrefix(msgStr, prefix) {
+			log.Printf("WS probe: server supports WebSocket /probe namespace")
+			conn.Close()
+			return true
+		}
+
+		// Check for connect error: 44/probe,{...}
+		errPrefix := fmt.Sprintf("%c4%s,", eioMessage, wsNamespace)
+		if strings.HasPrefix(msgStr, errPrefix) {
+			log.Printf("WS probe: server rejected /probe namespace: %s", msgStr)
+			conn.Close()
+			return false
+		}
+	}
+
+	log.Printf("WS probe: no connect ack after 5 messages, giving up")
 	conn.Close()
-	if err != nil {
-		return false
-	}
-
-	// Expect: 40/probe,{...} (connect ack)
-	msgStr := string(msg)
-	if len(msgStr) >= 2 && msgStr[0] == eioMessage && msgStr[1] == sioConnect {
-		log.Printf("WS probe: server supports WebSocket /probe namespace")
-		return true
-	}
-
 	return false
+}
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "..."
 }
 
 // buildWsURL converts the server URL to a Socket.io WebSocket URL.
@@ -191,19 +230,38 @@ func wsRun() error {
 		return fmt.Errorf("send connect: %w", err)
 	}
 
-	// 3. Wait for connect ack
+	// 3. Wait for connect ack — may need to skip intermediate messages
 	conn.SetReadDeadline(time.Now().Add(15 * time.Second))
-	_, msg, err = conn.ReadMessage()
-	if err != nil {
-		return fmt.Errorf("read connect ack: %w", err)
-	}
-	msgStr := string(msg)
-	if len(msgStr) < 2 || msgStr[0] != eioMessage || msgStr[1] != sioConnect {
-		// Check for connect error (44/probe,{...})
-		if len(msgStr) >= 2 && msgStr[0] == eioMessage && msgStr[1] == '4' {
+	connected := false
+	for i := 0; i < 5; i++ {
+		_, msg, err = conn.ReadMessage()
+		if err != nil {
+			return fmt.Errorf("read connect ack: %w", err)
+		}
+		msgStr := string(msg)
+		log.Printf("WS connect: received [%d]: %s", i, truncate(msgStr, 200))
+
+		// EIO ping → respond with pong
+		if len(msgStr) > 0 && msgStr[0] == eioPing {
+			conn.WriteMessage(websocket.TextMessage, []byte{eioPong})
+			continue
+		}
+
+		// /probe namespace connect ack
+		prefix := fmt.Sprintf("%c%c%s,", eioMessage, sioConnect, wsNamespace)
+		if strings.HasPrefix(msgStr, prefix) {
+			connected = true
+			break
+		}
+
+		// Connect error
+		errPrefix := fmt.Sprintf("%c4%s,", eioMessage, wsNamespace)
+		if strings.HasPrefix(msgStr, errPrefix) {
 			return fmt.Errorf("server rejected connection: %s", msgStr)
 		}
-		return fmt.Errorf("unexpected connect response: %s", msgStr)
+	}
+	if !connected {
+		return fmt.Errorf("no connect ack received after reading multiple messages")
 	}
 
 	conn.SetReadDeadline(time.Time{}) // Clear deadline
