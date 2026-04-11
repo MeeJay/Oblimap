@@ -35,7 +35,7 @@ export function createSocketServer(httpServer: HttpServer): SocketIOServer {
       },
       credentials: true,
     },
-    transports: ['websocket', 'polling'],
+    transports: ['polling', 'websocket'],
   });
 
   // Socket.io authentication middleware

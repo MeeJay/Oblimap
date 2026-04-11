@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"net/http"
 	"net/url"
 	"strings"
 	"sync"
@@ -52,10 +53,18 @@ func wsAvailable() bool {
 
 	log.Printf("WS probe: testing connection to %s", wsURL)
 
+	// Build HTTP headers for the WS upgrade — reverse proxies need a proper Host header.
+	// Do NOT set Origin — Socket.io CORS allows missing Origin (server-to-server)
+	// but would reject an Origin that doesn't match CLIENT_ORIGIN.
+	reqHeaders := http.Header{}
+	if u, err := url.Parse(cfg.ServerURL); err == nil {
+		reqHeaders.Set("Host", u.Host)
+	}
+
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,
 	}
-	conn, resp, err := dialer.Dial(wsURL, nil)
+	conn, resp, err := dialer.Dial(wsURL, reqHeaders)
 	if err != nil {
 		status := 0
 		if resp != nil {
@@ -186,11 +195,17 @@ func wsRun() error {
 		return fmt.Errorf("no server URL configured")
 	}
 
+	reqHeaders := http.Header{}
+	if u, err := url.Parse(cfg.ServerURL); err == nil {
+		reqHeaders.Set("Origin", cfg.ServerURL)
+		reqHeaders.Set("Host", u.Host)
+	}
+
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 15 * time.Second,
 	}
 
-	conn, _, err := dialer.Dial(wsURL, nil)
+	conn, _, err := dialer.Dial(wsURL, reqHeaders)
 	if err != nil {
 		return fmt.Errorf("dial failed: %w", err)
 	}
