@@ -204,6 +204,7 @@ export const probeController = {
         scanIntervalSeconds?: number;
         scanConfig?: { excludedSubnets: string[]; extraSubnets: string[] };
         scanConfigOverride?: boolean;
+        isPrimary?: boolean;
       };
       const probe = await probeService.updateProbe(
         req.tenantId,

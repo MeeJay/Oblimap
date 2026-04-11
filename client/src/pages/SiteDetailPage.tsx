@@ -20,6 +20,7 @@ import { SubnetHeatmap } from '@/components/ipam/SubnetHeatmap';
 import { NetworkStarmap } from '@/components/ipam/NetworkStarmap';
 import { SettingsPanel } from '@/components/settings/SettingsPanel';
 import { NotificationBindingsPanel } from '@/components/notifications/NotificationBindingsPanel';
+import TunnelDialog from '@/components/ipam/TunnelDialog';
 import { exportSiteCSV, exportSiteExcel } from '@/utils/exportSite';
 import { getSocket } from '@/socket/socketClient';
 import { SOCKET_EVENTS } from '@oblimap/shared';
@@ -88,7 +89,15 @@ const WEB_PORT_MAP: Record<number, 'http' | 'https'> = {
   80: 'http', 443: 'https', 8080: 'http', 8443: 'https',
 };
 
-function PortBadges({ ip, ports }: { ip: string; ports: number[] | null | undefined }) {
+function PortBadges({
+  ip,
+  ports,
+  onTunnel,
+}: {
+  ip: string;
+  ports: number[] | null | undefined;
+  onTunnel?: (ip: string, port: number) => void;
+}) {
   if (!ports || ports.length === 0) return null;
   return (
     <div className="flex flex-wrap gap-1 mt-1">
@@ -99,27 +108,45 @@ function PortBadges({ ip, ports }: { ip: string; ports: number[] | null | undefi
             ? `${scheme}://${ip}`
             : `${scheme}://${ip}:${port}`;
           return (
-            <a
-              key={port}
-              href={url}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              title={`Open ${url}`}
-              className="inline-flex items-center gap-0.5 text-[10px] font-mono px-1.5 py-0.5 rounded border bg-blue-500/10 text-blue-400 border-blue-500/30 hover:bg-blue-500/20 transition-colors"
-            >
-              {port}
-              <ExternalLink size={8} />
-            </a>
+            <span key={port} className="inline-flex items-center gap-0.5">
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                title={`Open ${url}`}
+                className="inline-flex items-center gap-0.5 text-[10px] font-mono px-1.5 py-0.5 rounded-l border bg-blue-500/10 text-blue-400 border-blue-500/30 hover:bg-blue-500/20 transition-colors"
+              >
+                {port}
+                <ExternalLink size={8} />
+              </a>
+              {onTunnel && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onTunnel(ip, port); }}
+                  title="Tunnel"
+                  className="inline-flex items-center text-[10px] px-1 py-0.5 rounded-r border border-l-0 bg-accent/10 text-accent border-accent/30 hover:bg-accent/20 transition-colors"
+                >
+                  <Wifi size={8} />
+                </button>
+              )}
+            </span>
           );
         }
         return (
-          <span
+          <button
             key={port}
-            className="inline-flex items-center text-[10px] font-mono px-1.5 py-0.5 rounded border bg-bg-elevated text-text-secondary border-border"
+            onClick={onTunnel ? (e) => { e.stopPropagation(); onTunnel(ip, port); } : undefined}
+            className={clsx(
+              'inline-flex items-center gap-0.5 text-[10px] font-mono px-1.5 py-0.5 rounded border',
+              onTunnel
+                ? 'bg-accent/10 text-accent border-accent/30 hover:bg-accent/20 cursor-pointer transition-colors'
+                : 'bg-bg-elevated text-text-secondary border-border',
+            )}
+            title={onTunnel ? `Tunnel to ${ip}:${port}` : undefined}
           >
             {port}
-          </span>
+            {onTunnel && <Wifi size={8} />}
+          </button>
         );
       })}
     </div>
@@ -503,6 +530,7 @@ function DevicesTab({
   reservations,
   probes,
   onRefresh,
+  onTunnel,
 }: {
   siteId: number;
   siteName: string;
@@ -510,6 +538,7 @@ function DevicesTab({
   reservations: IpReservation[];
   probes: Probe[];
   onRefresh: () => void;
+  onTunnel?: (ip: string, port: number) => void;
 }) {
   const { t } = useTranslation();
   const [deviceModal, setDeviceModal] = useState<SiteItem | null | undefined>(undefined);
@@ -685,7 +714,7 @@ function DevicesTab({
               </span>
             )}
           </div>
-          <PortBadges ip={item.ip} ports={item.openPorts} />
+          <PortBadges ip={item.ip} ports={item.openPorts} onTunnel={onTunnel} />
         </td>
         <td className="px-4 py-3 hidden md:table-cell">
           <span className="text-xs font-mono text-text-secondary">
@@ -1029,6 +1058,7 @@ export function SiteDetailPage() {
   const [probes, setProbes] = useState<Probe[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('devices');
+  const [tunnelTarget, setTunnelTarget] = useState<{ ip: string; port: number } | null>(null);
 
   const load = useCallback(async () => {
     if (!siteId) return;
@@ -1175,6 +1205,7 @@ export function SiteDetailPage() {
             reservations={reservations}
             probes={probes}
             onRefresh={() => void load()}
+            onTunnel={(ip, port) => setTunnelTarget({ ip, port })}
           />
         </div>
         <div style={{ gridArea: '1/1' }} className={tab !== 'reservations' ? 'invisible pointer-events-none' : ''}>
@@ -1193,6 +1224,17 @@ export function SiteDetailPage() {
           <NotificationBindingsPanel scope="site" scopeId={siteId} />
         </div>
       </div>
+
+      {/* Tunnel dialog */}
+      {tunnelTarget && (
+        <TunnelDialog
+          siteId={siteId}
+          targetIp={tunnelTarget.ip}
+          targetPort={tunnelTarget.port}
+          probes={probes}
+          onClose={() => setTunnelTarget(null)}
+        />
+      )}
     </div>
   );
 }

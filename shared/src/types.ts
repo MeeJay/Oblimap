@@ -424,6 +424,8 @@ export interface ProbeScanConfig {
   flowAnalysisEnabled?: boolean;
 }
 
+export type ProbeRole = 'primary' | 'secondary';
+
 export interface Probe {
   id: number;
   uuid: string;
@@ -446,6 +448,8 @@ export interface Probe {
   scanIntervalSeconds: number;
   scanConfig: ProbeScanConfig;
   scanConfigOverride?: boolean;
+  isPrimary?: boolean;
+  wsConnected?: boolean;
   lastSeenAt: string | null;
   pendingCommand: string | null;
   uninstallCommandedAt: string | null;
@@ -484,6 +488,25 @@ export interface FlowEntry {
   destPort: number;
   protocol: string;
   process?: string;
+}
+
+// ============================================
+// Tunnels
+// ============================================
+export type TunnelStatus = 'opening' | 'active' | 'closed' | 'error';
+
+export interface Tunnel {
+  id: string;
+  tenantId: number;
+  probeId: number;
+  siteId: number;
+  targetIp: string;
+  targetPort: number;
+  status: TunnelStatus;
+  requestedBy: number | null;
+  errorMessage: string | null;
+  createdAt: string;
+  closedAt: string | null;
 }
 
 // ============================================

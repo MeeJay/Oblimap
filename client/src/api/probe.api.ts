@@ -30,6 +30,7 @@ export const probeApi = {
       scanIntervalSeconds: number;
       scanConfig: ProbeScanConfig;
       scanConfigOverride: boolean;
+      isPrimary: boolean;
     }>,
   ): Promise<{ probe: Probe }> =>
     apiClient.patch(`/probe/devices/${id}`, updates).then((r: AxiosResponse) => r.data as { probe: Probe }),

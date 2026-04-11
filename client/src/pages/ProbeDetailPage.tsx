@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
   Radar, ArrowLeft, CheckCircle, XCircle, Trash2, Plus,
   X, Save, Loader2, AlertTriangle, Monitor, RefreshCw,
-  Activity, Globe, ArrowLeftRight,
+  Activity, Globe, ArrowLeftRight, Crown,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
@@ -296,6 +296,15 @@ export function ProbeDetailPage() {
     } catch { toast.error(t('probesPage.detail.failedCommand')); }
   }
 
+  async function handleTogglePrimary() {
+    if (!probe) return;
+    try {
+      await probeApi.update(probeId, { isPrimary: !probe.isPrimary });
+      toast.success(probe.isPrimary ? t('probesPage.detail.demoted', 'Demoted to secondary') : t('probesPage.detail.promoted', 'Promoted to primary'));
+      void load();
+    } catch { toast.error(t('probesPage.failedSave')); }
+  }
+
   async function handleDelete() {
     if (!confirm(t('probesPage.confirmDelete'))) return;
     try {
@@ -378,6 +387,24 @@ export function ProbeDetailPage() {
             </a>
           ))}
           <StatusBadge status={probe.status} />
+          {probe.siteId && (
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+              probe.isPrimary
+                ? 'bg-accent/15 text-accent border border-accent/30'
+                : 'bg-bg-elevated text-text-secondary border border-border'
+            }`}>
+              {probe.isPrimary ? t('probesPage.detail.primary', 'Primary') : t('probesPage.detail.secondary', 'Secondary')}
+            </span>
+          )}
+          {probe.status === 'approved' && (
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+              probe.wsConnected
+                ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                : 'bg-bg-elevated text-text-secondary border border-border'
+            }`}>
+              {probe.wsConnected ? 'WS' : 'HTTP'}
+            </span>
+          )}
           {probe.status === 'pending' && (
             <>
               <button
@@ -650,6 +677,20 @@ export function ProbeDetailPage() {
           {t('probesPage.detail.commandsDesc')}
         </p>
         <div className="flex flex-wrap gap-2">
+          {probe.siteId && (
+            <button
+              onClick={() => void handleTogglePrimary()}
+              className={clsx(
+                'btn-secondary flex items-center gap-1.5 text-sm',
+                probe.isPrimary && 'text-accent border-accent/30',
+              )}
+            >
+              <Crown size={14} />
+              {probe.isPrimary
+                ? t('probesPage.detail.demoteToPrimary', 'Demote to secondary')
+                : t('probesPage.detail.promoteToPrimary', 'Promote to primary')}
+            </button>
+          )}
           <button
             onClick={() => void handleCommand('rescan')}
             className="btn-secondary flex items-center gap-1.5 text-sm"

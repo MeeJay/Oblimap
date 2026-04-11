@@ -22,6 +22,7 @@ import permissionSetsRoutes from './permissionSets.routes';
 import systemRoutes from './system.routes';
 import vendorRulesRoutes from './vendorRules.routes';
 import macVendorsRoutes from './macVendors.routes';
+import tunnelRoutes from './tunnel.routes';
 
 const router = Router();
 
@@ -58,6 +59,7 @@ tenantRouter.use('/profile', profileRoutes);
 tenantRouter.use('/teams', teamsRoutes);
 tenantRouter.use('/admin', importExportRoutes);
 tenantRouter.use('/admin/smtp-servers', smtpServerRoutes);
+tenantRouter.use('/tunnel', tunnelRoutes);
 
 router.use('/', tenantRouter);
 

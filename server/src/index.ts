@@ -6,7 +6,8 @@ import { db } from './db';
 import { config } from './config';
 import { logger } from './utils/logger';
 import { authService } from './services/auth.service';
-import { setProbeServiceIO, probeService } from './services/probe.service';
+import { setProbeServiceIO, probeService, cleanupDedupCache } from './services/probe.service';
+import { tunnelService } from './services/tunnel.service';
 import { setLiveAlertIO } from './services/liveAlert.service';
 import { obligateService } from './services/obligate.service';
 
@@ -55,6 +56,8 @@ async function main() {
     try {
       await probeService.cleanupUninstalledProbes();
       await probeService.cleanupStuckUpdating();
+      cleanupDedupCache();
+      await tunnelService.cleanupStaleTunnels();
     } catch (err) {
       logger.error(err, 'Probe cleanup job failed');
     }

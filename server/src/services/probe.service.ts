@@ -17,6 +17,17 @@ export function setProbeServiceIO(io: SocketIOServer): void {
   _io = io;
 }
 
+/** Check if a probe is connected via WebSocket (lazy import to avoid circular deps) */
+function isProbeWsConnected(probeId: number): boolean {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { isProbeConnected } = require('../socket');
+    return isProbeConnected(probeId);
+  } catch {
+    return false;
+  }
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export interface DiscoveredDevice {
@@ -52,6 +63,7 @@ export interface ProbePushResponse {
   };
   latestVersion: string | null;
   command: string | null;
+  role?: 'primary' | 'secondary';
 }
 
 // ─── Row Helpers ─────────────────────────────────────────────────────────────
@@ -92,6 +104,7 @@ function rowToProbe(row: Record<string, unknown>): Probe {
       ? (row.updating_since as Date).toISOString()
       : null,
     scanConfigOverride: (row.scan_config_override as boolean | undefined) ?? true,
+    isPrimary: (row.is_primary as boolean | undefined) ?? false,
     approvedBy: (row.approved_by as number | null) ?? null,
     approvedAt: row.approved_at
       ? (row.approved_at as Date).toISOString()
@@ -113,6 +126,68 @@ function rowToApiKey(row: Record<string, unknown>): ProbeApiKey {
       : null,
     createdAt: (row.created_at as Date).toISOString(),
   };
+}
+
+// ─── Dedup Cache ────────────────────────────────────────────────────────────
+// When multiple probes scan the same site, they may report identical changes.
+// The dedup cache suppresses duplicate Socket.io events and alerts within a TTL.
+// Exception: IP_CONFLICT_DETECTED events are NEVER deduplicated.
+
+interface DedupEntry {
+  ts: number;
+  probeId: number;
+  isPrimary: boolean;
+}
+
+const dedupCache = new Map<string, DedupEntry>();
+const DEDUP_TTL_MS = 60_000;
+
+function dedupKey(tenantId: number, siteId: number, mac: string | null, changeType: string): string {
+  return `${tenantId}:${siteId}:${mac ?? 'null'}:${changeType}`;
+}
+
+/**
+ * Check if an event should be suppressed by dedup.
+ * Returns true if the event should be SKIPPED (already reported within TTL).
+ * MAC/IP conflict events (changeType='conflict') are never suppressed.
+ */
+function shouldDedup(
+  tenantId: number,
+  siteId: number,
+  mac: string | null,
+  changeType: string,
+  probeId: number,
+  isPrimary: boolean,
+): boolean {
+  if (changeType === 'conflict') return false; // Never dedup conflicts
+
+  const key = dedupKey(tenantId, siteId, mac, changeType);
+  const existing = dedupCache.get(key);
+  const now = Date.now();
+
+  if (existing && now - existing.ts < DEDUP_TTL_MS) {
+    // Already reported within TTL
+    if (isPrimary && !existing.isPrimary) {
+      // Primary takes precedence — update cache but don't skip
+      dedupCache.set(key, { ts: now, probeId, isPrimary });
+      return false;
+    }
+    return true; // Skip duplicate
+  }
+
+  // Not in cache or expired — process and cache
+  dedupCache.set(key, { ts: now, probeId, isPrimary });
+  return false;
+}
+
+/** Cleanup expired entries — called periodically */
+export function cleanupDedupCache(): void {
+  const now = Date.now();
+  for (const [key, entry] of dedupCache) {
+    if (now - entry.ts > DEDUP_TTL_MS) {
+      dedupCache.delete(key);
+    }
+  }
 }
 
 /** Normalize MAC to uppercase colon-separated "AA:BB:CC:DD:EE:FF" */
@@ -270,6 +345,7 @@ async function processDevices(
   siteName: string,
   devices: DiscoveredDevice[],
   probeMac: string | null,
+  isProbePrimary = false,
 ): Promise<void> {
   const now = new Date();
   const updatedItemIds: number[] = [];
@@ -378,13 +454,16 @@ async function processDevices(
         updatedItemIds.push(existingItem.id as number);
 
         if (existingItem.status !== status) {
-          _io
-            ?.to(`tenant:${tenantId}:admin`)
-            .emit(SOCKET_EVENTS.ITEM_STATUS_CHANGED, {
-              itemId: existingItem.id,
-              status,
-              siteId,
-            });
+          const changeType = status === 'online' ? 'online' : 'offline';
+          if (!shouldDedup(tenantId, siteId, mac, changeType, probeId, isProbePrimary)) {
+            _io
+              ?.to(`tenant:${tenantId}:admin`)
+              .emit(SOCKET_EVENTS.ITEM_STATUS_CHANGED, {
+                itemId: existingItem.id,
+                status,
+                siteId,
+              });
+          }
         }
       } else {
         // New device discovered
@@ -424,16 +503,18 @@ async function processDevices(
           await db('probes').where({ id: probeId }).update({ ip, updated_at: now }).catch(() => {});
         }
 
-        _io
-          ?.to(`tenant:${tenantId}:admin`)
-          .emit(SOCKET_EVENTS.NEW_DEVICE_DISCOVERED, {
-            itemId,
-            ip,
-            mac,
-            siteId,
-            vendor,
-            deviceType,
-          });
+        if (!shouldDedup(tenantId, siteId, mac, 'new', probeId, isProbePrimary)) {
+          _io
+            ?.to(`tenant:${tenantId}:admin`)
+            .emit(SOCKET_EVENTS.NEW_DEVICE_DISCOVERED, {
+              itemId,
+              ip,
+              mac,
+              siteId,
+              vendor,
+              deviceType,
+            });
+        }
 
         // Notification: new device found on this site
         void notificationService.sendForSite(tenantId, siteGroupId, {
@@ -603,6 +684,35 @@ class ProbeService {
     // Register/update probe UUID with Obligate for cross-app linking (non-blocking, idempotent)
     obligateService.registerDeviceLink(probeUuid, `/probes/${probe.id}`).catch(() => {});
 
+    // ── Primary auto-election ──
+    // If this probe is approved, assigned to a site, and no primary exists for that site,
+    // auto-promote this probe. If the current primary has been offline > 5 min, promote too.
+    if ((probe.status as string) === 'approved' && probe.site_id) {
+      const currentPrimary = await db('probes')
+        .where({ site_id: probe.site_id, tenant_id: tenantId, is_primary: true })
+        .first();
+
+      if (!currentPrimary) {
+        // No primary — promote this probe
+        await db('probes').where({ id: probe.id as number }).update({ is_primary: true });
+        probe.is_primary = true;
+        logger.info({ probeId: probe.id, siteId: probe.site_id }, 'Auto-promoted probe to primary (no existing primary)');
+      } else if (
+        currentPrimary.id !== probe.id &&
+        currentPrimary.last_seen_at &&
+        (now.getTime() - new Date(currentPrimary.last_seen_at as string).getTime()) > 5 * 60 * 1000
+      ) {
+        // Current primary has been offline > 5 min — promote this probe
+        await db('probes').where({ id: currentPrimary.id as number }).update({ is_primary: false });
+        await db('probes').where({ id: probe.id as number }).update({ is_primary: true });
+        probe.is_primary = true;
+        logger.info(
+          { probeId: probe.id, oldPrimaryId: currentPrimary.id, siteId: probe.site_id },
+          'Auto-promoted probe to primary (old primary offline > 5min)',
+        );
+      }
+    }
+
     const probeStatus = probe.status as string;
     const scanConfig = (() => {
       const v = probe.scan_config;
@@ -627,6 +737,7 @@ class ProbeService {
         (site?.name as string | null) ?? `Site #${probe.site_id as number}`,
         payload.discoveredDevices,
         payload.probeMac ? normalizeMac(payload.probeMac) : null,
+        Boolean(probe.is_primary),
       ).catch((err) => logger.error({ err }, 'Device processing failed'));
 
       // Process network flows if present
@@ -705,6 +816,7 @@ class ProbeService {
       config: effectiveConfig,
       latestVersion,
       command,
+      role: (probe.is_primary as boolean) ? 'primary' as const : 'secondary' as const,
     };
   }
 
@@ -740,12 +852,12 @@ class ProbeService {
     const rows = await db('probes')
       .where({ tenant_id: tenantId })
       .orderBy('created_at', 'asc');
-    return rows.map(rowToProbe);
+    return rows.map((r) => ({ ...rowToProbe(r), wsConnected: isProbeWsConnected(r.id as number) }));
   }
 
   async getProbe(tenantId: number, id: number): Promise<Probe | null> {
     const row = await db('probes').where({ id, tenant_id: tenantId }).first();
-    return row ? rowToProbe(row) : null;
+    return row ? { ...rowToProbe(row), wsConnected: isProbeWsConnected(id) } : null;
   }
 
   async updateProbe(
@@ -757,6 +869,7 @@ class ProbeService {
       scanIntervalSeconds: number;
       scanConfig: ProbeScanConfig;
       scanConfigOverride: boolean;
+      isPrimary: boolean;
     }>,
   ): Promise<Probe | null> {
     const patch: Record<string, unknown> = { updated_at: new Date() };
@@ -768,9 +881,96 @@ class ProbeService {
       patch.scan_config = JSON.stringify(updates.scanConfig);
     if (updates.scanConfigOverride !== undefined)
       patch.scan_config_override = updates.scanConfigOverride;
+    if (updates.isPrimary !== undefined) {
+      patch.is_primary = updates.isPrimary;
+      // If promoting to primary, demote any existing primary on the same site
+      if (updates.isPrimary) {
+        const probe = await db('probes').where({ id, tenant_id: tenantId }).first('site_id');
+        if (probe?.site_id) {
+          await db('probes')
+            .where({ site_id: probe.site_id, tenant_id: tenantId, is_primary: true })
+            .whereNot({ id })
+            .update({ is_primary: false });
+        }
+      }
+    }
 
     await db('probes').where({ id, tenant_id: tenantId }).update(patch);
+
+    // If probe is WS-connected, push config update immediately
+    const { isProbeConnected, sendToProbe } = await import('../socket');
+    if (isProbeConnected(id)) {
+      const updatedProbe = await this.getProbe(tenantId, id);
+      if (updatedProbe) {
+        const { PROBE_WS_EVENTS } = await import('@oblimap/shared');
+        // Rebuild effective config and push
+        const effectiveConfig = await this.buildEffectiveConfig(tenantId, id);
+        if (effectiveConfig) {
+          sendToProbe(id, PROBE_WS_EVENTS.CONFIG_UPDATE, {
+            status: updatedProbe.status,
+            config: effectiveConfig,
+            latestVersion: this.getProbeVersion().version,
+            command: null,
+          });
+        }
+      }
+    }
+
     return this.getProbe(tenantId, id);
+  }
+
+  /** Build the effective config for a probe (used by both HTTP push and WS config push) */
+  async buildEffectiveConfig(tenantId: number, probeId: number): Promise<ProbePushResponse['config'] | null> {
+    const probe = await db('probes').where({ id: probeId, tenant_id: tenantId }).first();
+    if (!probe) return null;
+
+    const scanConfig = (() => {
+      const v = probe.scan_config;
+      if (!v) return { excludedSubnets: [], extraSubnets: [] };
+      return (typeof v === 'string' ? JSON.parse(v) : v) as ProbeScanConfig;
+    })();
+
+    let flowEnabled = false;
+    if (probe.site_id) {
+      try {
+        const siteSettings = await settingsService.resolveForSite(tenantId, probe.site_id as number);
+        const v = siteSettings.flowAnalysisEnabled?.value;
+        flowEnabled = v === true || v === 'true';
+      } catch { /* ignore */ }
+    }
+
+    const useScanConfigOverride = (probe.scan_config_override as boolean | undefined) ?? true;
+
+    if (useScanConfigOverride) {
+      return {
+        scanIntervalSeconds: (probe.scan_interval_seconds as number) ?? 300,
+        excludedSubnets: scanConfig.excludedSubnets ?? [],
+        extraSubnets: scanConfig.extraSubnets ?? [],
+        portScanEnabled: scanConfig.portScanEnabled ?? false,
+        portScanPorts: scanConfig.portScanPorts ?? [],
+        flowAnalysisEnabled: flowEnabled,
+      };
+    }
+
+    const siteGroupId = probe.site_id
+      ? ((await db('sites').where({ id: probe.site_id }).first('group_id'))?.group_id as number | null) ?? null
+      : null;
+
+    const resolved = await settingsService.resolveForProbe(
+      tenantId,
+      probeId,
+      (probe.site_id as number | null) ?? null,
+      siteGroupId,
+    );
+
+    return {
+      scanIntervalSeconds: (resolved.scanIntervalSeconds.value as number) ?? 300,
+      excludedSubnets: (resolved.excludedSubnets.value as string[] | string) ? (Array.isArray(resolved.excludedSubnets.value) ? resolved.excludedSubnets.value as string[] : JSON.parse(resolved.excludedSubnets.value as string)) : [],
+      extraSubnets: (resolved.extraSubnets.value as string[] | string) ? (Array.isArray(resolved.extraSubnets.value) ? resolved.extraSubnets.value as string[] : JSON.parse(resolved.extraSubnets.value as string)) : [],
+      portScanEnabled: (resolved.portScanEnabled.value as boolean) ?? false,
+      portScanPorts: (resolved.portScanPorts.value as number[] | string) ? (Array.isArray(resolved.portScanPorts.value) ? resolved.portScanPorts.value as number[] : JSON.parse(resolved.portScanPorts.value as string)) : [],
+      flowAnalysisEnabled: flowEnabled,
+    };
   }
 
   async approveProbe(tenantId: number, id: number, approvedBy: number): Promise<Probe | null> {
@@ -798,10 +998,23 @@ class ProbeService {
   }
 
   async sendCommand(tenantId: number, id: number, command: string): Promise<void> {
+    // Store in DB for HTTP fallback
     await db('probes').where({ id, tenant_id: tenantId }).update({
       pending_command: command,
       updated_at: new Date(),
     });
+
+    // If probe is WS-connected, deliver instantly and clear pending_command
+    const { isProbeConnected, sendToProbe } = await import('../socket');
+    if (isProbeConnected(id)) {
+      const { PROBE_WS_EVENTS } = await import('@oblimap/shared');
+      sendToProbe(id, PROBE_WS_EVENTS.COMMAND, { command });
+      await db('probes').where({ id, tenant_id: tenantId }).update({
+        pending_command: null,
+        ...(command === 'uninstall' ? { uninstall_commanded_at: new Date() } : {}),
+        ...(command === 'update' ? { updating_since: new Date() } : {}),
+      });
+    }
   }
 
   async deleteProbe(tenantId: number, id: number): Promise<void> {
@@ -827,6 +1040,20 @@ class ProbeService {
       .where({ tenant_id: tenantId })
       .whereIn('id', ids)
       .update({ pending_command: command, updated_at: new Date() });
+
+    // Deliver instantly to WS-connected probes
+    const { isProbeConnected: isConn, sendToProbe: sendTo } = await import('../socket');
+    const { PROBE_WS_EVENTS: PWS } = await import('@oblimap/shared');
+    for (const id of ids) {
+      if (isConn(id)) {
+        sendTo(id, PWS.COMMAND, { command });
+        await db('probes').where({ id, tenant_id: tenantId }).update({
+          pending_command: null,
+          ...(command === 'uninstall' ? { uninstall_commanded_at: new Date() } : {}),
+          ...(command === 'update' ? { updating_since: new Date() } : {}),
+        });
+      }
+    }
   }
 
   // ── Cleanup Jobs ──────────────────────────────────────────────────────────

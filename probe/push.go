@@ -233,15 +233,13 @@ func normalizeMacGo(mac string) string {
 	return string(result)
 }
 
-// doPush performs one full scan+push cycle. Returns the next interval in seconds.
-func doPush() int {
+// doScan performs a full network scan and returns the PushBody payload.
+// This is shared between doPush() (HTTP) and wsMainLoop() (WebSocket).
+func doScan() PushBody {
 	scanStart := time.Now()
 
-	// Discover subnets
 	subnets := discoverSubnets(cfg.ScanIntervalSeconds)
 
-	// Apply extra/excluded from config (we'll get these from server response later,
-	// but use whatever we cached in cfg last time)
 	var scannedSubnets []string
 	var devices []DiscoveredDevice
 
@@ -257,8 +255,6 @@ func doPush() int {
 	scanDurationMs := time.Since(scanStart).Milliseconds()
 
 	// Inject the probe itself into the discovered devices list.
-	// The probe's own IP is never in its ARP table, so it would be missing
-	// or have no MAC — which breaks the isProbe matching on the server side.
 	myMac := probeMac()
 	if myMac != "" {
 		myIP := probeLocalIP()
@@ -286,16 +282,14 @@ func doPush() int {
 	log.Printf("Scan complete: %d devices in %d subnets (%dms)",
 		len(devices), len(scannedSubnets), scanDurationMs)
 
-	// Collect network flows if enabled by server config
 	var discoveredFlows []FlowEntry
 	if cachedFlowAnalysisEnabled {
 		discoveredFlows = collectFlows()
 	}
 
-	// Collect all private IPv4 addresses from all interfaces
 	allIPs := probeLocalIPs()
 
-	body := PushBody{
+	return PushBody{
 		Hostname:          hostname(),
 		ProbeVersion:      ProbeVersion,
 		OSInfo:            osInfo(),
@@ -306,6 +300,26 @@ func doPush() int {
 		ScannedSubnets:    scannedSubnets,
 		ScanDurationMs:    scanDurationMs,
 	}
+}
+
+// applyPushResponse updates local config from the server's push/config response.
+func applyPushResponse(pushResp PushResponse) {
+	if pushResp.Config.ScanIntervalSeconds > 0 {
+		cfg.ScanIntervalSeconds = pushResp.Config.ScanIntervalSeconds
+	}
+	cachedExcluded = pushResp.Config.ExcludedSubnets
+	cachedExtra = pushResp.Config.ExtraSubnets
+	cachedPortScanEnabled = pushResp.Config.PortScanEnabled
+	if pushResp.Config.PortScanPorts != nil {
+		cachedPortScanPorts = pushResp.Config.PortScanPorts
+	}
+	cachedFlowAnalysisEnabled = pushResp.Config.FlowAnalysisEnabled
+	saveConfig()
+}
+
+// doPush performs one full scan+push cycle via HTTP. Returns the next interval in seconds.
+func doPush() int {
+	body := doScan()
 
 	payload, err := json.Marshal(body)
 	if err != nil {
@@ -348,26 +362,14 @@ func doPush() int {
 		return cfg.ScanIntervalSeconds
 	}
 
-	// Process command (one-shot, delivered before version check)
+	// Process command (one-shot)
 	if pushResp.Command != "" {
 		log.Printf("Received command: %s", pushResp.Command)
 		handleCommand(pushResp.Command, pushResp.Config.ScanIntervalSeconds)
 		return cfg.ScanIntervalSeconds
 	}
 
-	// Apply config from server
-	if pushResp.Config.ScanIntervalSeconds > 0 {
-		cfg.ScanIntervalSeconds = pushResp.Config.ScanIntervalSeconds
-	}
-	// Store excluded/extra subnets and port scan config for next scan
-	cachedExcluded = pushResp.Config.ExcludedSubnets
-	cachedExtra = pushResp.Config.ExtraSubnets
-	cachedPortScanEnabled = pushResp.Config.PortScanEnabled
-	if pushResp.Config.PortScanPorts != nil {
-		cachedPortScanPorts = pushResp.Config.PortScanPorts
-	}
-	cachedFlowAnalysisEnabled = pushResp.Config.FlowAnalysisEnabled
-	saveConfig()
+	applyPushResponse(pushResp)
 
 	// Check for update
 	if pushResp.LatestVersion != "" && isStrictlyNewer(pushResp.LatestVersion, ProbeVersion) {

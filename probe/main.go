@@ -109,13 +109,23 @@ func mainLoop() {
 	log.Printf("Oblimap Probe %s starting (UUID: %s)", ProbeVersion, cfg.DeviceUUID)
 
 	// Check for a newer version before entering the scan loop.
-	// On Unix: atomic binary replace + re-exec (same PID).
-	// On Windows: downloads MSI, writes a detached batch script, exits — MSI
-	// stops the service, installs the new version, restarts the service.
 	checkForUpdate()
 
+	// Try WebSocket persistent connection first.
+	// The probe must be registered via HTTP first (wsAvailable checks this).
+	// Do one HTTP push to ensure registration, then switch to WS.
+	log.Printf("Performing initial HTTP push for registration...")
+	doPush()
+
+	if wsAvailable() {
+		log.Printf("Switching to WebSocket persistent connection")
+		wsMainLoop() // Blocks, reconnects internally. Only returns on unrecoverable error.
+		log.Printf("WebSocket loop exited, falling back to HTTP polling")
+	}
+
+	// HTTP polling fallback
+	log.Printf("Using HTTP polling mode")
 	for {
-		// Backoff
 		if cfg.BackoffUntil > 0 && time.Now().UnixMilli() < cfg.BackoffUntil {
 			wait := time.Until(time.UnixMilli(cfg.BackoffUntil))
 			log.Printf("Backing off for %v", wait.Round(time.Second))

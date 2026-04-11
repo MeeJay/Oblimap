@@ -39,3 +39,22 @@ export const SOCKET_EVENTS = {
 } as const;
 
 export type SocketEvent = typeof SOCKET_EVENTS[keyof typeof SOCKET_EVENTS];
+
+/**
+ * Probe WebSocket namespace events (/probe).
+ * Used for persistent WS connections between probes and server.
+ */
+export const PROBE_WS_EVENTS = {
+  // Probe → Server
+  SCAN_RESULT: 'probe:scan_result',
+  HEARTBEAT: 'probe:heartbeat',
+  TUNNEL_READY: 'probe:tunnel_ready',
+  TUNNEL_ERROR: 'probe:tunnel_error',
+
+  // Server → Probe
+  HEARTBEAT_ACK: 'probe:heartbeat_ack',
+  CONFIG_UPDATE: 'server:config_update',
+  COMMAND: 'server:command',
+  TUNNEL_OPEN: 'server:tunnel_open',
+  TUNNEL_CLOSE: 'server:tunnel_close',
+} as const;
