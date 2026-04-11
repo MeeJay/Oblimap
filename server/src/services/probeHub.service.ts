@@ -38,6 +38,18 @@ const tunnelCallbacks = new Map<string, {
   timeout: ReturnType<typeof setTimeout>;
 }>();
 
+/** Tunnel data WebSocket connections (tunnelId → WebSocket from probe) */
+const tunnelDataWs = new Map<string, WebSocket>();
+
+export function getTunnelDataWs(tunnelId: string): WebSocket | undefined {
+  return tunnelDataWs.get(tunnelId);
+}
+
+export function registerTunnelDataWs(tunnelId: string, ws: WebSocket): void {
+  tunnelDataWs.set(tunnelId, ws);
+  ws.on('close', () => tunnelDataWs.delete(tunnelId));
+}
+
 // ─── Public API ─────────────────────────────────────────────────────────────
 
 export function isProbeConnected(probeId: number): boolean {

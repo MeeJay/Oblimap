@@ -12,7 +12,7 @@ import { setProbeServiceIO, probeService, cleanupDedupCache } from './services/p
 import { tunnelService } from './services/tunnel.service';
 import { setLiveAlertIO } from './services/liveAlert.service';
 import { obligateService } from './services/obligate.service';
-import { registerProbeWs } from './services/probeHub.service';
+import { registerProbeWs, registerTunnelDataWs } from './services/probeHub.service';
 
 async function main() {
   // 1. Run pending migrations
@@ -95,7 +95,7 @@ async function main() {
       probeWss.handleUpgrade(request, socket, head, (ws) => {
         if (tunnelMatch) {
           logger.info({ tunnelId: tunnelMatch[1], probeId: probe.id }, 'Tunnel WS upgraded');
-          ws.emit('tunnel_ws', tunnelMatch[1], ws);
+          registerTunnelDataWs(tunnelMatch[1], ws);
         } else {
           logger.info({ probeId: probe.id, probeUuid }, 'Probe WS upgraded successfully');
           registerProbeWs(ws, probe.id as number, tenantId, probeUuid, apiKey.id as number);

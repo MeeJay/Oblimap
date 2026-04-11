@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Loader2, CheckCircle, AlertTriangle, Unplug, Globe } from 'lucide-react';
+import { X, Loader2, CheckCircle, AlertTriangle, Unplug, Globe, ExternalLink } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
 import { tunnelApi } from '../../api/tunnel.api';
@@ -150,14 +150,28 @@ export default function TunnelDialog({ siteId, targetIp, targetPort, probes, onC
               </div>
 
               {isWebPort && (
-                <p className="text-xs text-text-muted">
-                  {t('tunnel.webPortInfo', 'This is a web port. The tunnel is relaying HTTP traffic through the probe.')}
-                </p>
+                <div className="space-y-2">
+                  <a
+                    href={`/api/tunnel/${tunnel.id}/proxy/`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-primary inline-flex items-center gap-1.5 text-sm"
+                  >
+                    <ExternalLink size={14} />
+                    {t('tunnel.openInBrowser', 'Open in browser')}
+                  </a>
+                  <p className="text-xs text-text-muted">
+                    {t('tunnel.webPortInfo', 'Web interface at {ip}:{port} is accessible through this probe tunnel.', {
+                      ip: targetIp,
+                      port: targetPort,
+                    })}
+                  </p>
+                </div>
               )}
 
               {!isWebPort && (
                 <p className="text-xs text-text-muted">
-                  {t('tunnel.tcpInfo', 'Tunnel is active. TCP traffic to {ip}:{port} is being relayed through the probe.', {
+                  {t('tunnel.tcpInfo', 'TCP tunnel to {ip}:{port} is active through the probe. SSH terminal support coming soon.', {
                     ip: targetIp,
                     port: targetPort,
                   })}

@@ -1,8 +1,9 @@
+import net from 'net';
 import { randomUUID } from 'crypto';
 import { db } from '../db';
 import { logger } from '../utils/logger';
 import type { Tunnel, TunnelStatus } from '@oblimap/shared';
-import { isProbeConnected, sendToProbe, getConnectedProbes, waitForTunnelResponse } from './probeHub.service';
+import { isProbeConnected, sendToProbe, getConnectedProbes, waitForTunnelResponse, getTunnelDataWs } from './probeHub.service';
 import { AppError } from '../middleware/errorHandler';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -11,6 +12,68 @@ const TUNNEL_OPEN_TIMEOUT_MS = 15_000;
 const TUNNEL_INACTIVITY_TTL_MS = 30 * 60 * 1000; // 30 min
 const MAX_TUNNELS_PER_USER = 5;
 const MAX_TUNNELS_PER_TENANT = 20;
+
+// ─── Local TCP relay per tunnel ─────────────────────────────────────────────
+// Each active tunnel gets a local TCP server on a random port.
+// Browser requests to /api/tunnel/:id/proxy are forwarded to this local port,
+// which relays through the probe's tunnel WS to the target device.
+
+const localServers = new Map<string, { server: net.Server; port: number }>();
+
+/** Get the local proxy port for a tunnel (used by the HTTP proxy route). */
+export function getTunnelLocalPort(tunnelId: string): number | null {
+  return localServers.get(tunnelId)?.port ?? null;
+}
+
+/** Start a local TCP relay for a tunnel. */
+function startLocalRelay(tunnelId: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const srv = net.createServer((clientSocket) => {
+      const tunnelWs = getTunnelDataWs(tunnelId);
+      if (!tunnelWs || tunnelWs.readyState !== 1) {
+        clientSocket.destroy();
+        return;
+      }
+
+      // Relay: local TCP client ↔ tunnel WS ↔ probe ↔ target
+      clientSocket.on('data', (chunk) => {
+        try { tunnelWs.send(chunk); } catch { clientSocket.destroy(); }
+      });
+
+      tunnelWs.on('message', (data: Buffer | ArrayBuffer | Buffer[]) => {
+        try {
+          const buf = Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer);
+          clientSocket.write(buf);
+        } catch { /* ignore */ }
+      });
+
+      clientSocket.on('close', () => {
+        // Don't close the WS — other connections may reuse the tunnel
+      });
+      clientSocket.on('error', () => clientSocket.destroy());
+
+      tunnelWs.on('close', () => clientSocket.destroy());
+    });
+
+    srv.listen(0, '127.0.0.1', () => {
+      const addr = srv.address() as net.AddressInfo;
+      localServers.set(tunnelId, { server: srv, port: addr.port });
+      logger.info({ tunnelId, localPort: addr.port }, 'Tunnel local TCP relay started');
+      resolve(addr.port);
+    });
+
+    srv.on('error', reject);
+  });
+}
+
+/** Stop a local TCP relay. */
+function stopLocalRelay(tunnelId: string): void {
+  const entry = localServers.get(tunnelId);
+  if (entry) {
+    entry.server.close();
+    localServers.delete(tunnelId);
+  }
+}
 
 // ─── Row Helper ─────────────────────────────────────────────────────────────
 
@@ -113,8 +176,18 @@ export const tunnelService = {
     // Mark as active
     await db('tunnels').where({ id: tunnelId }).update({ status: 'active' });
 
+    // Wait a moment for the probe's tunnel data WS to connect, then start local relay
+    await new Promise((r) => setTimeout(r, 1000));
+    let localPort: number | null = null;
+    try {
+      localPort = await startLocalRelay(tunnelId);
+    } catch (err) {
+      logger.error({ err, tunnelId }, 'Failed to start local TCP relay');
+    }
+
     const row = await db('tunnels').where({ id: tunnelId }).first();
-    return rowToTunnel(row!);
+    const tunnel = rowToTunnel(row!);
+    return { ...tunnel, localPort } as Tunnel & { localPort: number | null };
   },
 
   /**
@@ -180,6 +253,7 @@ export const tunnelService = {
       });
     }
 
+    stopLocalRelay(tunnelId);
     await db('tunnels').where({ id: tunnelId }).update({
       status: 'closed',
       closed_at: new Date(),

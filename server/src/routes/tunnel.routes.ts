@@ -1,9 +1,10 @@
+import http from 'http';
 import { Router } from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { requireAuth } from '../middleware/auth';
 import { requireTenant } from '../middleware/tenant';
 import { requireRole } from '../middleware/rbac';
-import { tunnelService } from '../services/tunnel.service';
+import { tunnelService, getTunnelLocalPort } from '../services/tunnel.service';
 import { AppError } from '../middleware/errorHandler';
 
 const router = Router();
@@ -41,6 +42,66 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     next(err);
   }
 });
+
+// ALL /api/tunnel/:id/proxy/* — HTTP reverse proxy through the tunnel
+// This is the core feature: browser requests are forwarded through the probe to the target device.
+router.all('/:id/proxy', proxyHandler);
+router.all('/:id/proxy/*', proxyHandler);
+
+function proxyHandler(req: Request, res: Response, next: NextFunction): void {
+  const tunnelId = req.params.id;
+  const localPort = getTunnelLocalPort(tunnelId);
+
+  if (!localPort) {
+    next(new AppError(404, 'Tunnel not active or no local relay'));
+    return;
+  }
+
+  // Build the path to forward (strip /api/tunnel/:id/proxy prefix)
+  const proxyPath = req.params[0] ? `/${req.params[0]}` : '/';
+  const qs = req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '';
+
+  const fwdHeaders: Record<string, string> = {};
+  for (const [key, val] of Object.entries(req.headers)) {
+    if (typeof val === 'string' && key !== 'cookie' && key !== 'authorization') {
+      fwdHeaders[key] = val;
+    }
+  }
+  fwdHeaders['host'] = (req.headers['x-tunnel-host'] as string) || (req.headers.host as string) || 'localhost';
+  fwdHeaders['connection'] = 'close';
+
+  const options: http.RequestOptions = {
+    hostname: '127.0.0.1',
+    port: localPort,
+    path: proxyPath + qs,
+    method: req.method,
+    headers: fwdHeaders,
+  };
+
+  const proxyReq = http.request(options, (proxyRes) => {
+    // Copy status and headers
+    const headers = { ...proxyRes.headers };
+    // Remove security headers that would break iframe/new-tab display
+    delete headers['x-frame-options'];
+    delete headers['content-security-policy'];
+
+    res.writeHead(proxyRes.statusCode ?? 200, headers);
+    proxyRes.pipe(res);
+  });
+
+  proxyReq.on('error', (err) => {
+    if (!res.headersSent) {
+      res.status(502).json({ error: `Proxy error: ${err.message}` });
+    }
+  });
+
+  // Pipe request body for POST/PUT/PATCH
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    req.pipe(proxyReq);
+  } else {
+    proxyReq.end();
+  }
+}
 
 // GET /api/tunnel — list active tunnels
 router.get('/', async (req: Request, res: Response, next: NextFunction) => {
