@@ -32,7 +32,14 @@ export default function TunnelDialog({ siteId, targetIp, targetPort, probes, onC
       setTunnel(newTunnel);
       toast.success(t('tunnel.opened', 'Tunnel opened'));
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to open tunnel';
+      // Extract error message from Axios response or fallback to Error.message
+      let msg = 'Failed to open tunnel';
+      if (err && typeof err === 'object' && 'response' in err) {
+        const resp = (err as { response?: { data?: { error?: string; message?: string } } }).response;
+        msg = resp?.data?.error ?? resp?.data?.message ?? msg;
+      } else if (err instanceof Error) {
+        msg = err.message;
+      }
       setError(msg);
       toast.error(msg);
     } finally {

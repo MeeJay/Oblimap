@@ -4,6 +4,7 @@ import { logger } from '../utils/logger';
 import { PROBE_WS_EVENTS } from '@oblimap/shared';
 import type { Tunnel, TunnelStatus } from '@oblimap/shared';
 import { isProbeConnected, sendToProbe, getConnectedProbes } from '../socket';
+import { AppError } from '../middleware/errorHandler';
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -52,7 +53,7 @@ export const tunnelService = {
       .count('* as cnt')
       .first();
     if ((userCount?.cnt as number) >= MAX_TUNNELS_PER_USER) {
-      throw new Error(`Maximum ${MAX_TUNNELS_PER_USER} concurrent tunnels per user`);
+      throw new AppError(429, `Maximum ${MAX_TUNNELS_PER_USER} concurrent tunnels per user`);
     }
 
     const tenantCount = await db('tunnels')
@@ -61,7 +62,7 @@ export const tunnelService = {
       .count('* as cnt')
       .first();
     if ((tenantCount?.cnt as number) >= MAX_TUNNELS_PER_TENANT) {
-      throw new Error(`Maximum ${MAX_TUNNELS_PER_TENANT} concurrent tunnels per tenant`);
+      throw new AppError(429, `Maximum ${MAX_TUNNELS_PER_TENANT} concurrent tunnels per tenant`);
     }
 
     // Auto-select probe if not specified
@@ -70,11 +71,11 @@ export const tunnelService = {
     }
 
     if (!probeId) {
-      throw new Error('No available probe for this site');
+      throw new AppError(400, 'No available probe for this site. Ensure at least one probe is approved and assigned.');
     }
 
     if (!isProbeConnected(probeId)) {
-      throw new Error('Selected probe is not connected via WebSocket (tunnels require WS)');
+      throw new AppError(503, 'Selected probe is not connected via WebSocket. Tunnels require probes running v2.0+ with WS support. Rebuild and redeploy the probe binary.');
     }
 
     // Create tunnel record
@@ -106,7 +107,7 @@ export const tunnelService = {
         error_message: result.error,
         closed_at: new Date(),
       });
-      throw new Error(`Tunnel failed: ${result.error}`);
+      throw new AppError(502, `Tunnel failed: ${result.error}`);
     }
 
     // Mark as active
