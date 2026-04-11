@@ -49,52 +49,63 @@ async function main() {
   const TUNNEL_WS_PATH = /^\/api\/probe\/ws\/tunnel\/([a-f0-9-]+)\/?$/;
 
   server.on('upgrade', async (request, socket, head) => {
-    const pathname = new URL(request.url ?? '', `http://${request.headers.host}`).pathname;
+    try {
+      const pathname = new URL(request.url ?? '', `http://${request.headers.host}`).pathname;
 
-    // Only handle /api/probe/ws* — let Socket.io handle /socket.io/
-    if (!PROBE_WS_PATH.test(pathname) && !TUNNEL_WS_PATH.test(pathname)) return;
+      // Only handle /api/probe/ws* — let Socket.io handle /socket.io/
+      if (!PROBE_WS_PATH.test(pathname) && !TUNNEL_WS_PATH.test(pathname)) return;
 
-    const apiKeyValue = request.headers['x-api-key'] as string | undefined;
-    const probeUuid = request.headers['x-probe-uuid'] as string | undefined;
+      logger.info({ pathname }, 'Probe WS upgrade request received');
 
-    if (!apiKeyValue || !probeUuid) {
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-      socket.destroy();
-      return;
-    }
+      const apiKeyValue = request.headers['x-api-key'] as string | undefined;
+      const probeUuid = request.headers['x-probe-uuid'] as string | undefined;
 
-    // Validate API key
-    const apiKey = await db('probe_api_keys').where({ key: apiKeyValue }).first();
-    if (!apiKey) {
-      socket.write('HTTP/1.1 401 Invalid API key\r\n\r\n');
-      socket.destroy();
-      return;
-    }
-
-    const tenantId = apiKey.tenant_id as number;
-
-    // Find probe
-    const probe = await db('probes')
-      .where({ uuid: probeUuid, tenant_id: tenantId })
-      .first();
-
-    if (!probe) {
-      socket.write('HTTP/1.1 404 Probe not registered\r\n\r\n');
-      socket.destroy();
-      return;
-    }
-
-    // Upgrade to WebSocket
-    const tunnelMatch = pathname.match(TUNNEL_WS_PATH);
-    probeWss.handleUpgrade(request, socket, head, (ws) => {
-      if (tunnelMatch) {
-        // Tunnel data channel — just emit as a raw WS for the tunnel service to pair
-        ws.emit('tunnel_ws', tunnelMatch[1], ws);
-      } else {
-        // Control channel
-        registerProbeWs(ws, probe.id as number, tenantId, probeUuid, apiKey.id as number);
+      if (!apiKeyValue || !probeUuid) {
+        logger.warn('Probe WS upgrade rejected: missing X-API-Key or X-Probe-UUID');
+        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+        socket.destroy();
+        return;
       }
-    });
+
+      // Validate API key
+      const apiKey = await db('probe_api_keys').where({ key: apiKeyValue }).first();
+      if (!apiKey) {
+        logger.warn({ probeUuid }, 'Probe WS upgrade rejected: invalid API key');
+        socket.write('HTTP/1.1 401 Invalid API key\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+
+      const tenantId = apiKey.tenant_id as number;
+
+      // Find probe
+      const probe = await db('probes')
+        .where({ uuid: probeUuid, tenant_id: tenantId })
+        .first();
+
+      if (!probe) {
+        logger.warn({ probeUuid, tenantId }, 'Probe WS upgrade rejected: probe not registered');
+        socket.write('HTTP/1.1 404 Probe not registered\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+
+      // Upgrade to WebSocket
+      const tunnelMatch = pathname.match(TUNNEL_WS_PATH);
+      probeWss.handleUpgrade(request, socket, head, (ws) => {
+        if (tunnelMatch) {
+          logger.info({ tunnelId: tunnelMatch[1], probeId: probe.id }, 'Tunnel WS upgraded');
+          ws.emit('tunnel_ws', tunnelMatch[1], ws);
+        } else {
+          logger.info({ probeId: probe.id, probeUuid }, 'Probe WS upgraded successfully');
+          registerProbeWs(ws, probe.id as number, tenantId, probeUuid, apiKey.id as number);
+        }
+      });
+    } catch (err) {
+      logger.error(err, 'Probe WS upgrade handler error');
+      try { socket.write('HTTP/1.1 500 Internal Server Error\r\n\r\n'); } catch { /* ignore */ }
+      socket.destroy();
+    }
   });
 
   // 7. Listen
