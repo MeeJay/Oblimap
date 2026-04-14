@@ -101,9 +101,12 @@ func checkForUpdate() {
 }
 
 func mainLoop() {
-	// Resolve device UUID
-	if cfg.DeviceUUID == "" {
-		cfg.DeviceUUID = resolveUUID()
+	// Resolve device UUID using the hardware-derived priority chain.
+	// Always re-resolve on startup — if the hardware UUID changed (rare), we
+	// pick up the new one; otherwise the resolver returns the same stable value.
+	resolved := resolveDeviceUUID(cfg.DeviceUUID)
+	if resolved != cfg.DeviceUUID {
+		cfg.DeviceUUID = resolved
 		saveConfig()
 	}
 	log.Printf("Oblimap Probe %s starting (UUID: %s)", ProbeVersion, cfg.DeviceUUID)
