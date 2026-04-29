@@ -4,20 +4,25 @@ interface UiState {
   sidebarOpen: boolean;
   sidebarWidth: number;
   sidebarFloating: boolean;
+  sidebarCollapsed: boolean;
   addProbeModalOpen: boolean;
 
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
   setSidebarWidth: (width: number) => void;
   toggleSidebarFloating: () => void;
+  toggleSidebarCollapsed: () => void;
   openAddProbeModal: () => void;
   closeAddProbeModal: () => void;
 }
 
 const MIN_SIDEBAR_WIDTH = 220;
 const MAX_SIDEBAR_WIDTH = 600;
-const STORAGE_KEY_WIDTH    = 'ov-sidebar-width';
-const STORAGE_KEY_FLOATING = 'ov-sidebar-floating';
+const STORAGE_KEY_WIDTH     = 'ov-sidebar-width';
+const STORAGE_KEY_FLOATING  = 'ov-sidebar-floating';
+// Per design system §6.3, sidebar collapsed state syncs across Obli* apps.
+// All apps use the same key so flipping collapsed in one app carries to others.
+const STORAGE_KEY_COLLAPSED = 'oblimap:groupPanelCollapsed';
 
 function loadSavedWidth(): number {
   try {
@@ -40,10 +45,19 @@ function loadSavedFloating(): boolean {
   }
 }
 
+function loadSavedCollapsed(): boolean {
+  try {
+    return localStorage.getItem(STORAGE_KEY_COLLAPSED) === 'true';
+  } catch {
+    return false;
+  }
+}
+
 export const useUiStore = create<UiState>((set) => ({
   sidebarOpen: true,
   sidebarWidth: loadSavedWidth(),
   sidebarFloating: loadSavedFloating(),
+  sidebarCollapsed: loadSavedCollapsed(),
   addProbeModalOpen: false,
 
   toggleSidebar: () => set((s) => ({ sidebarOpen: !s.sidebarOpen })),
@@ -54,6 +68,11 @@ export const useUiStore = create<UiState>((set) => ({
     const next = !s.sidebarFloating;
     try { localStorage.setItem(STORAGE_KEY_FLOATING, String(next)); } catch { /* ignore */ }
     return { sidebarFloating: next };
+  }),
+  toggleSidebarCollapsed: () => set((s) => {
+    const next = !s.sidebarCollapsed;
+    try { localStorage.setItem(STORAGE_KEY_COLLAPSED, String(next)); } catch { /* ignore */ }
+    return { sidebarCollapsed: next };
   }),
   setSidebarWidth: (width) => {
     const clamped = Math.max(MIN_SIDEBAR_WIDTH, Math.min(MAX_SIDEBAR_WIDTH, width));

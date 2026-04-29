@@ -148,16 +148,32 @@ async function proxyHandler(req: Request, res: Response, _next: NextFunction): P
       const statusMatch = lines[0]?.match(/^HTTP\/\d\.\d\s+(\d+)/);
       const statusCode = statusMatch ? parseInt(statusMatch[1], 10) : 200;
 
+      // Strip headers that would cross the origin trust boundary.
+      // A tunneled LAN device must NOT be able to write state to the Oblimap
+      // management origin (oblimap.binaryhearts.me). Set-Cookie is the main
+      // risk: responses from the target arrive via our origin, so any cookies
+      // they set would apply to the Oblimap domain, allowing a compromised
+      // LAN device to manipulate the admin's cookie jar (feature flags,
+      // tenant preferences, etc.). We also strip other origin-scoped security
+      // directives that would incorrectly apply to Oblimap.
+      const SKIP_RESPONSE_HEADERS = new Set([
+        'x-frame-options',          // display blocker — we want to iframe/open-tab
+        'content-security-policy',  // display blocker
+        'transfer-encoding',        // we're buffering, so this is invalid
+        'set-cookie',               // origin trust violation (see above)
+        'set-cookie2',              // legacy variant
+        'strict-transport-security', // would apply to oblimap, not the target
+        'public-key-pins',           // HPKP — would apply to oblimap
+        'public-key-pins-report-only',
+      ]);
+
       const headers: Record<string, string> = {};
       for (let i = 1; i < lines.length; i++) {
         const colonIdx = lines[i].indexOf(':');
         if (colonIdx > 0) {
           const key = lines[i].substring(0, colonIdx).trim().toLowerCase();
           const val = lines[i].substring(colonIdx + 1).trim();
-          // Skip headers that would block display in iframe/new-tab
-          if (key === 'x-frame-options' || key === 'content-security-policy') continue;
-          // Skip transfer-encoding since we're buffering
-          if (key === 'transfer-encoding') continue;
+          if (SKIP_RESPONSE_HEADERS.has(key)) continue;
           headers[key] = val;
         }
       }

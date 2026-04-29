@@ -46,13 +46,25 @@ export default {
         primary: 'rgb(var(--c-primary) / <alpha-value>)',
       },
       fontFamily: {
+        // Two-tier stack per Obli design system §11.
+        // - sans:    body, nav, table rows, form fields
+        // - display: page titles, hero KPIs (≥ 24 px). Opt-in via class.
+        // - mono:    counts, IDs, timestamps, version strings
         sans: [
+          'Inter',
           '-apple-system',
           'BlinkMacSystemFont',
           'Segoe UI',
           'Noto Sans',
           'Helvetica',
           'Arial',
+          'sans-serif',
+        ],
+        display: [
+          'Rajdhani',
+          'Inter',
+          '-apple-system',
+          'Segoe UI',
           'sans-serif',
         ],
         mono: ['JetBrains Mono', 'Fira Code', 'Consolas', 'monospace'],

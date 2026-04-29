@@ -8,8 +8,46 @@
    (e.g. bg-accent/30) works: Tailwind emits  rgb(var(--c-X) / 0.3)
    ───────────────────────────────────────────────────────────────────────────── */
 
-/* ── Modern UI (default) ──────────────────────────────────────────────────── */
+/* ── Obli Operator (default) — Obli design system v1, teinte bleu nuit + accent vert Oblimap.
+       Tokens forwarded by Obligate (shared/src/themes.ts → OBLI_OPERATOR_THEME).
+       Spec: D:\Mockup\obli-design-system.md §2 + §10. ────────────────────────── */
 :root,
+[data-theme="obli-operator"] {
+  --c-bg-primary:            11 13 26;
+  --c-bg-secondary:          19 23 40;
+  --c-bg-tertiary:           24 28 48;
+  --c-bg-hover:              29 34 56;
+  --c-bg-active:             34 39 64;
+
+  /* Borders kept subtle on a dark base — Tailwind's `border-border` resolves
+     to `rgb(var(--c-border))` (no automatic alpha), so the value here MUST
+     be a near-bg shade rather than 255/255/255. */
+  --c-border:                42 48 72;
+  --c-border-light:          62 70 100;
+
+  --c-text-primary:          240 244 252;
+  --c-text-secondary:        180 188 215;
+  --c-text-muted:            130 140 175;
+
+  --c-status-up:             30 221 138;
+  --c-status-up-bg:          12 40 26;
+  --c-status-down:           107 115 153;
+  --c-status-down-bg:        24 28 48;
+  --c-status-pending:        79 123 255;
+  --c-status-pending-bg:     16 24 56;
+  --c-status-maintenance:    140 147 182;
+  --c-status-maintenance-bg: 19 23 40;
+  --c-status-paused:         75 82 115;
+  --c-status-paused-bg:      19 23 40;
+
+  /* Per-app accent — Oblimap green (per design system §1, perApp.oblimap). */
+  --c-accent:                30 221 138;
+  --c-accent-hover:          92 240 168;
+  --c-accent-dark:           20 165 105;
+  --c-primary:               30 221 138;
+}
+
+/* ── Modern UI (legacy) ───────────────────────────────────────────────────── */
 [data-theme="modern"] {
   --c-bg-primary:            13 17 23;
   --c-bg-secondary:          22 27 34;

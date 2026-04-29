@@ -11,6 +11,7 @@ interface UserRow {
   is_active: boolean;
   created_at: Date;
   updated_at: Date;
+  avatar?: string | null;
 }
 
 function rowToUser(row: UserRow): User {
@@ -27,6 +28,7 @@ function rowToUser(row: UserRow): User {
     foreignSource: (row as any).foreign_source ?? null,
     foreignId: (row as any).foreign_id ?? null,
     foreignSourceUrl: (row as any).foreign_source_url ?? null,
+    avatar: row.avatar ?? null,
   };
 }
 

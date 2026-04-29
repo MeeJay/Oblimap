@@ -28,6 +28,7 @@ interface UserRow {
   foreign_source?: string | null;
   foreign_id?: number | null;
   foreign_source_url?: string | null;
+  avatar?: string | null;
 }
 
 export function rowToUser(row: UserRow): User {
@@ -49,6 +50,7 @@ export function rowToUser(row: UserRow): User {
     foreignId: row.foreign_id ?? null,
     foreignSourceUrl: row.foreign_source_url ?? null,
     hasPassword: row.password_hash !== null && row.password_hash !== '',
+    avatar: row.avatar ?? null,
   };
 }
 

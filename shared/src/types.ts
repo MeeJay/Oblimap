@@ -4,7 +4,7 @@ import type { SettingsKey } from './settingsDefaults';
 // ============================================
 // App / Theme
 // ============================================
-export type AppTheme = 'modern' | 'neon';
+export type AppTheme = 'obli-operator' | 'modern' | 'neon';
 
 export interface UserPreferences {
   toastEnabled: boolean;
@@ -51,6 +51,8 @@ export interface User {
   foreignSourceUrl?: string | null;
   /** True when user has no local password (SSO-only account) */
   hasPassword?: boolean;
+  /** Profile picture URL — synced from Obligate via SSO. */
+  avatar?: string | null;
 }
 
 export interface UserWithPassword extends User {

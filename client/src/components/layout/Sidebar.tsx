@@ -14,8 +14,10 @@ import {
   Building2,
   Database,
   ChevronDown,
-  PanelLeft,
-  PanelLeftClose,
+  ChevronsLeft,
+  ChevronsRight,
+  Pin,
+  PinOff,
   Plus,
   Inbox,
   Shuffle,
@@ -67,6 +69,11 @@ export function Sidebar() {
   const location = useLocation();
   const { user, isAdmin } = useAuthStore();
   const { anonymize } = useAnonymize();
+  const {
+    sidebarFloating, toggleSidebarFloating,
+    sidebarCollapsed, toggleSidebarCollapsed,
+    openAddProbeModal,
+  } = useUiStore();
 
   const topNavItems: NavItem[] = [
     { label: t('nav.dashboard'), path: '/',            icon: <LayoutDashboard size={18} /> },
@@ -87,8 +94,6 @@ export function Sidebar() {
     { label: t('nav.notifications'), path: '/notifications', icon: <Bell size={18} />, adminOnly: true },
     { label: t('nav.settings'),      path: '/settings',      icon: <Settings size={18} />, adminOnly: true },
   ];
-
-  const { sidebarFloating, toggleSidebarFloating, openAddProbeModal } = useUiStore();
 
   const [search, setSearch] = useState('');
   const [adminMenuOpen, setAdminMenuOpen] = usePersisted<boolean>('sidebar:admin-open', true);
@@ -111,35 +116,136 @@ export function Sidebar() {
 
   const renderNavLink = (item: NavItem) => {
     if (item.adminOnly && !admin) return null;
-    const isActive = location.pathname === item.path;
+    const isActive = location.pathname === item.path
+      || (item.path !== '/' && location.pathname.startsWith(item.path + '/'));
     return (
       <Link
         key={item.path}
         to={item.path}
         className={cn(
-          'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+          'flex items-center gap-3 rounded-md px-3 py-2 text-[14px] transition-colors',
           isActive
-            ? 'bg-bg-active text-text-primary'
+            ? 'bg-accent/12 text-accent'
             : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary',
         )}
       >
         {item.icon}
-        {item.label}
+        <span className="flex-1">{item.label}</span>
       </Link>
     );
   };
 
+  const displayedUsername = anonymize(
+    user?.displayName || (user?.username?.startsWith('og_') ? user.username.slice(3) : user?.username),
+    'username',
+  );
+
+  // ── Collapsed mode (Obli Design v1) ─────────────────────────────────
+  // 64 px icon-only column. Navigation items keep their tooltips, the
+  // device tree + search are hidden, the user avatar + logout stay
+  // visible at the bottom.
+  if (sidebarCollapsed && !sidebarFloating) {
+    const allItems = [
+      ...topNavItems,
+      ...(admin ? adminNavItems : []),
+      ...bottomNavItems,
+    ].filter(item => !item.adminOnly || admin);
+    return (
+      <aside className="flex h-full w-16 shrink-0 flex-col bg-bg-secondary">
+        <div className="flex h-9 shrink-0 items-center justify-center pt-2">
+          <button
+            onClick={toggleSidebarCollapsed}
+            title={t('nav.expandSidebar', 'Expand sidebar')}
+            className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+          >
+            <ChevronsRight size={16} />
+          </button>
+        </div>
+
+        {admin && (
+          <div className="px-2 pt-1">
+            <button
+              onClick={openAddProbeModal}
+              title={t('nav.addProbe')}
+              className="flex h-10 w-full items-center justify-center rounded-md bg-accent/12 text-accent transition-colors hover:bg-accent/20"
+            >
+              <Plus size={16} />
+            </button>
+          </div>
+        )}
+
+        <nav className="flex-1 overflow-y-auto px-2 pt-3 space-y-1">
+          {allItems.map((item) => {
+            const isActive = location.pathname === item.path
+              || (item.path !== '/' && location.pathname.startsWith(item.path + '/'));
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                title={item.label}
+                className={cn(
+                  'flex h-10 w-full items-center justify-center rounded-md transition-colors',
+                  isActive
+                    ? 'bg-accent/12 text-accent'
+                    : 'text-text-muted hover:bg-bg-hover hover:text-text-primary',
+                )}
+              >
+                {item.icon}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* User row pinned bottom — avatar from Obligate */}
+        <div className="p-2 space-y-1">
+          <Link
+            to="/profile"
+            title={displayedUsername}
+            className={cn(
+              'flex h-10 w-full items-center justify-center rounded-md transition-colors',
+              location.pathname === '/profile'
+                ? 'bg-bg-active text-text-primary'
+                : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary',
+            )}
+          >
+            {user?.avatar ? (
+              <img src={user.avatar} alt="" className="w-6 h-6 rounded-full object-cover" />
+            ) : (
+              <UserCircle size={18} />
+            )}
+          </Link>
+          <button
+            onClick={() => useAuthStore.getState().logout()}
+            title={t('nav.signOut')}
+            className="flex h-10 w-full items-center justify-center rounded-md text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+          >
+            <LogOut size={18} />
+          </button>
+        </div>
+      </aside>
+    );
+  }
+
   return (
-    <aside className="flex h-full w-full flex-col border-r border-border bg-bg-secondary">
-      {/* Logo + float/pin toggle */}
-      <div className="flex h-14 shrink-0 items-center justify-between border-b border-border px-4">
-        <Link to="/" className="flex items-center gap-2">
-          <img src="/logo.svg" alt="Oblimap" className="h-10 w-48 object-contain object-left" />
-        </Link>
+    <aside className="flex h-full w-full flex-col bg-bg-secondary">
+
+      {/* Sidebar head — collapse + float/pin toggles only. The logo and
+          tenant selector live in the topbar (Header.tsx) so they remain
+          visible when the sidebar is collapsed or floating. Spec §4.2. */}
+      <div className="flex h-9 shrink-0 items-center justify-end px-3 pt-2">
         <div className="flex items-center gap-1">
+          {!sidebarFloating && (
+            <button
+              onClick={toggleSidebarCollapsed}
+              title={t('nav.collapseSidebar', 'Collapse sidebar')}
+              className="rounded p-1.5 text-text-muted transition-colors hover:bg-bg-hover hover:text-text-primary"
+            >
+              <ChevronsLeft size={15} />
+            </button>
+          )}
           <button
             onClick={toggleSidebarFloating}
-            title={sidebarFloating ? t('nav.pinSidebar') : t('nav.floatSidebar')}
+            title={sidebarFloating ? t('nav.pinSidebar', 'Pin sidebar') : t('nav.floatSidebar', 'Float sidebar (auto-hide)')}
             className={cn(
               'p-1.5 rounded transition-colors',
               sidebarFloating
@@ -147,37 +253,37 @@ export function Sidebar() {
                 : 'text-text-muted hover:text-text-primary hover:bg-bg-hover',
             )}
           >
-            {sidebarFloating ? <PanelLeft size={15} /> : <PanelLeftClose size={15} />}
+            {sidebarFloating ? <PinOff size={15} /> : <Pin size={15} />}
           </button>
         </div>
       </div>
 
-      {/* Add Probe button */}
+      {/* Add Probe button — accent pill, matches mockup §4.2 */}
       {admin && (
-        <div className="px-3 pb-1 pt-2">
+        <div className="px-3 pt-2">
           <button
             onClick={openAddProbeModal}
-            className="flex w-full items-center justify-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+            className="flex w-full items-center justify-center gap-2 rounded-md bg-accent/12 hover:bg-accent/20 px-3 py-2 text-[13px] font-medium text-accent transition-colors"
           >
-            <Plus size={14} />
+            <Plus size={15} />
             {t('nav.addProbe')}
           </button>
         </div>
       )}
 
       {/* Search */}
-      <div className="px-3 py-3">
+      <div className="px-3 py-2.5">
         <input
           type="text"
           placeholder={t('common.search')}
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="w-full rounded-md border border-border bg-bg-tertiary px-3 py-1.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-accent"
+          className="w-full rounded-md bg-bg-tertiary px-3 py-2 text-[13px] text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-accent"
         />
       </div>
 
       {/* Main nav */}
-      <nav className="px-2 pb-1">
+      <nav className="px-2 pb-1 space-y-0.5">
         {topNavItems.map(renderNavLink)}
       </nav>
 
@@ -193,9 +299,9 @@ export function Sidebar() {
           if (filtered.length === 0) return null;
           return (
             <div className="mt-1">
-              <div className="flex items-center gap-1.5 px-2 py-1 text-xs text-text-muted">
+              <div className="flex items-center gap-1.5 px-2 py-1 text-[11px] font-mono uppercase tracking-[0.12em] text-text-muted">
                 <Inbox size={11} />
-                <span className="uppercase tracking-wide font-medium">Ungrouped</span>
+                <span>Ungrouped</span>
               </div>
               {filtered.map((site) => {
                 const isActive = location.pathname === `/sites/${site.id}`;
@@ -244,12 +350,15 @@ export function Sidebar() {
             className="flex w-full items-center gap-2 px-3 py-1.5 text-text-muted hover:text-text-secondary transition-colors"
           >
             <div className="flex-1 h-px bg-border" />
+            <span className="text-[10px] font-mono uppercase tracking-[0.14em]">
+              {t('nav.administration', 'Administration')}
+            </span>
             <ChevronDown size={12} className={cn('transition-transform duration-200', !adminMenuOpen && '-rotate-90')} />
             <div className="flex-1 h-px bg-border" />
           </button>
 
           {adminMenuOpen && (
-            <nav className="px-2 pb-1">
+            <nav className="px-2 pb-1 space-y-0.5">
               {adminNavItems.map(renderNavLink)}
             </nav>
           )}
@@ -257,12 +366,12 @@ export function Sidebar() {
       )}
 
       {/* Bottom nav (notifications, settings) */}
-      <nav className="border-t border-border p-2 pb-0">
+      <nav className="p-2 pb-0 space-y-0.5">
         {bottomNavItems.map(renderNavLink)}
       </nav>
 
-      {/* User section */}
-      <div className="border-t border-border p-2">
+      {/* User section — avatar from Obligate (per design system §4.2 footer) */}
+      <div className="p-2 mt-1 space-y-0.5">
         <Link
           to="/profile"
           className={cn(
@@ -272,13 +381,24 @@ export function Sidebar() {
               : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary',
           )}
         >
-          <UserCircle size={18} />
-          <span className="truncate flex-1">{anonymize(user?.displayName || (user?.username?.startsWith('og_') ? user.username.slice(3) : user?.username), 'username')}</span>
+          {user?.avatar ? (
+            <img src={user.avatar} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
+          ) : (
+            <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 bg-accent/20 text-accent text-[11px] font-semibold">
+              {(displayedUsername?.[0] ?? '?').toUpperCase()}
+            </div>
+          )}
+          <div className="flex flex-col min-w-0 flex-1">
+            <span className="truncate text-[13px] font-medium text-text-primary">{displayedUsername}</span>
+            {user?.role && (
+              <span className="truncate text-[10px] font-mono uppercase tracking-wider text-text-muted">
+                {user.role}
+              </span>
+            )}
+          </div>
         </Link>
         <button
-          onClick={() => {
-            useAuthStore.getState().logout();
-          }}
+          onClick={() => useAuthStore.getState().logout()}
           className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
         >
           <LogOut size={18} />
