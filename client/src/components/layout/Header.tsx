@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@/store/authStore';
+import { useTenantStore } from '@/store/tenantStore';
 import { useSocketStore } from '@/store/socketStore';
 import { appConfigApi } from '@/api/appConfig.api';
 import { useAnonymize } from '@/utils/anonymize';
@@ -67,11 +68,24 @@ export function Header() {
   const goApp = (app: AppEntry) => {
     if (app.type === CURRENT_APP) return;
     const target = connectedApps.find(c => c.appType === app.type);
-    if (target) window.location.href = `${target.baseUrl}/auth/sso-redirect`;
+    if (!target) return;
+
+    // Cross-app tenant handoff: append the current tenant slug so the target
+    // app lands on the same workspace if the user has access there.
+    // Spec: D:\Mockup\obli-cross-app-tenant-handoff.md §2.
+    const { tenants, currentTenantId } = useTenantStore.getState();
+    const tenantSlug = tenants.find(t => t.id === currentTenantId)?.slug;
+
+    const url = new URL(`${target.baseUrl}/auth/sso-redirect`);
+    if (tenantSlug) url.searchParams.set('tenant', tenantSlug);
+    window.location.href = url.toString();
   };
 
   const username = user?.username ?? '';
-  const displayedUsername = anonymize(username.startsWith('og_') ? username.slice(3) : username, 'username');
+  const cleanUsername = username.startsWith('og_') ? username.slice(3) : username;
+  // Prefer displayName for the top-right user pill; fall back to the cleaned
+  // username when the SSO assertion did not provide one.
+  const displayedName = anonymize(user?.displayName || cleanUsername, 'username');
 
   return (
     <header className="flex shrink-0 items-center gap-3 bg-bg-secondary px-4" style={{ height: 52 }}>
@@ -172,7 +186,7 @@ export function Header() {
               {user.avatar ? (
                 <img
                   src={user.avatar}
-                  alt={displayedUsername}
+                  alt={displayedName}
                   className="w-7 h-7 rounded-full object-cover"
                 />
               ) : (
@@ -180,10 +194,10 @@ export function Header() {
                   className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-semibold text-white"
                   style={{ background: 'linear-gradient(135deg, rgba(30,221,138,0.6), rgba(92,240,168,0.4))' }}
                 >
-                  {(displayedUsername?.[0] ?? '?').toUpperCase()}
+                  {(displayedName?.[0] ?? '?').toUpperCase()}
                 </div>
               )}
-              <span className="text-[13px] font-medium text-text-primary">{displayedUsername}</span>
+              <span className="text-[13px] font-medium text-text-primary">{displayedName}</span>
               <span className="text-[10px] font-mono uppercase tracking-wider text-accent pl-2 border-l border-border-light">
                 {user.role}
               </span>

@@ -9,6 +9,10 @@ declare module 'express-session' {
     role: string;
     currentTenantId: number;
     oauthState: string;
+    /** Cross-app tenant handoff — slug captured by /auth/sso-redirect, applied
+     *  in /auth/callback once the user comes back from Obligate, then cleared.
+     *  Spec: D:\Mockup\obli-cross-app-tenant-handoff.md */
+    requestedTenantSlug?: string;
   }
 }
 

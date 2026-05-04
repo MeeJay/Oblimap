@@ -135,10 +135,13 @@ export function Sidebar() {
     );
   };
 
-  const displayedUsername = anonymize(
-    user?.displayName || (user?.username?.startsWith('og_') ? user.username.slice(3) : user?.username),
-    'username',
-  );
+  const rawUsername = user?.username ?? '';
+  const cleanUsername = rawUsername.startsWith('og_') ? rawUsername.slice(3) : rawUsername;
+  // Reproduce the Obliview footer convention: the headline uses displayName
+  // (falling back to the cleaned username when missing); the sub-line shows
+  // `username · role` in mono.
+  const displayedName = anonymize(user?.displayName || cleanUsername, 'username');
+  const subLineUsername = anonymize(cleanUsername, 'username');
 
   // ── Collapsed mode (Obli Design v1) ─────────────────────────────────
   // 64 px icon-only column. Navigation items keep their tooltips, the
@@ -200,7 +203,7 @@ export function Sidebar() {
         <div className="p-2 space-y-1">
           <Link
             to="/profile"
-            title={displayedUsername}
+            title={displayedName}
             className={cn(
               'flex h-10 w-full items-center justify-center rounded-md transition-colors',
               location.pathname === '/profile'
@@ -370,39 +373,40 @@ export function Sidebar() {
         {bottomNavItems.map(renderNavLink)}
       </nav>
 
-      {/* User section — avatar from Obligate (per design system §4.2 footer) */}
+      {/* User section — Obliview-style footer: displayName headline + mono
+          `username · role` sub-line, avatar from Obligate. */}
       <div className="p-2 mt-1 space-y-0.5">
         <Link
           to="/profile"
           className={cn(
-            'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
+            'flex items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors',
             location.pathname === '/profile'
-              ? 'bg-bg-active text-text-primary'
-              : 'text-text-secondary hover:bg-bg-hover hover:text-text-primary',
+              ? 'bg-accent/10'
+              : 'hover:bg-bg-hover',
           )}
         >
           {user?.avatar ? (
             <img src={user.avatar} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
           ) : (
             <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 bg-accent/20 text-accent text-[11px] font-semibold">
-              {(displayedUsername?.[0] ?? '?').toUpperCase()}
+              {(displayedName?.[0] ?? '?').toUpperCase()}
             </div>
           )}
-          <div className="flex flex-col min-w-0 flex-1">
-            <span className="truncate text-[13px] font-medium text-text-primary">{displayedUsername}</span>
-            {user?.role && (
-              <span className="truncate text-[10px] font-mono uppercase tracking-wider text-text-muted">
-                {user.role}
-              </span>
-            )}
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-[13px] font-medium text-text-primary">
+              {displayedName}
+            </div>
+            <div className="truncate font-mono text-[10px] text-text-muted">
+              {subLineUsername} · {user?.role ?? ''}
+            </div>
           </div>
         </Link>
         <button
           onClick={() => useAuthStore.getState().logout()}
-          className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
+          className="mt-1 flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-[13px] text-text-secondary transition-colors hover:bg-bg-hover hover:text-text-primary"
         >
-          <LogOut size={18} />
-          {t('nav.signOut')}
+          <LogOut size={14} />
+          <span>{t('nav.signOut')}</span>
         </button>
       </div>
     </aside>
