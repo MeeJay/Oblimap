@@ -1,5 +1,8 @@
 import { useRef, useState, useEffect } from 'react';
 import { ChevronDown, Building2, Check } from 'lucide-react';
+// Building2 + Check still used inside the dropdown panel; the button itself
+// follows the Obli design system §13 pill pattern (mono "TENANT" label +
+// tenant name, no leading icon).
 import { useTranslation } from 'react-i18next';
 import { useTenantStore } from '@/store/tenantStore';
 import { useGroupStore } from '@/store/groupStore';
@@ -68,12 +71,14 @@ export function TenantSwitcher() {
         onClick={() => setOpen((v) => !v)}
         disabled={switching}
         className={cn(
-          'flex items-center gap-1.5 rounded-md border border-border bg-bg-tertiary px-2.5 py-1 text-sm text-text-primary transition-colors hover:bg-bg-hover',
+          'flex items-center gap-2 rounded-md bg-bg-hover px-3 py-1.5 text-[13px] text-text-primary font-medium transition-colors hover:bg-bg-active',
           switching && 'opacity-60 cursor-wait',
         )}
       >
-        <Building2 size={13} className="text-accent shrink-0" />
-        <span className="max-w-[120px] truncate font-medium">{currentTenant?.name ?? '…'}</span>
+        <span className="font-mono text-[11px] uppercase tracking-[0.06em] text-text-muted">
+          {t('tenant.label', 'Tenant')}
+        </span>
+        <span className="max-w-[140px] truncate tracking-[0.04em]">{currentTenant?.name ?? '…'}</span>
         <ChevronDown size={12} className={cn('text-text-muted transition-transform', open && 'rotate-180')} />
       </button>
 
