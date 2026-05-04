@@ -207,20 +207,29 @@ router.get('/callback', async (req, res) => {
     // Set tenant — cross-app handoff: prefer the tenant slug requested by the
     // source app when the user has access to a tenant with that slug.
     // Otherwise fall back to the first available tenant (existing behaviour).
-    // Spec: D:\Mockup\obli-cross-app-tenant-handoff.md §3.2.
+    //
+    // Platform admins (assertion.role === 'admin') have implicit access to
+    // every tenant — their access is NOT materialised in user_tenants, so the
+    // JOIN below would always miss for them. Detect them via the assertion
+    // (NOT the local user.role, which is set after) and skip the JOIN.
+    // Spec: D:\Mockup\obli-cross-app-tenant-handoff.md §3.2 + addendum
+    //       D:\Mockup\obli-cross-app-tenant-handoff-addendum-admin.md.
     let resolvedTenantId: number | null = null;
     const requestedSlug = req.session.requestedTenantSlug;
+    const isPlatformAdmin = assertion.role === 'admin';
     if (requestedSlug) {
-      const match = await db('tenants as t')
-        .join('user_tenants as ut', 'ut.tenant_id', 't.id')
-        .where({ 't.slug': requestedSlug, 'ut.user_id': localUserId })
-        .select('t.id')
-        .first() as { id: number } | undefined;
+      const match = isPlatformAdmin
+        ? (await db('tenants').where({ slug: requestedSlug }).select('id').first()) as { id: number } | undefined
+        : (await db('tenants as t')
+            .join('user_tenants as ut', 'ut.tenant_id', 't.id')
+            .where({ 't.slug': requestedSlug, 'ut.user_id': localUserId })
+            .select('t.id')
+            .first()) as { id: number } | undefined;
       if (match) {
         resolvedTenantId = match.id;
-        logger.info({ userId: localUserId, slug: requestedSlug }, 'Cross-app handoff: tenant matched');
+        logger.info({ userId: localUserId, slug: requestedSlug, isPlatformAdmin }, 'Cross-app handoff: tenant matched');
       } else {
-        logger.info({ userId: localUserId, slug: requestedSlug },
+        logger.info({ userId: localUserId, slug: requestedSlug, isPlatformAdmin },
           'Cross-app handoff: requested tenant not accessible, falling back');
       }
       // Always clear so the value does not leak into a subsequent login that
