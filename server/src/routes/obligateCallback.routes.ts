@@ -4,7 +4,6 @@ import { db } from '../db';
 import { obligateService } from '../services/obligate.service';
 import { tenantService } from '../services/tenant.service';
 import { appConfigService } from '../services/appConfig.service';
-import { permissionSetService } from '../services/permissionSet.service';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -115,7 +114,15 @@ router.get('/callback', async (req, res) => {
       obligateService.reportProvision(assertion.obligateUserId, localUserId).catch(() => {});
     }
 
-    // Sync tenants + capabilities from Obligate (every SSO login)
+    // Sync tenant memberships from Obligate (every SSO login).
+    //
+    // Note: we intentionally ignore `t.capabilities` from the assertion. The
+    // single source of truth for per-app capabilities is the team a user
+    // belongs to inside this app — teams already encode the same rights and
+    // applying both was confusing on the Obligate side (capability checkboxes
+    // coexisting with team selection meant nothing for users with no team and
+    // silently overwrote the team's own permissions otherwise). Capability
+    // checkboxes are also no longer exposed via /api/auth/app-info below.
     for (const t of assertion.tenants) {
       const tenant = await db('tenants').where({ slug: t.slug }).first() as { id: number } | undefined;
       if (tenant) {
@@ -123,18 +130,6 @@ router.get('/callback', async (req, res) => {
           .insert({ user_id: localUserId, tenant_id: tenant.id, role: t.role === 'admin' ? 'admin' : 'member' })
           .onConflict(['user_id', 'tenant_id'])
           .merge({ role: t.role === 'admin' ? 'admin' : 'member' });
-
-        if (t.capabilities?.length) {
-          const userTeamIds = await db('team_memberships')
-            .join('user_teams', 'user_teams.id', 'team_memberships.team_id')
-            .where({ 'team_memberships.user_id': localUserId, 'user_teams.tenant_id': tenant.id })
-            .pluck('team_memberships.team_id') as number[];
-          for (const teamId of userTeamIds) {
-            await db('team_permissions')
-              .where({ team_id: teamId })
-              .update({ capabilities: JSON.stringify(t.capabilities) });
-          }
-        }
       }
     }
 
@@ -355,16 +350,19 @@ router.get('/app-info', async (req, res) => {
       .select('id', 'name', 'slug')
       .orderBy('name') as Array<{ id: number; name: string; slug: string }>;
 
-    // Fetch permission sets
-    const permissionSets = await permissionSetService.getAll();
-
+    // Capabilities (a.k.a. permission sets) are intentionally NOT exposed
+    // here. Teams already encode per-tenant rights inside this app, and
+    // having Obligate display per-(app, tenant) capability checkboxes
+    // alongside the team selector created two conflicting sources of
+    // truth — without a team the checkboxes were meaningless (the user
+    // has no scoped access anyway), and with a team they silently
+    // overwrote the team's own permissions.
     res.json({
       success: true,
       data: {
         roles: ['admin', 'user'],
         teams: teams.map(t => ({ id: t.id, name: t.name, tenantSlug: t.tenant_slug, tenantName: t.tenant_name })),
         tenants: tenants.map(t => ({ slug: t.slug, name: t.name })),
-        permissionSets,
       },
     });
   } catch (err) {
