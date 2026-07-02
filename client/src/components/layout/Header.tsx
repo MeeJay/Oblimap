@@ -8,6 +8,7 @@ import { useSocketStore } from '@/store/socketStore';
 import { useAnonymize } from '@/utils/anonymize';
 import { NotificationCenter } from './NotificationCenter';
 import { TenantSwitcher } from './TenantSwitcher';
+import { Logo } from '@/components/Logo';
 import { cn } from '@/utils/cn';
 
 /** True when running inside the Oblimap native desktop app overlay. */
@@ -88,7 +89,7 @@ export function Header() {
       {/* Logo — always visible in the topbar so it (and the tenant selector
           right next to it) stay accessible regardless of sidebar state. */}
       <Link to="/" className="flex items-center gap-2 shrink-0">
-        <img src="/logo.svg" alt="Oblimap" className="h-8 w-auto max-w-[160px] object-contain" />
+        <Logo className="h-8 w-auto max-w-[160px] object-contain" />
       </Link>
 
       {/* Tenant selector — sits left of the app switcher, preserving the
