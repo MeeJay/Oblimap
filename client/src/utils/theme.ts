@@ -4,13 +4,28 @@ export { type AppTheme };
 
 const STORAGE_KEY = 'ov-theme';
 
-/** Apply a theme by setting data-theme on <html> and persisting it. */
-export function applyTheme(theme: AppTheme): void {
-  document.documentElement.dataset.theme = theme;
+/** All theme IDs this app knows how to render. */
+const KNOWN_THEMES: readonly AppTheme[] = ['obli-operator', 'obli-daylight', 'modern', 'neon'];
+
+/** Normalize any incoming value to a known theme, falling back to the default. */
+function normalizeTheme(theme: string): AppTheme {
+  return (KNOWN_THEMES as readonly string[]).includes(theme)
+    ? (theme as AppTheme)
+    : 'obli-operator';
+}
+
+/**
+ * Apply a theme by setting data-theme on <html> and persisting it.
+ * Accepts any string and falls back to 'obli-operator' on unknown IDs, so a
+ * future theme added to Obligate can never brick the app.
+ */
+export function applyTheme(theme: string): void {
+  const safe = normalizeTheme(theme);
+  document.documentElement.dataset.theme = safe;
   // obli-daylight is the only light theme — keep the `dark` class off for it.
-  document.documentElement.classList.toggle('dark', theme !== 'obli-daylight');
+  document.documentElement.classList.toggle('dark', safe !== 'obli-daylight');
   try {
-    localStorage.setItem(STORAGE_KEY, theme);
+    localStorage.setItem(STORAGE_KEY, safe);
   } catch {
     // localStorage unavailable
   }
@@ -20,7 +35,7 @@ export function applyTheme(theme: AppTheme): void {
 export function loadSavedTheme(): AppTheme {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved === 'obli-operator' || saved === 'obli-daylight' || saved === 'modern' || saved === 'neon') return saved;
+    if (saved) return normalizeTheme(saved);
   } catch {
     // ignore
   }

@@ -109,52 +109,58 @@
   --c-primary:               141 198 63;
 }
 
-/* ── Obli Daylight — light companion to Obli Operator: cards without borders,
-       depth via soft shadow, Inter/JetBrains Mono, Oblimap green accent tuned
-       for a white surface. Tokens forwarded by Obligate
-       (shared/src/themes.ts → OBLI_DAYLIGHT_THEME).
-       Spec: D:\Obligate\docs\obli-daylight-theme.md. ─────────────────────────── */
+/* ── Obli Daylight — light companion to Obli Operator (Nordic Mist revision).
+       Nord "Snow Storm" blue-gray surface + Polar Night text, depth via soft
+       shadow (no borders), Inter/JetBrains Mono. Only surfaces change vs
+       Operator — the Oblimap green accent is kept identical to preserve brand
+       identity. Tokens forwarded by Obligate (shared/src/themes.ts → OBLI_DAYLIGHT_THEME).
+       Spec: D:\Obligate\docs\obli-daylight-theme.md (Nordic Mist revision).
+
+       IMPORTANT: --c-bg-hover/-active and --c-border/-light MUST be plain RGB
+       triplets (no `R G B / A`). Tailwind always emits rgb(var(--x) / <alpha>),
+       so a stored alpha produces invalid CSS → dropped rule → thick black
+       borders app-wide. Use near-bg tones instead. ─────────────────────────── */
 [data-theme="obli-daylight"] {
-  --c-bg-primary:            250 251 253;   /* #fafbfd  page bg */
-  --c-bg-secondary:          255 255 255;   /* #ffffff  cards */
-  --c-bg-tertiary:           243 245 249;   /* #f3f5f9  input/toolbar */
-  --c-bg-hover:              15 23 42 / 0.04;
-  --c-bg-active:             15 23 42 / 0.07;
+  --c-bg-primary:            229 233 240;   /* #e5e9f0 — Snow Storm page bg */
+  --c-bg-secondary:          236 239 244;   /* #eceff4 — cards */
+  --c-bg-tertiary:           216 222 233;   /* #d8dee9 — inputs / toolbar / pill container */
+  --c-bg-hover:              222 227 236;   /* plain RGB — see note above */
+  --c-bg-active:             210 217 229;
 
-  --c-border:                232 236 243;   /* near-bg light border (border-border has no auto alpha) */
-  --c-border-light:          221 226 235;
+  --c-border:                212 220 231;
+  --c-border-light:          224 230 240;
 
-  --c-text-primary:          15 23 42;       /* slate-900 */
-  --c-text-secondary:        71 85 105;      /* slate-600 */
-  --c-text-muted:            148 163 184;    /* slate-400 */
+  --c-text-primary:          46 52 64;       /* #2e3440 — Polar Night */
+  --c-text-secondary:        76 86 106;      /* #4c566a */
+  --c-text-muted:            129 141 161;    /* #818da1 */
 
   --c-status-up:             16 163 96;
   --c-status-up-bg:          220 252 231;
   --c-status-down:           148 163 184;
-  --c-status-down-bg:        241 245 249;
+  --c-status-down-bg:        216 222 233;
   --c-status-pending:        37 99 235;
   --c-status-pending-bg:     219 234 254;
   --c-status-maintenance:    100 116 139;
-  --c-status-maintenance-bg: 241 245 249;
+  --c-status-maintenance-bg: 216 222 233;
   --c-status-paused:         148 163 184;
-  --c-status-paused-bg:      241 245 249;
+  --c-status-paused-bg:      216 222 233;
   --c-status-warning:        217 119 6;
   --c-status-critical:       220 38 38;
 
-  /* Per-app accent — Oblimap green-600 (obli-daylight-theme.md accents table). */
-  --c-accent:                22 163 74;      /* #16a34a */
-  --c-accent-hover:          34 197 94;      /* #22c55e */
-  --c-accent-dark:           21 128 61;      /* #15803d */
-  --c-accent-text:           255 255 255;
-  --c-primary:               22 163 74;
+  /* Accent kept identical to Obli Operator (Oblimap green) — Daylight retunes
+     surfaces only, not brand identity. */
+  --c-accent:                30 221 138;
+  --c-accent-hover:          92 240 168;
+  --c-accent-dark:           20 165 105;
+  --c-primary:               30 221 138;
 
-  --shadow-card: 0 1px 2px 0 rgba(15,23,42,0.04), 0 6px 24px -12px rgba(15,23,42,0.10);
+  --shadow-card: 0 1px 2px 0 rgba(46,52,64,0.03), 0 6px 24px -12px rgba(46,52,64,0.08);
   --shadow-glow: 0 0 0 1px rgb(var(--c-accent) / 0.18) inset, 0 8px 32px -12px rgb(var(--c-accent) / 0.22);
 }
 
 [data-theme="obli-daylight"] body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: #fafbfd;
+  background: #e5e9f0;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────
