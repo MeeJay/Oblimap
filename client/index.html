@@ -10,6 +10,26 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <!-- FOUC prevention: apply the saved theme before React boots so a light
+         theme doesn't flash the dark default (and vice-versa). Key = 'ov-theme'
+         (see client/src/utils/theme.ts). -->
+    <style>
+      [data-theme="obli-daylight"] body { background: #fafbfd; }
+    </style>
+    <script>
+      try {
+        var t = localStorage.getItem('ov-theme');
+        if (t === 'obli-operator' || t === 'obli-daylight' || t === 'modern' || t === 'neon') {
+          document.documentElement.dataset.theme = t;
+        } else {
+          document.documentElement.dataset.theme = 'obli-operator';
+        }
+        // Only the dark themes get the `dark` class; keep it off for the light one.
+        document.documentElement.classList.toggle('dark', t !== 'obli-daylight');
+      } catch (e) {
+        document.documentElement.dataset.theme = 'obli-operator';
+      }
+    </script>
   </head>
   <body class="bg-bg-primary text-text-primary">
     <div id="root"></div>

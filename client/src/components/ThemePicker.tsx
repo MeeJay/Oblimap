@@ -68,6 +68,66 @@ function OperatorPreviewSvg() {
   );
 }
 
+function DaylightPreviewSvg() {
+  // Obli Daylight: light companion to Obli Operator — soft-white surface, cards
+  // without borders (depth via subtle shadow), Oblimap green accent.
+  // Spec: D:\Obligate\docs\obli-daylight-theme.md.
+  return (
+    <svg viewBox="0 0 280 170" xmlns="http://www.w3.org/2000/svg" className="w-full rounded-md">
+      <rect width="280" height="170" fill="#fafbfd" rx="6" />
+      {/* Sidebar — no border, distinguished by white card fill */}
+      <rect x="0" y="0" width="60" height="170" fill="#ffffff" rx="6" />
+      <rect x="10" y="12" width="16" height="16" rx="3" fill="#16a34a" />
+      <rect x="31" y="15" width="22" height="5" rx="2" fill="#94a3b8" />
+      {[40, 62, 84, 106].map((y, i) => (
+        <g key={y}>
+          <rect x="7" y={y} width="46" height="16" rx="3"
+            fill={i === 0 ? 'rgba(15,23,42,0.05)' : 'transparent'} />
+          <rect x="13" y={y + 4} width="8" height="8" rx="2"
+            fill={i === 0 ? '#16a34a' : '#cbd5e1'} />
+          <rect x="25" y={y + 6} width={i === 0 ? 22 : 18} height="4" rx="2"
+            fill={i === 0 ? '#0f172a' : '#94a3b8'} />
+        </g>
+      ))}
+      {/* Top header */}
+      <rect x="61" y="0" width="219" height="28" fill="#ffffff" />
+      <rect x="70" y="8" width="50" height="12" rx="3" fill="#f3f5f9" />
+      <rect x="230" y="9" width="44" height="10" rx="4" fill="#f3f5f9" />
+      {/* Stats row — cards without borders, depth via fill */}
+      {[0, 1, 2, 3].map((i) => {
+        const colors = ['#16a34a', '#dc2626', '#d97706', '#2563eb'];
+        const labels = [68, 4, 2, 8];
+        const x = 70 + i * 52;
+        return (
+          <g key={i}>
+            <rect x={x} y="36" width="44" height="24" rx="4" fill="#ffffff" />
+            <rect x={x + 4} y="40" width="14" height="3" rx="1.5" fill="#94a3b8" />
+            <text x={x + 4} y="55" fill="#0f172a" fontSize="9" fontWeight="700"
+              fontFamily="'JetBrains Mono', monospace">
+              {labels[i]}
+            </text>
+            <circle cx={x + 38} cy="44" r="2" fill={colors[i]} />
+          </g>
+        );
+      })}
+      {/* Big card */}
+      <rect x="70" y="68" width="200" height="58" rx="4" fill="#ffffff" />
+      <rect x="78" y="76" width="50" height="5" rx="2" fill="#0f172a" />
+      <rect x="78" y="86" width="184" height="3" rx="1.5" fill="#eef1f6" />
+      <rect x="78" y="86" width="120" height="3" rx="1.5" fill="#16a34a" />
+      <rect x="78" y="96" width="184" height="3" rx="1.5" fill="#eef1f6" />
+      <rect x="78" y="96" width="80" height="3" rx="1.5" fill="#22c55e" />
+      <rect x="78" y="106" width="184" height="3" rx="1.5" fill="#eef1f6" />
+      <rect x="78" y="106" width="55" height="3" rx="1.5" fill="#d97706" />
+      {/* Bottom card */}
+      <rect x="70" y="132" width="200" height="30" rx="4" fill="#ffffff" />
+      <rect x="78" y="140" width="35" height="4" rx="2" fill="#0f172a" />
+      <rect x="78" y="150" width="90" height="3" rx="1.5" fill="#eef1f6" />
+      <rect x="78" y="150" width="55" height="3" rx="1.5" fill="#16a34a" />
+    </svg>
+  );
+}
+
 function ModernPreviewSvg() {
   return (
     <svg viewBox="0 0 280 170" xmlns="http://www.w3.org/2000/svg" className="w-full rounded-md">
@@ -281,6 +341,7 @@ function NeonPreviewSvg() {
 
 const THEMES: { id: AppTheme; label: string; Preview: () => JSX.Element }[] = [
   { id: 'obli-operator', label: 'Obli Operator', Preview: OperatorPreviewSvg },
+  { id: 'obli-daylight', label: 'Obli Daylight', Preview: DaylightPreviewSvg },
   { id: 'modern',        label: 'Modern UI',     Preview: ModernPreviewSvg },
   { id: 'neon',          label: 'Neon UI',       Preview: NeonPreviewSvg },
 ];

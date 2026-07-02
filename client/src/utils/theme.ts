@@ -7,6 +7,8 @@ const STORAGE_KEY = 'ov-theme';
 /** Apply a theme by setting data-theme on <html> and persisting it. */
 export function applyTheme(theme: AppTheme): void {
   document.documentElement.dataset.theme = theme;
+  // obli-daylight is the only light theme — keep the `dark` class off for it.
+  document.documentElement.classList.toggle('dark', theme !== 'obli-daylight');
   try {
     localStorage.setItem(STORAGE_KEY, theme);
   } catch {
@@ -18,7 +20,7 @@ export function applyTheme(theme: AppTheme): void {
 export function loadSavedTheme(): AppTheme {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved === 'obli-operator' || saved === 'modern' || saved === 'neon') return saved;
+    if (saved === 'obli-operator' || saved === 'obli-daylight' || saved === 'modern' || saved === 'neon') return saved;
   } catch {
     // ignore
   }
